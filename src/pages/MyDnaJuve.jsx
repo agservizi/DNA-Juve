@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFanArticleSubmission, getCategories, getPublishedArticles } from '@/lib/supabase'
-import { getSquadPlayers, getTeamMatches } from '@/lib/footballApi'
+import { getSquadPlayers, getTeamMatches, getVenueLabel } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -69,6 +69,107 @@ function formatOfficialMatchLabel(match, { includeScore = false } = {}) {
       : ''
 
   return `${home} vs ${away} • ${competition}${dateLabel ? ` • ${dateLabel}` : ''}${timeLabel ? ` • ${timeLabel}` : ''}${score}`
+}
+
+function getTeamDisplay(team, fallback = 'Squadra') {
+  return {
+    name: team?.shortName || team?.name || fallback,
+    crest: team?.crest || '',
+  }
+}
+
+function getMatchMeta(match) {
+  const kickoff = new Date(match.utcDate)
+  return {
+    competition: match.competition?.name || 'Competizione',
+    dateLabel: Number.isNaN(kickoff.getTime())
+      ? ''
+      : kickoff.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' }),
+    timeLabel: Number.isNaN(kickoff.getTime())
+      ? ''
+      : kickoff.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+    venueLabel: getVenueLabel(match),
+  }
+}
+
+function getCountdownParts(utcDate, referenceNow = Date.now()) {
+  const diff = new Date(utcDate).getTime() - referenceNow
+  if (Number.isNaN(diff) || diff <= 0) return null
+
+  const totalMinutes = Math.floor(diff / 60000)
+  const days = Math.floor(totalMinutes / (60 * 24))
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
+  const minutes = totalMinutes % 60
+  return { days, hours, minutes }
+}
+
+function MatchTeamBadge({ team, align = 'left' }) {
+  const [imageFailed, setImageFailed] = useState(false)
+  const showImage = team.crest && !imageFailed
+
+  if (showImage) {
+    return (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-black/10 bg-white p-1.5 shadow-sm">
+        <img
+          src={team.crest}
+          alt={team.name}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImageFailed(true)}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn(
+      'flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-black/10 bg-white text-[10px] font-black text-juve-black shadow-sm',
+      align === 'right' ? 'order-last' : ''
+    )}>
+      {team.name.slice(0, 2).toUpperCase()}
+    </div>
+  )
+}
+
+function MatchQuickCard({ match, countdown }) {
+  if (!match) return null
+
+  const home = getTeamDisplay(match.homeTeam, 'Casa')
+  const away = getTeamDisplay(match.awayTeam, 'Ospite')
+  const meta = getMatchMeta(match)
+  const finalScore = match.status === 'FINISHED'
+    ? `${match.score?.fullTime?.home ?? 0} - ${match.score?.fullTime?.away ?? 0}`
+    : null
+
+  return (
+    <div className="border border-juve-gold/40 bg-juve-black/[0.03] p-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+        <span>{meta.competition}</span>
+        {meta.dateLabel && <span>{meta.dateLabel}</span>}
+        {meta.timeLabel && <span>{meta.timeLabel}</span>}
+        {meta.venueLabel && <span>{meta.venueLabel}</span>}
+      </div>
+      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <MatchTeamBadge team={home} />
+          <span className="truncate text-sm font-black text-juve-black">{home.name}</span>
+        </div>
+        <div className="text-center">
+          <p className="font-display text-xl font-black text-juve-black">{finalScore || 'VS'}</p>
+          {countdown && (
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-juve-gold">
+              {countdown.days}g {countdown.hours}h {countdown.minutes}m
+            </p>
+          )}
+        </div>
+        <div className="flex min-w-0 items-center justify-end gap-2">
+          <span className="truncate text-right text-sm font-black text-juve-black">{away.name}</span>
+          <MatchTeamBadge team={away} align="right" />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Main Page ───────────────────────────────────────────────────────────────
@@ -313,6 +414,32 @@ function DashboardTab({ stats, level, gamification, history, bookmarks }) {
   const weeklyProgress = getWeeklyProgress()
   const challenges = getWeeklyChallenges()
   const collectedCount = getCollectedCards().length
+  const latestDiaryEntry = getDiary()[0] || null
+  const latestPrediction = getPredictions()[0] || null
+  const diaryWidgetMatch = latestDiaryEntry?.homeTeamName && latestDiaryEntry?.awayTeamName
+    ? {
+      homeTeam: { shortName: latestDiaryEntry.homeTeamName, crest: latestDiaryEntry.homeTeamCrest },
+      awayTeam: { shortName: latestDiaryEntry.awayTeamName, crest: latestDiaryEntry.awayTeamCrest },
+      competition: { name: latestDiaryEntry.competition },
+      utcDate: latestDiaryEntry.utcDate,
+      status: 'FINISHED',
+      score: {
+        fullTime: {
+          home: latestDiaryEntry.finalHomeScore,
+          away: latestDiaryEntry.finalAwayScore,
+        },
+      },
+    }
+    : null
+  const predictionWidgetMatch = latestPrediction?.homeTeamName && latestPrediction?.awayTeamName
+    ? {
+      homeTeam: { shortName: latestPrediction.homeTeamName, crest: latestPrediction.homeTeamCrest },
+      awayTeam: { shortName: latestPrediction.awayTeamName, crest: latestPrediction.awayTeamCrest },
+      competition: { name: latestPrediction.competition },
+      utcDate: latestPrediction.utcDate,
+      status: 'TIMED',
+    }
+    : null
 
   return (
     <div className="space-y-8">
@@ -349,6 +476,53 @@ function DashboardTab({ stats, level, gamification, history, bookmarks }) {
           </div>
         ))}
       </div>
+
+      {(latestDiaryEntry || latestPrediction) && (
+        <div>
+          <SectionHeader icon={Sparkles} title="I tuoi widget match" />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="border border-gray-200 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Ultima voce diario</p>
+                  <p className="font-display text-lg font-black text-juve-black">Diario</p>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-juve-gold">Widget live</span>
+              </div>
+              {diaryWidgetMatch ? (
+                <MatchQuickCard match={diaryWidgetMatch} />
+              ) : (
+                <p className="text-sm text-gray-500">{latestDiaryEntry?.match || 'Nessuna partita disponibile'}</p>
+              )}
+              {latestDiaryEntry?.note && (
+                <p className="mt-3 text-sm text-gray-600">{truncate(latestDiaryEntry.note, 140)}</p>
+              )}
+            </div>
+
+            <div className="border border-gray-200 p-4">
+              <div className="mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Ultimo pronostico</p>
+                <p className="font-display text-lg font-black text-juve-black">Pronostici</p>
+              </div>
+              {predictionWidgetMatch ? (
+                <MatchQuickCard match={predictionWidgetMatch} />
+              ) : (
+                <p className="text-sm text-gray-500">{latestPrediction?.match || 'Nessun pronostico disponibile'}</p>
+              )}
+              {latestPrediction && (
+                <div className="mt-3 flex items-center justify-center gap-4">
+                  <span className="font-display text-2xl font-black text-juve-black">{latestPrediction.homeScore}</span>
+                  <span className="text-gray-300 text-xl">—</span>
+                  <span className="font-display text-2xl font-black text-juve-black">{latestPrediction.awayScore}</span>
+                </div>
+              )}
+              {latestPrediction?.motm && (
+                <p className="mt-2 text-xs text-center text-gray-500">MVP scelto: <strong>{latestPrediction.motm}</strong></p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Recent badges */}
       {recentBadges.length > 0 && (
@@ -697,6 +871,10 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
       .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))
       .slice(0, 12)
   ), [officialMatches])
+  const selectedMatch = useMemo(
+    () => diaryMatches.find(match => String(match.id) === form.matchId) || null,
+    [diaryMatches, form.matchId]
+  )
 
   const MOODS = [
     { id: 'ecstatic', emoji: '🤩', label: 'Euforico' },
@@ -708,7 +886,17 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
 
   const handleSubmit = () => {
     if (!form.matchId || !form.match) return
-    addDiaryEntry(form)
+    addDiaryEntry({
+      ...form,
+      competition: selectedMatch?.competition?.name || '',
+      utcDate: selectedMatch?.utcDate || '',
+      homeTeamName: selectedMatch?.homeTeam?.shortName || selectedMatch?.homeTeam?.name || '',
+      awayTeamName: selectedMatch?.awayTeam?.shortName || selectedMatch?.awayTeam?.name || '',
+      homeTeamCrest: selectedMatch?.homeTeam?.crest || '',
+      awayTeamCrest: selectedMatch?.awayTeam?.crest || '',
+      finalHomeScore: selectedMatch?.score?.fullTime?.home ?? null,
+      finalAwayScore: selectedMatch?.score?.fullTime?.away ?? null,
+    })
     addXP(XP_ACTIONS.diaryEntry, 'diaryEntry')
     setEntries(getDiary())
     setForm({ matchId: '', match: '', mood: '', rating: 5, note: '' })
@@ -770,6 +958,7 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
                   ))}
                 </select>
               </div>
+              {selectedMatch && <MatchQuickCard match={selectedMatch} />}
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Come ti senti?</p>
                 <div className="flex gap-2">
@@ -824,6 +1013,21 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
               { id: 'ecstatic', emoji: '🤩' }, { id: 'happy', emoji: '😊' },
               { id: 'neutral', emoji: '😐' }, { id: 'sad', emoji: '😞' }, { id: 'angry', emoji: '😤' },
             ].find(m => m.id === entry.mood)
+            const storedMatch = entry.homeTeamName && entry.awayTeamName
+              ? {
+                homeTeam: { shortName: entry.homeTeamName, crest: entry.homeTeamCrest },
+                awayTeam: { shortName: entry.awayTeamName, crest: entry.awayTeamCrest },
+                competition: { name: entry.competition },
+                utcDate: entry.utcDate,
+                status: 'FINISHED',
+                score: {
+                  fullTime: {
+                    home: entry.finalHomeScore,
+                    away: entry.finalAwayScore,
+                  },
+                },
+              }
+              : null
             return (
               <motion.div key={entry.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="border border-gray-200 p-4">
                 <div className="flex items-start justify-between mb-2">
@@ -836,6 +1040,7 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
                     <button onClick={() => handleDelete(entry.id)} className="text-gray-300 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
+                {storedMatch && <div className="mb-3"><MatchQuickCard match={storedMatch} /></div>}
                 {entry.note && <p className="text-sm text-gray-600">{entry.note}</p>}
                 <p className="text-[10px] text-gray-400 mt-2">{formatDate(entry.createdAt)}</p>
               </motion.div>
@@ -855,6 +1060,7 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
   const [predictions, setPredictions] = useState(() => getPredictions())
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
+  const [now, setNow] = useState(() => Date.now())
 
   const upcomingMatches = useMemo(() => (
     officialMatches
@@ -866,10 +1072,28 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
     () => upcomingMatches.find(match => String(match.id) === form.matchId) || null,
     [upcomingMatches, form.matchId]
   )
+  const selectedCountdown = useMemo(
+    () => (selectedMatch ? getCountdownParts(selectedMatch.utcDate, now) : null),
+    [selectedMatch, now]
+  )
+
+  useEffect(() => {
+    if (!selectedMatch) return undefined
+    const timer = window.setInterval(() => setNow(Date.now()), 60000)
+    return () => window.clearInterval(timer)
+  }, [selectedMatch])
 
   const handleSubmit = () => {
     if (!form.matchId || !form.match) return
-    addPrediction(form)
+    addPrediction({
+      ...form,
+      competition: selectedMatch?.competition?.name || '',
+      utcDate: selectedMatch?.utcDate || '',
+      homeTeamName: selectedMatch?.homeTeam?.shortName || selectedMatch?.homeTeam?.name || '',
+      awayTeamName: selectedMatch?.awayTeam?.shortName || selectedMatch?.awayTeam?.name || '',
+      homeTeamCrest: selectedMatch?.homeTeam?.crest || '',
+      awayTeamCrest: selectedMatch?.awayTeam?.crest || '',
+    })
     addXP(XP_ACTIONS.prediction, 'prediction')
     setPredictions(getPredictions())
     setForm({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
@@ -925,6 +1149,7 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
                   ))}
                 </select>
               </div>
+              {selectedMatch && <MatchQuickCard match={selectedMatch} countdown={selectedCountdown} />}
               <div className="flex items-center justify-center gap-4">
                 <div className="text-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
@@ -977,18 +1202,31 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {predictions.map((p, i) => (
-            <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="border border-gray-200 p-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">{p.match}</p>
-              <div className="flex items-center justify-center gap-4 mb-2">
-                <span className="font-display text-3xl font-black">{p.homeScore}</span>
-                <span className="text-gray-300 text-xl">—</span>
-                <span className="font-display text-3xl font-black">{p.awayScore}</span>
-              </div>
-              {p.motm && <p className="text-xs text-center text-gray-500">MVP: <strong>{p.motm}</strong></p>}
-              <p className="text-[10px] text-gray-400 text-center mt-2">{formatDate(p.createdAt)}</p>
-            </motion.div>
-          ))}
+          {predictions.map((p, i) => {
+            const storedMatch = p.homeTeamName && p.awayTeamName
+              ? {
+                homeTeam: { shortName: p.homeTeamName, crest: p.homeTeamCrest },
+                awayTeam: { shortName: p.awayTeamName, crest: p.awayTeamCrest },
+                competition: { name: p.competition },
+                utcDate: p.utcDate,
+                status: 'TIMED',
+              }
+              : null
+
+            return (
+              <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="border border-gray-200 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">{p.match}</p>
+                {storedMatch && <div className="mb-3"><MatchQuickCard match={storedMatch} /></div>}
+                <div className="flex items-center justify-center gap-4 mb-2">
+                  <span className="font-display text-3xl font-black">{p.homeScore}</span>
+                  <span className="text-gray-300 text-xl">—</span>
+                  <span className="font-display text-3xl font-black">{p.awayScore}</span>
+                </div>
+                {p.motm && <p className="text-xs text-center text-gray-500">MVP: <strong>{p.motm}</strong></p>}
+                <p className="text-[10px] text-gray-400 text-center mt-2">{formatDate(p.createdAt)}</p>
+              </motion.div>
+            )
+          })}
         </div>
       )}
     </div>

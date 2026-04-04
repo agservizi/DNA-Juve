@@ -1,6 +1,28 @@
 import { apiUrl, apiHeaders } from './apiProxy'
 
 const JUVE_ID = 109
+const STADIUM_BY_TEAM_ID = {
+  109: 'Allianz Stadium, Torino',
+  108: 'Stadio Giuseppe Meazza, Milano',
+  98: 'Stadio Olimpico, Roma',
+  100: 'Stadio Olimpico, Roma',
+  99: 'Stadio Diego Armando Maradona, Napoli',
+  113: 'Gewiss Stadium, Bergamo',
+  110: 'Artemio Franchi, Firenze',
+  586: 'Stadio Renato Dall’Ara, Bologna',
+  471: 'U-Power Stadium, Monza',
+  450: 'Stadio Olimpico Grande Torino, Torino',
+  115: 'Bluenergy Stadium, Udine',
+  488: 'Stadio Marcantonio Bentegodi, Verona',
+  584: 'Stadio Via del Mare, Lecce',
+  445: 'Stadio Luigi Ferraris, Genova',
+  107: 'Stadio Luigi Ferraris, Genova',
+  112: 'Unipol Domus, Cagliari',
+  454: 'MAPEI Stadium, Reggio Emilia',
+  497: 'Stadio Carlo Castellani, Empoli',
+  436: 'Stadio Ennio Tardini, Parma',
+  657: 'Stadio Pier Luigi Penzo, Venezia',
+}
 
 async function fetchApi(endpoint) {
   const res = await fetch(`${apiUrl('football')}${endpoint}`, {
@@ -39,6 +61,21 @@ export async function getTeamMatches(season) {
   const params = season ? `?season=${season}` : ''
   const data = await fetchApi(`/teams/${JUVE_ID}/matches${params}`)
   return data.matches || []
+}
+
+export async function getRecentFinishedMatches(teamId, limit = 5) {
+  const data = await fetchApi(`/teams/${teamId}/matches?status=FINISHED&limit=${limit}`)
+  return data.matches || []
+}
+
+export function getVenueLabel(match) {
+  if (match?.venue && String(match.venue).trim()) return match.venue
+
+  const fallbackVenue = STADIUM_BY_TEAM_ID[match?.homeTeam?.id]
+  if (fallbackVenue) return fallbackVenue
+
+  const homeTeamName = match?.homeTeam?.shortName || match?.homeTeam?.name || 'Squadra di casa'
+  return `Stadio ${homeTeamName}`
 }
 
 /**
