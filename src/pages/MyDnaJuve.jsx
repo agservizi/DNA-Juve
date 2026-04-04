@@ -7,7 +7,12 @@ import {
   Target, Timer, ChevronDown, ChevronUp, Plus, X, Check, Share2, Sparkles,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { createFanArticleSubmission, getCategories, getPublishedArticles } from '@/lib/supabase'
+import {
+  createFanArticleSubmission,
+  getCategories,
+  getPublishedArticles,
+  sendFanSubmissionAdminNotification,
+} from '@/lib/supabase'
 import { getSquadPlayers, getTeamMatches, getVenueLabel, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
 import { Button } from '@/components/ui/Button'
@@ -1280,6 +1285,13 @@ function FanArticlesTab({ reader }) {
         error: '',
         success: 'Proposta inviata alla redazione. La troverai nel pannello admin per la moderazione.',
       })
+
+      if (data?.id) {
+        sendFanSubmissionAdminNotification({ submissionId: data.id }).catch((notificationError) => {
+          console.warn('Admin fan submission notification failed:', notificationError)
+        })
+      }
+
       return true
     }).catch((error) => {
       setSubmitState({

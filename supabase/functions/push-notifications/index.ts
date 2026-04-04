@@ -18,6 +18,8 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || ''
 const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || ''
 const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:notifications@bianconerihub.com'
+const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
+const siteUrl = Deno.env.get('SITE_URL') || 'https://bianconerihub.com'
 
 if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
@@ -182,6 +184,159 @@ async function sendArticleNotification(
   }
 }
 
+async function listAdminRecipients(supabaseAdmin: ReturnType<typeof createClient>) {
+  const { data: profiles, error: profilesError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, username, role')
+    .in('role', ['admin', 'editor'])
+
+  if (profilesError) throw profilesError
+  if (!profiles?.length) {
+    return { profiles: [], emailsById: new Map<string, string>() }
+  }
+
+  const emailsById = new Map<string, string>()
+  let page = 1
+  const perPage = 200
+
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+    if (error) throw error
+
+    for (const authUser of data.users || []) {
+      if (authUser.email) emailsById.set(authUser.id, authUser.email)
+    }
+
+    if (!data.users?.length || data.users.length < perPage) break
+    page += 1
+  }
+
+  return { profiles, emailsById }
+}
+
+async function sendEmailNotification(
+  recipients: Array<{ email: string, name?: string | null }>,
+  payload: { subject: string, htmlContent: string, tag: string },
+) {
+  if (!brevoApiKey || !recipients.length) {
+    return { delivered: [], skipped: recipients.map((recipient) => recipient.email) }
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': brevoApiKey,
+    },
+    body: JSON.stringify({
+      sender: { name: 'BianconeriHub', email: 'newsletter@bianconerihub.com' },
+      to: recipients.map((recipient) => ({
+        email: recipient.email,
+        name: recipient.name || undefined,
+      })),
+      subject: payload.subject,
+      htmlContent: payload.htmlContent,
+      headers: { 'X-Mailin-Tag': payload.tag },
+    }),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(text || `Brevo email failed (${response.status})`)
+  }
+
+  return { delivered: recipients.map((recipient) => recipient.email), skipped: [] }
+}
+
+async function sendFanSubmissionNotification(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  user: { id: string, email?: string | null },
+  submissionId: string,
+) {
+  if (!submissionId) throw new Error('submissionId mancante.')
+
+  const { data: submission, error: submissionError } = await supabaseAdmin
+    .from('fan_article_submissions')
+    .select('id, title, excerpt, pitch, category_slug, author_name, author_email, submitted_at')
+    .eq('id', submissionId)
+    .maybeSingle()
+
+  if (submissionError) throw submissionError
+  if (!submission) throw new Error('Proposta non trovata.')
+  if (submission.author_email !== user.email) {
+    return { error: 'Forbidden' }
+  }
+
+  const { profiles, emailsById } = await listAdminRecipients(supabaseAdmin)
+
+  const pushTargets = profiles
+    .map((profile) => profile.id)
+    .filter(Boolean)
+
+  let pushSummary = { delivered: [], invalidated: [], failed: [], skipped: 0 }
+  if (pushTargets.length) {
+    const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('id, user_id, endpoint, subscription')
+      .in('user_id', pushTargets)
+      .eq('is_active', true)
+
+    if (subscriptionsError) throw subscriptionsError
+
+    if (subscriptions?.length) {
+      pushSummary = await sendNotificationToRecords(supabaseAdmin, subscriptions as PushRecord[], {
+        title: 'Nuova proposta tifoso',
+        body: `${submission.author_name} ha inviato "${submission.title}"`,
+        url: '/admin/proposte-tifosi',
+        tag: `fan-submission-${submission.id}`,
+      })
+    }
+  }
+
+  const emailRecipients = profiles
+    .map((profile) => ({
+      email: emailsById.get(profile.id) || '',
+      name: profile.username || undefined,
+    }))
+    .filter((recipient) => recipient.email)
+
+  const notes = [
+    submission.excerpt ? `<p style="margin:0 0 12px;"><strong>Estratto:</strong> ${submission.excerpt}</p>` : '',
+    submission.pitch ? `<p style="margin:0 0 12px;"><strong>Pitch:</strong> ${submission.pitch}</p>` : '',
+    submission.category_slug ? `<p style="margin:0;"><strong>Categoria:</strong> ${submission.category_slug}</p>` : '',
+  ].filter(Boolean).join('')
+
+  const emailSummary = await sendEmailNotification(emailRecipients, {
+    subject: `Nuova proposta tifoso: ${submission.title}`,
+    tag: 'fan-article-admin-alert',
+    htmlContent: `
+      <div style="background:#f7f7f7;padding:32px 16px;">
+        <div style="max-width:640px;margin:0 auto;background:#ffffff;border-top:4px solid #F5A623;padding:32px;">
+          <p style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#B08A18;margin:0 0 12px;">BianconeriHub</p>
+          <h1 style="font-family:Georgia,serif;font-size:28px;line-height:1.2;color:#111;margin:0 0 16px;">Nuova proposta in attesa</h1>
+          <p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#444;margin:0 0 12px;">
+            ${submission.author_name} (${submission.author_email}) ha inviato una nuova proposta per Area Bianconera.
+          </p>
+          <p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#111;margin:0 0 16px;"><strong>${submission.title}</strong></p>
+          <div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.7;color:#444;margin:0 0 16px;">
+            ${notes}
+          </div>
+          <p style="margin:24px 0 0;">
+            <a href="${siteUrl.replace(/\/+$/, '')}/admin/proposte-tifosi" style="display:inline-block;background:#F5A623;color:#111;padding:12px 18px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;text-decoration:none;">
+              Apri Proposte Tifosi
+            </a>
+          </p>
+        </div>
+      </div>
+    `.trim(),
+  })
+
+  return {
+    push: pushSummary,
+    email: emailSummary,
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -220,6 +375,12 @@ Deno.serve(async (req) => {
 
     if (action === 'send-article') {
       const summary = await sendArticleNotification(supabaseAdmin, body.article || {})
+      return jsonResponse(summary)
+    }
+
+    if (action === 'send-fan-submission') {
+      const summary = await sendFanSubmissionNotification(supabaseAdmin, user, body.submissionId || '')
+      if ('error' in summary) return jsonResponse({ error: summary.error }, 403)
       return jsonResponse(summary)
     }
 

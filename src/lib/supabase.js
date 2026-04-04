@@ -244,6 +244,9 @@ export const sendTestPushNotification = () =>
 export const sendArticlePushNotification = ({ article }) =>
   invokePushNotifications({ action: 'send-article', article })
 
+export const sendFanSubmissionAdminNotification = ({ submissionId }) =>
+  invokePushNotifications({ action: 'send-fan-submission', submissionId })
+
 // ─── ARTICLES ────────────────────────────────────────────────────────────────
 export const getPublishedArticles = async ({ page = 1, limit = 12, category = null } = {}) => {
   let query = supabase
@@ -563,6 +566,16 @@ export const getFanArticleSubmissions = ({ status = null } = {}) => {
     .order('submitted_at', { ascending: false })
 
   if (status) query = query.eq('status', status)
+  return query
+}
+
+export const getFanArticleSubmissionCount = async ({ status = null } = {}) => {
+  let query = supabase
+    .from('fan_article_submissions')
+    .select('id', { count: 'exact', head: true })
+
+  if (status) query = query.eq('status', status)
+
   return query
 }
 

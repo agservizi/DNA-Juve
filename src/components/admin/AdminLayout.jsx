@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
@@ -7,6 +8,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { Toaster } from '@/components/ui/Toast'
+import { getFanArticleSubmissionCount } from '@/lib/supabase'
 
 const navGroups = [
   {
@@ -44,6 +46,16 @@ export default function AdminLayout() {
   const { toasts, toast, dismiss } = useToast()
   const location = useLocation()
   const navigate = useNavigate()
+  const { data: pendingFanSubmissions = 0 } = useQuery({
+    queryKey: ['fan-article-submissions', 'pending-count', 'admin-layout'],
+    queryFn: async () => {
+      const { count, error } = await getFanArticleSubmissionCount({ status: 'submitted' })
+      if (error) throw error
+      return count || 0
+    },
+    refetchInterval: 30000,
+    staleTime: 15000,
+  })
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -127,7 +139,16 @@ export default function AdminLayout() {
                           <>
                             <Icon className="h-4 w-4 shrink-0" />
                             <span>{label}</span>
-                            {isItemActive(to) && <ChevronRight className="h-3 w-3 ml-auto" />}
+                            {to === '/admin/proposte-tifosi' && pendingFanSubmissions > 0 && (
+                              <span className={`ml-auto inline-flex min-w-[1.35rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                                isItemActive(to)
+                                  ? 'bg-black text-juve-gold'
+                                  : 'bg-juve-gold text-black'
+                              }`}>
+                                {pendingFanSubmissions}
+                              </span>
+                            )}
+                            {isItemActive(to) && <ChevronRight className={`h-3 w-3 ${to === '/admin/proposte-tifosi' && pendingFanSubmissions > 0 ? '' : 'ml-auto'}`} />}
                           </>
                         )}
                       </NavLink>
