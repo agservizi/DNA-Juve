@@ -32,6 +32,10 @@ export default function ReaderLoginDialog() {
       return 'Per questa email non risulta ancora un account. Usa "Registrati".'
     }
 
+    if (normalized.includes('user already registered')) {
+      return 'Questa email è già registrata. Usa "Accedi" con la tua password.'
+    }
+
     if (normalized.includes('invalid login credentials')) {
       return 'Email o password non corretti.'
     }
@@ -60,6 +64,10 @@ export default function ReaderLoginDialog() {
         setSuccessMode('success')
       }
     } catch (err) {
+      const normalized = String(err?.message || '').toLowerCase()
+      if (mode === 'register' && normalized.includes('user already registered')) {
+        setMode('login')
+      }
       setError(formatReaderAuthError(err))
     } finally {
       setLoading(false)
