@@ -5,6 +5,8 @@ import { buildFanArticlePlaceholder, deriveFanArticleTags } from './fanArticles'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
+const configuredSiteUrl = (import.meta.env.VITE_SITE_URL || '').trim().replace(/\/+$/, '')
+const defaultSiteUrl = 'https://bianconerihub.com'
 export const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
 export const pushNotificationsConfigured = Boolean(vapidPublicKey)
 const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
@@ -32,16 +34,38 @@ function isMissingColumnOrRelation(error, token) {
   )
 }
 
+function getReaderAuthRedirectUrl() {
+  if (typeof window === 'undefined') {
+    return `${configuredSiteUrl || defaultSiteUrl}/area-bianconera`
+  }
+
+  const runtimeOrigin = window.location.origin.replace(/\/+$/, '')
+  const isLocalRuntime = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  const baseUrl = isLocalRuntime ? runtimeOrigin : (configuredSiteUrl || runtimeOrigin || defaultSiteUrl)
+
+  return `${baseUrl}/area-bianconera`
+}
+
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 export const signIn = (email, password) =>
   supabase.auth.signInWithPassword({ email, password })
+
+export const signUpReader = (email, password, options = {}) =>
+  supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: getReaderAuthRedirectUrl(),
+      data: options.data || {},
+    },
+  })
 
 export const signInWithMagicLink = (email, options = {}) =>
   supabase.auth.signInWithOtp({
     email,
     options: {
-      shouldCreateUser: true,
-      emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/area-bianconera` : undefined,
+      shouldCreateUser: options.shouldCreateUser ?? true,
+      emailRedirectTo: getReaderAuthRedirectUrl(),
       data: options.data || {},
     },
   })
@@ -99,6 +123,16 @@ export const updateProfileData = async (userId, data) =>
     .eq('id', userId)
     .select()
     .single()
+
+export const ensureProfileData = async (userId, data = {}) => {
+  if (!userId) return { data: null, error: null }
+
+  return supabase
+    .from('profiles')
+    .upsert([{ id: userId, ...data }], { onConflict: 'id' })
+    .select()
+    .single()
+}
 
 export const getReaderState = async (userId) => {
   if (!userId) return { data: null, error: null }

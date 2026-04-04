@@ -8,12 +8,15 @@ import {
   PLAYER_CARDS,
   recordDailyVisit,
   getGamificationState,
+  setGamificationScope,
 } from '@/lib/gamification'
 import {
   supabase,
-  signInWithMagicLink,
+  signIn,
+  signUpReader,
   signOut,
   getProfileByUserId,
+  ensureProfileData,
   updateProfileData,
   getReaderState,
   upsertReaderState,
@@ -34,6 +37,18 @@ const GAMIFICATION_KEY = 'fb-gamification'
 const NOTIFICATIONS_KEY = 'fb-notifications'
 const DEFAULT_PREFS = { favoriteCategories: [] }
 const IS_MOCK = import.meta.env.VITE_SUPABASE_URL?.includes('your-project.supabase.co')
+const GUEST_SCOPE = 'guest'
+
+function getStorageKeys(scope = GUEST_SCOPE) {
+  return {
+    reader: `${LS.reader}:${scope}`,
+    bookmarks: `${LS.bookmarks}:${scope}`,
+    history: `${LS.history}:${scope}`,
+    prefs: `${LS.prefs}:${scope}`,
+    gamification: `${GAMIFICATION_KEY}:${scope}`,
+    notifications: `${NOTIFICATIONS_KEY}:${scope}`,
+  }
+}
 
 function load(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback }
@@ -48,14 +63,15 @@ function remove(key) {
   try { localStorage.removeItem(key) } catch {}
 }
 
-function getLocalSnapshot() {
+function getLocalSnapshot(scope = GUEST_SCOPE) {
+  const keys = getStorageKeys(scope)
   return {
-    reader: load(LS.reader, null),
-    bookmarks: load(LS.bookmarks, []),
-    history: load(LS.history, []),
-    preferences: load(LS.prefs, DEFAULT_PREFS),
-    gamification: load(GAMIFICATION_KEY, null),
-    notifications: load(NOTIFICATIONS_KEY, { enabled: false, lastCheck: null }),
+    reader: load(keys.reader, null),
+    bookmarks: load(keys.bookmarks, []),
+    history: load(keys.history, []),
+    preferences: load(keys.prefs, DEFAULT_PREFS),
+    gamification: load(keys.gamification, null),
+    notifications: load(keys.notifications, { enabled: false, lastCheck: null }),
   }
 }
 
@@ -72,9 +88,9 @@ function buildReaderProfile(sessionUser, profile) {
   }
 }
 
-function persistGamificationSnapshot(snapshot) {
+function persistGamificationSnapshot(snapshot, scope = GUEST_SCOPE) {
   if (!snapshot) return
-  save(GAMIFICATION_KEY, snapshot)
+  save(getStorageKeys(scope).gamification, snapshot)
 }
 
 export function ReaderProvider({ children }) {
@@ -86,22 +102,28 @@ export function ReaderProvider({ children }) {
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [authUser, setAuthUser] = useState(null)
   const [authReady, setAuthReady] = useState(IS_MOCK)
+  const storageScope = authUser?.id || GUEST_SCOPE
+  const storageKeys = useMemo(() => getStorageKeys(storageScope), [storageScope])
 
-  useEffect(() => { save(LS.bookmarks, bookmarks) }, [bookmarks])
-  useEffect(() => { save(LS.history, history) }, [history])
-  useEffect(() => { save(LS.prefs, preferences) }, [preferences])
   useEffect(() => {
-    if (reader) save(LS.reader, reader)
-    else remove(LS.reader)
-  }, [reader])
+    setGamificationScope(storageScope)
+  }, [storageScope])
+
+  useEffect(() => { save(storageKeys.bookmarks, bookmarks) }, [bookmarks, storageKeys.bookmarks])
+  useEffect(() => { save(storageKeys.history, history) }, [history, storageKeys.history])
+  useEffect(() => { save(storageKeys.prefs, preferences) }, [preferences, storageKeys.prefs])
+  useEffect(() => {
+    if (reader) save(storageKeys.reader, reader)
+    else remove(storageKeys.reader)
+  }, [reader, storageKeys.reader])
 
   const applySnapshot = useCallback((snapshot, nextReader) => {
     setReader(nextReader || snapshot.reader || null)
     setBookmarks(snapshot.bookmarks || [])
     setHistory(snapshot.history || [])
     setPreferences(snapshot.preferences || DEFAULT_PREFS)
-    persistGamificationSnapshot(snapshot.gamification || getGamificationState())
-  }, [])
+    persistGamificationSnapshot(snapshot.gamification || getGamificationState(), storageScope)
+  }, [storageScope])
 
   const syncRemoteState = useCallback(async (sessionUser, overrides = {}) => {
     if (!sessionUser?.id || IS_MOCK) return
@@ -111,7 +133,7 @@ export function ReaderProvider({ children }) {
       history: overrides.history ?? history,
       preferences: overrides.preferences ?? preferences,
       gamification: overrides.gamification ?? getGamificationState(),
-      notifications_enabled: overrides.notificationsEnabled ?? load(NOTIFICATIONS_KEY, { enabled: false }).enabled,
+      notifications_enabled: overrides.notificationsEnabled ?? load(getStorageKeys(sessionUser.id).notifications, { enabled: false }).enabled,
       last_synced_at: new Date().toISOString(),
     }
 
@@ -148,14 +170,34 @@ export function ReaderProvider({ children }) {
         await updateProfileData(sessionUser.id, { username: pendingName.trim() })
       }
 
-      const refreshedProfile = pendingName
+      let refreshedProfile = pendingName
         ? { ...(profile || {}), username: pendingName.trim() }
         : profile
 
-      const local = getLocalSnapshot()
+      if (!refreshedProfile) {
+        const fallbackUsername = pendingName?.trim()
+          || sessionUser.user_metadata?.display_name
+          || sessionUser.email?.split('@')[0]
+          || 'Tifoso'
+
+        const { data: ensuredProfile } = await ensureProfileData(sessionUser.id, {
+          username: fallbackUsername,
+          bio: '',
+          role: 'reader',
+        })
+
+        refreshedProfile = ensuredProfile || {
+          id: sessionUser.id,
+          username: fallbackUsername,
+          bio: '',
+          role: 'reader',
+        }
+      }
+
+      const local = getLocalSnapshot(sessionUser.id)
       const snapshot = {
-        bookmarks: remoteState?.bookmarks?.length ? remoteState.bookmarks : local.bookmarks,
-        history: remoteState?.history?.length ? remoteState.history : local.history,
+        bookmarks: remoteState?.bookmarks ?? local.bookmarks,
+        history: remoteState?.history ?? local.history,
         preferences: remoteState?.preferences || local.preferences,
         gamification: remoteState?.gamification || local.gamification || getGamificationState(),
         notifications: {
@@ -210,26 +252,26 @@ export function ReaderProvider({ children }) {
     return () => clearTimeout(timer)
   }, [authUser, authReady, bookmarks, history, preferences, reader?.id, syncRemoteState])
 
-  const register = useCallback(async (name, email) => {
+  const register = useCallback(async (name, email, password) => {
     if (IS_MOCK) {
       const profile = { name, email, createdAt: new Date().toISOString() }
-      save(LS.reader, profile)
+      save(getStorageKeys().reader, profile)
       setReader(profile)
       setShowLoginDialog(false)
       return { mode: 'demo' }
     }
 
     save(LS.pendingName, name)
-    const { error } = await signInWithMagicLink(email, {
+    const { data, error } = await signUpReader(email, password, {
       data: { display_name: name, role: 'reader' },
     })
     if (error) throw error
-    return { mode: 'magic-link' }
+    return { mode: data?.session ? 'success' : 'confirm-email' }
   }, [])
 
-  const login = useCallback(async (email) => {
+  const login = useCallback(async ({ email, password }) => {
     if (IS_MOCK) {
-      const existing = load(LS.reader, null)
+      const existing = load(getStorageKeys().reader, null)
       if (existing && existing.email === email) {
         setReader(existing)
         setShowLoginDialog(false)
@@ -237,17 +279,15 @@ export function ReaderProvider({ children }) {
       }
 
       const profile = { name: email.split('@')[0], email, createdAt: new Date().toISOString() }
-      save(LS.reader, profile)
+      save(getStorageKeys().reader, profile)
       setReader(profile)
       setShowLoginDialog(false)
       return { mode: 'demo' }
     }
 
-    const { error } = await signInWithMagicLink(email, {
-      data: { role: 'reader' },
-    })
+    const { error } = await signIn(email, password)
     if (error) throw error
-    return { mode: 'magic-link' }
+    return { mode: 'success' }
   }, [])
 
   const logout = useCallback(async () => {
@@ -260,11 +300,13 @@ export function ReaderProvider({ children }) {
     setHistory([])
     setPreferences(DEFAULT_PREFS)
 
-    remove(LS.reader)
-    remove(LS.bookmarks)
-    remove(LS.history)
-    remove(LS.prefs)
-  }, [authUser])
+    remove(storageKeys.reader)
+    remove(storageKeys.bookmarks)
+    remove(storageKeys.history)
+    remove(storageKeys.prefs)
+    remove(storageKeys.gamification)
+    remove(storageKeys.notifications)
+  }, [authUser, storageKeys])
 
   const updateProfile = useCallback(async ({ name, bio }) => {
     const nextName = String(name || '').trim()
@@ -277,7 +319,7 @@ export function ReaderProvider({ children }) {
     if (IS_MOCK) {
       setReader((prev) => {
         const nextReader = { ...(prev || {}), name: nextName, bio: nextBio }
-        save(LS.reader, nextReader)
+        save(storageKeys.reader, nextReader)
         return nextReader
       })
       return { data: { username: nextName, bio: nextBio }, error: null }
@@ -296,12 +338,12 @@ export function ReaderProvider({ children }) {
 
     setReader((prev) => {
       const nextReader = { ...(prev || {}), name: nextName, bio: nextBio }
-      save(LS.reader, nextReader)
+      save(storageKeys.reader, nextReader)
       return nextReader
     })
 
     return result
-  }, [authUser])
+  }, [authUser, storageKeys.reader])
 
   const loginDemo = useCallback(() => {
     const profile = { name: 'Tifoso Bianconero', email: 'tifoso@bianconerihub.com', createdAt: '2026-02-15T10:00:00Z' }
@@ -330,12 +372,13 @@ export function ReaderProvider({ children }) {
     setBookmarks([])
     setHistory([])
     setPreferences(DEFAULT_PREFS)
-    remove(LS.reader)
-    remove(LS.bookmarks)
-    remove(LS.history)
-    remove(LS.prefs)
-    remove(GAMIFICATION_KEY)
-  }, [])
+    remove(storageKeys.reader)
+    remove(storageKeys.bookmarks)
+    remove(storageKeys.history)
+    remove(storageKeys.prefs)
+    remove(storageKeys.gamification)
+    remove(storageKeys.notifications)
+  }, [storageKeys])
 
   const isBookmarked = useCallback((articleId) => bookmarks.some((b) => b.articleId === articleId), [bookmarks])
 

@@ -20,14 +20,41 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'reader
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  next_username TEXT;
+  next_role TEXT;
+  has_email_column BOOLEAN;
 BEGIN
-  INSERT INTO profiles (id, username, role)
-  VALUES (
-    NEW.id,
-    COALESCE(NULLIF(NEW.raw_user_meta_data->>'display_name', ''), SPLIT_PART(NEW.email, '@', 1)),
-    COALESCE(NULLIF(NEW.raw_user_meta_data->>'role', ''), 'reader')
-  )
-  ON CONFLICT (id) DO NOTHING;
+  next_username := COALESCE(
+    NULLIF(NEW.raw_user_meta_data->>'display_name', ''),
+    SPLIT_PART(COALESCE(NEW.email, ''), '@', 1),
+    'Tifoso'
+  );
+  next_role := COALESCE(NULLIF(NEW.raw_user_meta_data->>'role', ''), 'reader');
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'profiles'
+      AND column_name = 'email'
+  ) INTO has_email_column;
+
+  IF has_email_column THEN
+    EXECUTE '
+      INSERT INTO public.profiles (id, username, role, email)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (id) DO NOTHING
+    ' USING NEW.id, next_username, next_role, NEW.email;
+  ELSE
+    INSERT INTO public.profiles (id, username, role)
+    VALUES (NEW.id, next_username, next_role)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE LOG 'handle_new_user failed for user %: %', NEW.id, SQLERRM;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

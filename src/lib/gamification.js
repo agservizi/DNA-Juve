@@ -3,14 +3,25 @@
 // All data stored in localStorage
 
 const LS_KEY = 'fb-gamification'
+const LS_FORMATION = 'fb-formation'
+const GUEST_SCOPE = 'guest'
+let activeScope = GUEST_SCOPE
+
+function resolveScopedKey(baseKey) {
+  return `${baseKey}:${activeScope || GUEST_SCOPE}`
+}
+
+export function setGamificationScope(scope) {
+  activeScope = scope || GUEST_SCOPE
+}
 
 function load() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)) ?? getDefaults() }
+  try { return JSON.parse(localStorage.getItem(resolveScopedKey(LS_KEY))) ?? getDefaults() }
   catch { return getDefaults() }
 }
 
 function save(data) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
+  try { localStorage.setItem(resolveScopedKey(LS_KEY), JSON.stringify(data)) } catch {}
 }
 
 function getDefaults() {
@@ -365,13 +376,11 @@ export function deleteFanArticle(id) {
 
 // ── Formation ───────────────────────────────────────────────────────────────
 
-const LS_FORMATION = 'fb-formation'
-
 export function saveFormation(formation, players) {
-  try { localStorage.setItem(LS_FORMATION, JSON.stringify({ formation, players })) } catch {}
+  try { localStorage.setItem(resolveScopedKey(LS_FORMATION), JSON.stringify({ formation, players })) } catch {}
 }
 
 export function getFormation() {
-  try { return JSON.parse(localStorage.getItem(LS_FORMATION)) ?? null }
+  try { return JSON.parse(localStorage.getItem(resolveScopedKey(LS_FORMATION))) ?? null }
   catch { return null }
 }
