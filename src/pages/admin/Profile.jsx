@@ -66,7 +66,7 @@ async function updateProfile(userId, data) {
 }
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, refreshProfile } = useAuth()
   const { toast } = useToast()
   const qc = useQueryClient()
 
@@ -105,6 +105,7 @@ export default function Profile() {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', user?.id] })
+      refreshProfile(user)
       toast({ title: 'Profilo aggiornato', description: 'Identita editoriale salvata.', variant: 'success' })
     },
     onError: (err) => {
@@ -119,11 +120,21 @@ export default function Profile() {
     setUploading(true)
     try {
       const url = await uploadImage(file, `avatars/${user.id}-${Date.now()}`)
+      await updateProfile(user.id, { avatar_url: url })
       setAvatarUrl(url)
-      toast({ title: 'Avatar caricato', variant: 'success' })
-    } catch {
-      toast({ title: 'Errore upload avatar', description: 'Controlla formato e dimensione del file.', variant: 'destructive' })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['profile', user?.id] }),
+        refreshProfile(user),
+      ])
+      toast({ title: 'Avatar aggiornato', description: 'La nuova immagine e gia attiva.', variant: 'success' })
+    } catch (err) {
+      toast({
+        title: 'Errore upload avatar',
+        description: err?.message || 'Controlla formato e dimensione del file.',
+        variant: 'destructive',
+      })
     } finally {
+      e.target.value = ''
       setUploading(false)
     }
   }
@@ -182,7 +193,7 @@ export default function Profile() {
   const emailConfirmed = Boolean(user?.email_confirmed_at || user?.confirmed_at)
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="mb-2">
         <h1 className="font-display text-2xl font-black">Il mio profilo</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -211,7 +222,7 @@ export default function Profile() {
                     <User className="h-11 w-11 text-black" />
                   )}
                 </div>
-                <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-juve-black text-white flex items-center justify-center cursor-pointer hover:bg-juve-gold transition-colors">
+                <label className="absolute bottom-1 right-1 w-8 h-8 bg-juve-black text-white flex items-center justify-center cursor-pointer hover:bg-juve-gold transition-colors shadow-sm">
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                   <input
                     type="file"

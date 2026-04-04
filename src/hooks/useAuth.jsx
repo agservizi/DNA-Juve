@@ -57,6 +57,25 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  const refreshProfile = async (nextUser = user) => {
+    const sessionUser = nextUser ?? null
+    setUser(sessionUser)
+
+    if (!sessionUser?.id) {
+      setProfile(null)
+      return null
+    }
+
+    try {
+      const { data } = await getProfileByUserId(sessionUser.id)
+      setProfile(data || null)
+      return data || null
+    } catch {
+      setProfile(null)
+      return null
+    }
+  }
+
   const login = async (email, password) => {
     const { data, error } = await signIn(email, password)
     if (error) throw error
@@ -70,7 +89,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

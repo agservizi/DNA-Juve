@@ -64,13 +64,30 @@
     will-change: transform;
   }
 
+  .breaking-ticker-mobile {
+    display: inline-block;
+    white-space: nowrap;
+    padding-left: 100%;
+    animation: ticker-mobile 22s linear infinite;
+    will-change: transform;
+  }
+
   .breaking-ticker:hover {
+    animation-play-state: paused;
+  }
+
+  .breaking-ticker-mobile:hover {
     animation-play-state: paused;
   }
 
   @keyframes ticker {
     0%   { transform: translateX(0); }
     100% { transform: translateX(-50%); }
+  }
+
+  @keyframes ticker-mobile {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
   }
 
   .article-card {

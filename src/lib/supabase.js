@@ -215,7 +215,7 @@ export const getPublishedArticles = async ({ page = 1, limit = 12, category = nu
   let query = supabase
     .from('articles')
     .select(`
-      id, title, slug, excerpt, cover_image, published_at, views, featured,
+      id, title, slug, excerpt, content, cover_image, published_at, views, featured,
       categories(id, name, slug, color),
       profiles(username, avatar_url)
     `)
@@ -232,7 +232,7 @@ export const getFeaturedArticles = () =>
   supabase
     .from('articles')
     .select(`
-      id, title, slug, excerpt, cover_image, published_at,
+      id, title, slug, excerpt, content, cover_image, published_at,
       categories(id, name, slug, color),
       profiles(username)
     `)
@@ -256,7 +256,7 @@ export const getArticleBySlug = (slug) =>
 export const getRelatedArticles = (categoryId, excludeId) =>
   supabase
     .from('articles')
-    .select('id, title, slug, cover_image, published_at, categories(name, slug, color)')
+    .select('id, title, slug, excerpt, content, cover_image, published_at, categories(name, slug, color)')
     .eq('status', 'published')
     .eq('category_id', categoryId)
     .neq('id', excludeId)
@@ -309,7 +309,7 @@ export const getSmartRelatedArticles = async (articleId, categoryId, tagIds = []
   // 3. Fetch full article data for all candidates
   const { data: candidates } = await supabase
     .from('articles')
-    .select('id, title, slug, cover_image, published_at, categories(name, slug, color)')
+    .select('id, title, slug, excerpt, content, cover_image, published_at, categories(name, slug, color)')
     .eq('status', 'published')
     .in('id', [...allCandidateIds])
 
@@ -339,7 +339,7 @@ export const incrementViews = (id) =>
 export const searchArticles = (query) =>
   supabase
     .from('articles')
-    .select('id, title, slug, excerpt, cover_image, published_at, categories(name, slug, color)')
+    .select('id, title, slug, excerpt, content, cover_image, published_at, categories(name, slug, color)')
     .eq('status', 'published')
     .or(`title.ilike.%${query}%,excerpt.ilike.%${query}%`)
     .order('published_at', { ascending: false })
@@ -407,13 +407,23 @@ export const deleteCategory = (id) =>
   supabase.from('categories').delete().eq('id', id)
 
 // ─── STORAGE ─────────────────────────────────────────────────────────────────
-export const uploadImage = async (file, path) => {
+export const uploadImage = async (file, path, options = {}) => {
+  const bucket = options.bucket || 'article-images'
+  const extensionFromName = file?.name?.split('.').pop()?.toLowerCase()
+  const extensionFromType = file?.type?.split('/').pop()?.toLowerCase()
+  const extension = extensionFromName || extensionFromType || 'jpg'
+  const normalizedPath = /\.[a-z0-9]+$/i.test(path) ? path : `${path}.${extension}`
+
   const { data, error } = await supabase.storage
-    .from('article-images')
-    .upload(path, file, { upsert: true })
+    .from(bucket)
+    .upload(normalizedPath, file, {
+      upsert: true,
+      contentType: file?.type || undefined,
+      cacheControl: '3600',
+    })
   if (error) throw error
   const { data: urlData } = supabase.storage
-    .from('article-images')
+    .from(bucket)
     .getPublicUrl(data.path)
   return urlData.publicUrl
 }

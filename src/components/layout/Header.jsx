@@ -50,7 +50,7 @@ export default function Header() {
     return tickerItems.join('   •   ') + '   •   ' + tickerItems.join('   •   ') + '   •   '
   }, [tickerItems])
 
-  const mobileTickerHeadline = tickerItems[0] || 'Le ultime notizie bianconere in aggiornamento'
+  const mobileTickerText = tickerText || 'Le ultime notizie bianconere in aggiornamento • Le ultime notizie bianconere in aggiornamento • '
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 60)
@@ -77,8 +77,8 @@ export default function Header() {
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Breaking</span>
           </div>
           <div className="min-w-0 flex-1 overflow-hidden sm:hidden">
-            <div className="truncate pr-3 text-[11px] font-medium tracking-wide text-white/90">
-              {mobileTickerHeadline}
+            <div className="breaking-ticker-mobile pr-3 text-[11px] font-medium tracking-wide text-white/90">
+              {mobileTickerText}
             </div>
           </div>
           <div className="hidden overflow-hidden flex-1 sm:block">
