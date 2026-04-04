@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com'
+const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const HAS_SITE_URL = Boolean(import.meta.env.VITE_SITE_URL)
 const HAS_SUPABASE = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)

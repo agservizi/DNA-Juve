@@ -3,6 +3,7 @@ const SITE_URL =
   import.meta.env?.VITE_SITE_URL ||
   (typeof process !== 'undefined' ? process.env.VITE_SITE_URL : undefined) ||
   'https://bianconerihub.com'
+const NORMALIZED_SITE_URL = SITE_URL.replace(/\/+$/, '')
 const SITE_NAME = 'BianconeriHub'
 
 export function generateRSS(articles = []) {
@@ -12,8 +13,8 @@ export function generateRSS(articles = []) {
   const items = articles.map(a => `
     <item>
       <title>${escapeXml(a.title)}</title>
-      <link>${SITE_URL}/articolo/${a.slug}</link>
-      <guid isPermaLink="true">${SITE_URL}/articolo/${a.slug}</guid>
+      <link>${NORMALIZED_SITE_URL}/articolo/${a.slug}</link>
+      <guid isPermaLink="true">${NORMALIZED_SITE_URL}/articolo/${a.slug}</guid>
       <description>${escapeXml(a.excerpt || '')}</description>
       <pubDate>${new Date(a.published_at).toUTCString()}</pubDate>
       ${a.categories ? `<category>${escapeXml(a.categories.name)}</category>` : ''}
@@ -24,11 +25,11 @@ export function generateRSS(articles = []) {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>${SITE_NAME} — Il Magazine Bianconero</title>
-    <link>${SITE_URL}</link>
+    <link>${NORMALIZED_SITE_URL}</link>
     <description>Notizie, analisi e approfondimenti sulla Juventus</description>
     <language>it</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
-    <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
+    <atom:link href="${NORMALIZED_SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
     ${items}
   </channel>
 </rss>`
@@ -52,7 +53,7 @@ export function generateSitemap(articles = [], categories = []) {
 
   const urlset = all.map(({ url, priority, changefreq, lastmod }) => `
   <url>
-    <loc>${SITE_URL}${url}</loc>
+    <loc>${NORMALIZED_SITE_URL}${url}</loc>
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
     ${lastmod ? `<lastmod>${new Date(lastmod).toISOString().split('T')[0]}</lastmod>` : ''}

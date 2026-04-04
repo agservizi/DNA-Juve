@@ -34,7 +34,7 @@ const schema = z.object({
   scheduled_at: z.string().optional(),
 })
 
-const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com'
+const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 
 function buildSeoHints({ title, excerpt, content, categoryName, coverImage, metaTitle, metaDescription, canonicalUrl, ogImage, noindex }) {
   const plainContent = stripHtml(content || '').replace(/\s+/g, ' ').trim()

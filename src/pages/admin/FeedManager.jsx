@@ -20,7 +20,7 @@ import { apiHeaders, apiUrl } from '@/lib/apiProxy'
 import { Button } from '@/components/ui/Button'
 import { formatDateShort, timeAgo } from '@/lib/utils'
 
-const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com'
+const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 const SITE_URL_CONFIGURED = Boolean(import.meta.env.VITE_SITE_URL)
 
 const RSS_SOURCES = [
