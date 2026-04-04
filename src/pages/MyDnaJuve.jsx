@@ -234,8 +234,8 @@ export default function MyDnaJuve() {
               Accedi per sbloccare la tua area personale: badge, sfide, figurine, formazione ideale e tanto altro.
             </p>
             <div className="flex gap-3 justify-center">
-              <Button variant="gold" size="lg" onClick={openLogin}>Registrati</Button>
-              <Button variant="outline" size="lg" onClick={openLogin}>Accedi</Button>
+              <Button variant="gold" size="lg" onClick={() => openLogin('register')}>Registrati</Button>
+              <Button variant="outline" size="lg" onClick={() => openLogin('login')}>Accedi</Button>
             </div>
             {IS_DEV && (
               <div className="mt-4">

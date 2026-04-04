@@ -100,6 +100,7 @@ export function ReaderProvider({ children }) {
   const [history, setHistory] = useState(() => localSnapshot.history)
   const [preferences, setPreferences] = useState(() => localSnapshot.preferences)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
+  const [loginDialogMode, setLoginDialogMode] = useState('register')
   const [authUser, setAuthUser] = useState(null)
   const [authReady, setAuthReady] = useState(IS_MOCK)
   const storageScope = authUser?.id || GUEST_SCOPE
@@ -444,7 +445,10 @@ export function ReaderProvider({ children }) {
     setPreferences((prev) => ({ ...prev, favoriteCategories: ids }))
   }, [])
 
-  const openLogin = useCallback(() => setShowLoginDialog(true), [])
+  const openLogin = useCallback((mode = 'register') => {
+    setLoginDialogMode(mode === 'login' ? 'login' : 'register')
+    setShowLoginDialog(true)
+  }, [])
   const closeLogin = useCallback(() => setShowLoginDialog(false), [])
 
   const stats = useMemo(() => {
@@ -475,6 +479,7 @@ export function ReaderProvider({ children }) {
       history,
       preferences,
       showLoginDialog,
+      loginDialogMode,
       stats,
       authReady,
       register,

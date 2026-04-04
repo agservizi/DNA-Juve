@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dialog, DialogHeader, DialogTitle, DialogContent } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { useReader } from '@/hooks/useReader'
 import { Loader2, UserCircle } from 'lucide-react'
 
 export default function ReaderLoginDialog() {
-  const { showLoginDialog, closeLogin, register, login } = useReader()
+  const { showLoginDialog, loginDialogMode, closeLogin, register, login } = useReader()
   const [mode, setMode] = useState('register') // 'register' | 'login'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -13,6 +13,14 @@ export default function ReaderLoginDialog() {
   const [successMode, setSuccessMode] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (showLoginDialog) {
+      setMode(loginDialogMode === 'login' ? 'login' : 'register')
+      setError('')
+      setSuccessMode(null)
+    }
+  }, [showLoginDialog, loginDialogMode])
 
   const formatReaderAuthError = (err) => {
     const message = String(err?.message || '')
