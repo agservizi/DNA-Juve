@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFanArticleSubmission, getCategories, getPublishedArticles } from '@/lib/supabase'
-import { getSquadPlayers } from '@/lib/footballApi'
+import { getSquadPlayers, getTeamMatches } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -51,6 +51,26 @@ const TABS = [
   { id: 'preferences', label: 'Preferenze', icon: Settings2 },
 ]
 
+function formatOfficialMatchLabel(match, { includeScore = false } = {}) {
+  const home = match.homeTeam?.shortName || match.homeTeam?.name || 'Casa'
+  const away = match.awayTeam?.shortName || match.awayTeam?.name || 'Ospite'
+  const competition = match.competition?.name || 'Competizione'
+  const kickoff = new Date(match.utcDate)
+  const dateLabel = Number.isNaN(kickoff.getTime())
+    ? ''
+    : kickoff.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+  const timeLabel = Number.isNaN(kickoff.getTime())
+    ? ''
+    : kickoff.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+
+  const score =
+    includeScore && match.status === 'FINISHED'
+      ? ` • ${match.score?.fullTime?.home ?? 0}-${match.score?.fullTime?.away ?? 0}`
+      : ''
+
+  return `${home} vs ${away} • ${competition}${dateLabel ? ` • ${dateLabel}` : ''}${timeLabel ? ` • ${timeLabel}` : ''}${score}`
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function MyDnaJuve() {
@@ -65,6 +85,13 @@ export default function MyDnaJuve() {
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => { const { data } = await getCategories(); return data || [] },
+  })
+  const { data: teamMatches = [], isLoading: matchesLoading } = useQuery({
+    queryKey: ['my-dna-team-matches'],
+    queryFn: () => getTeamMatches(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 
   const gamification = useMemo(() => getGamificationState(), [activeTab])
@@ -124,6 +151,7 @@ export default function MyDnaJuve() {
   }
 
   const avatar = AVATARS.find(a => a.id === gamification.avatar) || AVATARS[0]
+  const officialMatches = useMemo(() => teamMatches || [], [teamMatches])
 
   return (
     <>
@@ -229,8 +257,8 @@ export default function MyDnaJuve() {
             {activeTab === 'challenges' && <ChallengesTab />}
             {activeTab === 'figurine' && <FigurineTab />}
             {activeTab === 'formation' && <FormationTab />}
-            {activeTab === 'diary' && <DiaryTab />}
-            {activeTab === 'predictions' && <PredictionsTab />}
+            {activeTab === 'diary' && <DiaryTab officialMatches={officialMatches} matchesLoading={matchesLoading} />}
+            {activeTab === 'predictions' && <PredictionsTab officialMatches={officialMatches} matchesLoading={matchesLoading} />}
             {activeTab === 'fan-articles' && <FanArticlesTab reader={reader} />}
             {activeTab === 'leaderboard' && <Leaderboard />}
             {activeTab === 'preferences' && (
@@ -658,10 +686,17 @@ function FormationTab() {
 // TAB: DIARY
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DiaryTab() {
+function DiaryTab({ officialMatches = [], matchesLoading = false }) {
   const [entries, setEntries] = useState(() => getDiary())
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ match: '', mood: '', rating: 5, note: '' })
+  const [form, setForm] = useState({ matchId: '', match: '', mood: '', rating: 5, note: '' })
+
+  const diaryMatches = useMemo(() => (
+    officialMatches
+      .filter(match => match.status === 'FINISHED')
+      .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))
+      .slice(0, 12)
+  ), [officialMatches])
 
   const MOODS = [
     { id: 'ecstatic', emoji: '🤩', label: 'Euforico' },
@@ -672,11 +707,11 @@ function DiaryTab() {
   ]
 
   const handleSubmit = () => {
-    if (!form.match) return
+    if (!form.matchId || !form.match) return
     addDiaryEntry(form)
     addXP(XP_ACTIONS.diaryEntry, 'diaryEntry')
     setEntries(getDiary())
-    setForm({ match: '', mood: '', rating: 5, note: '' })
+    setForm({ matchId: '', match: '', mood: '', rating: 5, note: '' })
     setShowForm(false)
   }
 
@@ -704,13 +739,37 @@ function DiaryTab() {
         {showForm && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-6">
             <div className="border border-juve-gold p-4 space-y-4">
-              <input
-                type="text"
-                placeholder="Partita (es. Juve-Milan 2-1)"
-                value={form.match}
-                onChange={e => setForm({ ...form, match: e.target.value })}
-                className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold"
-              />
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
+                  Partita ufficiale
+                </label>
+                <select
+                  value={form.matchId}
+                  onChange={e => {
+                    const match = diaryMatches.find(item => String(item.id) === e.target.value)
+                    setForm({
+                      ...form,
+                      matchId: e.target.value,
+                      match: match ? formatOfficialMatchLabel(match, { includeScore: true }) : '',
+                    })
+                  }}
+                  className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold bg-white"
+                  disabled={matchesLoading || diaryMatches.length === 0}
+                >
+                  <option value="">
+                    {matchesLoading
+                      ? 'Caricamento partite...'
+                      : diaryMatches.length
+                        ? 'Seleziona una partita conclusa'
+                        : 'Nessuna partita conclusa disponibile'}
+                  </option>
+                  {diaryMatches.map(match => (
+                    <option key={match.id} value={match.id}>
+                      {formatOfficialMatchLabel(match, { includeScore: true })}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Come ti senti?</p>
                 <div className="flex gap-2">
@@ -738,7 +797,11 @@ function DiaryTab() {
                 className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold resize-none"
               />
               <div className="flex gap-2">
-                <button onClick={handleSubmit} className="bg-juve-black text-white px-4 py-2 text-xs font-black uppercase tracking-widest hover:bg-juve-gold hover:text-black transition-colors">
+                <button
+                  onClick={handleSubmit}
+                  disabled={!form.matchId}
+                  className="bg-juve-black text-white px-4 py-2 text-xs font-black uppercase tracking-widest hover:bg-juve-gold hover:text-black transition-colors disabled:opacity-50"
+                >
                   Salva
                 </button>
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-800">Annulla</button>
@@ -752,7 +815,7 @@ function DiaryTab() {
       {entries.length === 0 ? (
         <div className="text-center py-12">
           <PenLine className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Nessuna voce nel diario. Annota le tue emozioni dopo ogni partita!</p>
+          <p className="text-sm text-gray-500">Nessuna voce nel diario. Annota le tue emozioni dopo una partita ufficiale della Juve.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -788,17 +851,28 @@ function DiaryTab() {
 // TAB: PREDICTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PredictionsTab() {
+function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
   const [predictions, setPredictions] = useState(() => getPredictions())
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ match: '', homeScore: 0, awayScore: 0, motm: '' })
+  const [form, setForm] = useState({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
+
+  const upcomingMatches = useMemo(() => (
+    officialMatches
+      .filter(match => match.status === 'SCHEDULED' || match.status === 'TIMED')
+      .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
+      .slice(0, 10)
+  ), [officialMatches])
+  const selectedMatch = useMemo(
+    () => upcomingMatches.find(match => String(match.id) === form.matchId) || null,
+    [upcomingMatches, form.matchId]
+  )
 
   const handleSubmit = () => {
-    if (!form.match) return
+    if (!form.matchId || !form.match) return
     addPrediction(form)
     addXP(XP_ACTIONS.prediction, 'prediction')
     setPredictions(getPredictions())
-    setForm({ match: '', homeScore: 0, awayScore: 0, motm: '' })
+    setForm({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
     setShowForm(false)
   }
 
@@ -820,16 +894,42 @@ function PredictionsTab() {
         {showForm && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-6">
             <div className="border border-juve-gold p-4 space-y-4">
-              <input
-                type="text"
-                placeholder="Partita (es. Juventus-Napoli)"
-                value={form.match}
-                onChange={e => setForm({ ...form, match: e.target.value })}
-                className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold"
-              />
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
+                  Partita ufficiale
+                </label>
+                <select
+                  value={form.matchId}
+                  onChange={e => {
+                    const match = upcomingMatches.find(item => String(item.id) === e.target.value)
+                    setForm({
+                      ...form,
+                      matchId: e.target.value,
+                      match: match ? formatOfficialMatchLabel(match) : '',
+                    })
+                  }}
+                  className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold bg-white"
+                  disabled={matchesLoading || upcomingMatches.length === 0}
+                >
+                  <option value="">
+                    {matchesLoading
+                      ? 'Caricamento partite...'
+                      : upcomingMatches.length
+                        ? 'Seleziona una prossima partita'
+                        : 'Nessuna partita ufficiale disponibile'}
+                  </option>
+                  {upcomingMatches.map(match => (
+                    <option key={match.id} value={match.id}>
+                      {formatOfficialMatchLabel(match)}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="flex items-center justify-center gap-4">
                 <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Casa</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    {selectedMatch ? (selectedMatch.homeTeam?.shortName || selectedMatch.homeTeam?.name) : 'Casa'}
+                  </p>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setForm({ ...form, homeScore: Math.max(0, form.homeScore - 1) })} className="w-8 h-8 border border-gray-300 text-lg font-bold">-</button>
                     <span className="font-display text-3xl font-black w-10 text-center">{form.homeScore}</span>
@@ -838,7 +938,9 @@ function PredictionsTab() {
                 </div>
                 <span className="font-display text-2xl font-black text-gray-300 mt-4">—</span>
                 <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Ospite</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    {selectedMatch ? (selectedMatch.awayTeam?.shortName || selectedMatch.awayTeam?.name) : 'Ospite'}
+                  </p>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setForm({ ...form, awayScore: Math.max(0, form.awayScore - 1) })} className="w-8 h-8 border border-gray-300 text-lg font-bold">-</button>
                     <span className="font-display text-3xl font-black w-10 text-center">{form.awayScore}</span>
@@ -854,7 +956,11 @@ function PredictionsTab() {
                 className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold"
               />
               <div className="flex gap-2">
-                <button onClick={handleSubmit} className="bg-juve-black text-white px-4 py-2 text-xs font-black uppercase tracking-widest hover:bg-juve-gold hover:text-black transition-colors">
+                <button
+                  onClick={handleSubmit}
+                  disabled={!form.matchId}
+                  className="bg-juve-black text-white px-4 py-2 text-xs font-black uppercase tracking-widest hover:bg-juve-gold hover:text-black transition-colors disabled:opacity-50"
+                >
                   Conferma pronostico
                 </button>
                 <button onClick={() => setShowForm(false)} className="px-4 py-2 text-xs font-bold text-gray-500">Annulla</button>
@@ -867,7 +973,7 @@ function PredictionsTab() {
       {predictions.length === 0 ? (
         <div className="text-center py-12">
           <Zap className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Nessun pronostico. Prevedi il risultato della prossima partita!</p>
+          <p className="text-sm text-gray-500">Nessun pronostico. Prevedi il risultato di una prossima partita ufficiale!</p>
         </div>
       ) : (
         <div className="space-y-3">
