@@ -32,6 +32,8 @@ import {
 import { stripHtml, truncate, readingTime } from '@/lib/utils'
 import RichEditor from '@/components/admin/RichEditor'
 
+const IS_DEV = import.meta.env.DEV
+
 // ── Tabs ────────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -110,9 +112,11 @@ export default function MyDnaJuve() {
               <Button variant="gold" size="lg" onClick={openLogin}>Registrati</Button>
               <Button variant="outline" size="lg" onClick={openLogin}>Accedi</Button>
             </div>
-            <div className="mt-4">
-              <Button variant="link" onClick={loginDemo}>Prova con account demo</Button>
-            </div>
+            {IS_DEV && (
+              <div className="mt-4">
+                <Button variant="link" onClick={loginDemo}>Prova con account demo</Button>
+              </div>
+            )}
           </div>
         </div>
       </>
@@ -124,9 +128,9 @@ export default function MyDnaJuve() {
   return (
     <>
       <SEO title="Il Mio BianconeriHub" />
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* ── Hero Header ──────────────────────────────────────────────── */}
+      <div className="w-full px-4 py-8 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+          {/* ── Hero Header ──────────────────────────────────────────────── */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
               {/* Avatar */}
@@ -151,7 +155,7 @@ export default function MyDnaJuve() {
                   />
                 </div>
                 {level.next && (
-                  <p className="text-[10px] text-gray-400 mt-0.5">{level.next.minXP - gamification.xp} XP per {level.next.name}</p>
+                  <p className="mt-0.5 text-[10px] text-gray-400">{level.next.minXP - gamification.xp} XP per {level.next.name}</p>
                 )}
               </div>
             </div>
@@ -161,46 +165,61 @@ export default function MyDnaJuve() {
           </div>
 
           {/* Stats strip */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-gray-200">
-            {[
-              { label: 'Questo mese', value: stats.articlesThisMonth, icon: BookOpen },
-              { label: 'Totali', value: stats.totalArticles, icon: History },
-              { label: 'Minuti', value: stats.totalMinutes, icon: Clock },
-              { label: 'Segnalibri', value: bookmarks.length, icon: Bookmark },
-              { label: 'Badge', value: gamification.unlockedBadges.length, icon: Medal },
-            ].map(s => (
-              <div key={s.label} className="bg-white p-3 flex items-center gap-2">
-                <s.icon className="h-4 w-4 text-juve-gold shrink-0" />
-                <div>
-                  <p className="font-display text-xl font-black text-juve-black">{s.value}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">{s.label}</p>
+          <div className="mx-auto max-w-7xl">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-gray-200">
+              {[
+                { label: 'Questo mese', value: stats.articlesThisMonth, icon: BookOpen },
+                { label: 'Totali', value: stats.totalArticles, icon: History },
+                { label: 'Minuti', value: stats.totalMinutes, icon: Clock },
+                { label: 'Segnalibri', value: bookmarks.length, icon: Bookmark },
+                { label: 'Badge', value: gamification.unlockedBadges.length, icon: Medal },
+              ].map(s => (
+                <div key={s.label} className="bg-white p-3 flex items-center gap-2">
+                  <s.icon className="h-4 w-4 text-juve-gold shrink-0" />
+                  <div>
+                    <p className="font-display text-xl font-black text-juve-black">{s.value}</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">{s.label}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </motion.div>
 
         {/* ── Tab Navigation ───────────────────────────────────────────── */}
-        <div className="mb-8 flex flex-nowrap overflow-x-auto border-b-2 border-juve-black scrollbar-none">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-juve-gold text-juve-black border-juve-gold'
-                  : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
-              }`}
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="sticky top-[74px] z-30 -mx-4 mb-8 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90 sm:-mx-6 md:top-[123px] lg:-mx-8 xl:-mx-10 2xl:-mx-12">
+          <div className="px-4 pt-2 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
+            <div className="overflow-x-auto border-b-2 border-juve-black scrollbar-none">
+              <div className="flex min-w-max flex-nowrap pr-6">
+                {TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                      activeTab === tab.id
+                        ? 'bg-juve-gold text-juve-black border-juve-gold'
+                        : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
+                    }`}
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ── Tab Content ──────────────────────────────────────────────── */}
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="mx-auto w-full max-w-7xl px-1 sm:px-2 lg:px-4"
+          >
             {activeTab === 'dashboard' && <DashboardTab stats={stats} level={level} gamification={gamification} history={history} bookmarks={bookmarks} />}
             {activeTab === 'bookmarks' && <BookmarksTab bookmarks={bookmarks} clearBookmarks={clearBookmarks} />}
             {activeTab === 'history' && <HistoryTab history={history} clearHistory={clearHistory} />}
