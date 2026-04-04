@@ -343,7 +343,7 @@ export default function FeedManager() {
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <UrlCard
           icon={Rss}
           title="RSS Feed"
@@ -385,6 +385,27 @@ export default function FeedManager() {
             </a>
           </div>
         </UrlCard>
+
+        <UrlCard
+          icon={Globe}
+          title="Robots.txt"
+          subtitle="Direttive crawler e riferimento alla sitemap"
+          url={`${SITE_URL}/robots.txt`}
+          accent="bg-juve-black"
+        >
+          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+            <span>Consente crawling generale e dichiara la sitemap pubblica</span>
+            <a
+              href="/robots.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-juve-gold hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Visualizza robots.txt
+            </a>
+          </div>
+        </UrlCard>
       </div>
 
       <motion.div
@@ -411,6 +432,10 @@ export default function FeedManager() {
               Google Search Console
             </a>
             .
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
+            Verifica che <code className="text-xs bg-gray-100 px-1">{SITE_URL}/robots.txt</code> sia pubblico e contenga il riferimento corretto alla sitemap.
           </li>
           <li className="flex items-start gap-2">
             <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
