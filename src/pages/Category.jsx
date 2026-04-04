@@ -55,6 +55,10 @@ export default function Category() {
         title={category?.name}
         description={`Tutti gli articoli nella categoria ${category?.name || slug} di BianconeriHub`}
         url={`/categoria/${slug}`}
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          { name: category?.name || slug, url: `/categoria/${slug}` },
+        ]}
       />
 
       <div className="max-w-7xl mx-auto px-4 py-8">

@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   getArticleById, createArticle, updateArticle,
-  getCategories, getArticleTags, upsertArticleTags,
+  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport,
 } from '@/lib/supabase'
 import { slugify, stripHtml } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,8 +26,57 @@ const schema = z.object({
   status: z.enum(['draft', 'published']),
   featured: z.boolean(),
   cover_image: z.string().optional(),
+  meta_title: z.string().max(70, 'Max 70 caratteri').optional(),
+  meta_description: z.string().max(170, 'Max 170 caratteri').optional(),
+  canonical_url: z.string().optional(),
+  og_image: z.string().optional(),
+  noindex: z.boolean(),
   scheduled_at: z.string().optional(),
 })
+
+const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com'
+
+function buildSeoHints({ title, excerpt, content, categoryName, coverImage, metaTitle, metaDescription, canonicalUrl, ogImage, noindex }) {
+  const plainContent = stripHtml(content || '').replace(/\s+/g, ' ').trim()
+  const suggestedTitle = metaTitle?.trim() || title?.trim() || ''
+  const suggestedDescription = metaDescription?.trim() || excerpt?.trim() || plainContent.slice(0, 155)
+  const suggestedOgImage = ogImage?.trim() || coverImage?.trim() || ''
+  const suggestedCanonical = canonicalUrl?.trim() || ''
+
+  let score = 0
+  if (suggestedTitle.length >= 35 && suggestedTitle.length <= 60) score += 30
+  else if (suggestedTitle.length >= 25) score += 18
+  else if (suggestedTitle.length > 0) score += 8
+
+  if (suggestedDescription.length >= 120 && suggestedDescription.length <= 160) score += 30
+  else if (suggestedDescription.length >= 80) score += 18
+  else if (suggestedDescription.length > 0) score += 8
+
+  if (title?.trim() && slugify(title) !== '') score += 10
+  if (categoryName) score += 10
+  if (suggestedOgImage) score += 10
+  if (plainContent.length >= 600) score += 10
+
+  const issues = []
+  if (!title?.trim()) issues.push('Titolo assente.')
+  if (suggestedTitle.length < 35 || suggestedTitle.length > 60) issues.push('Meta title da tenere idealmente tra 35 e 60 caratteri.')
+  if (suggestedDescription.length < 120 || suggestedDescription.length > 160) issues.push('Meta description da tenere idealmente tra 120 e 160 caratteri.')
+  if (!categoryName) issues.push('Categoria mancante.')
+  if (!suggestedOgImage) issues.push('Immagine social/OG mancante.')
+  if (plainContent.length < 600) issues.push('Contenuto un po\' corto per un articolo SEO forte.')
+  if (suggestedCanonical && !/^https?:\/\//i.test(suggestedCanonical)) issues.push('Canonical da inserire come URL assoluto.')
+  if (noindex) issues.push('Noindex attivo: la pagina non sara spinta sui motori di ricerca.')
+
+  return {
+    score,
+    label: score >= 80 ? 'SEO forte' : score >= 55 ? 'Buona base SEO' : 'Da migliorare',
+    suggestedTitle,
+    suggestedDescription,
+    suggestedCanonical,
+    suggestedOgImage,
+    issues,
+  }
+}
 
 export default function ArticleEditor() {
   const { id } = useParams()
@@ -57,13 +106,32 @@ export default function ArticleEditor() {
     queryFn: () => getArticleTags(id),
     enabled: isEdit,
   })
+  const { data: seoColumnsSupported = false } = useQuery({
+    queryKey: ['article-seo-columns-support'],
+    queryFn: checkArticleSeoSupport,
+    staleTime: 60 * 60 * 1000,
+  })
 
   const {
     register, control, handleSubmit, watch, setValue,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { title: '', slug: '', excerpt: '', category_id: '', status: 'draft', featured: false, cover_image: '', scheduled_at: '' },
+    defaultValues: {
+      title: '',
+      slug: '',
+      excerpt: '',
+      category_id: '',
+      status: 'draft',
+      featured: false,
+      cover_image: '',
+      meta_title: '',
+      meta_description: '',
+      canonical_url: '',
+      og_image: '',
+      noindex: false,
+      scheduled_at: '',
+    },
   })
 
   useEffect(() => {
@@ -75,6 +143,11 @@ export default function ArticleEditor() {
       setValue('status', existing.status)
       setValue('featured', existing.featured || false)
       setValue('cover_image', existing.cover_image || '')
+      setValue('meta_title', existing.meta_title || '')
+      setValue('meta_description', existing.meta_description || '')
+      setValue('canonical_url', existing.canonical_url || '')
+      setValue('og_image', existing.og_image || '')
+      setValue('noindex', existing.noindex || false)
       if (existing.scheduled_at) {
         setValue('scheduled_at', existing.scheduled_at.slice(0, 16))
         setShowSchedule(true)
@@ -103,6 +176,13 @@ export default function ArticleEditor() {
         updated_at: new Date().toISOString(),
         published_at: status === 'published' ? (existing?.published_at || new Date().toISOString()) : null,
         scheduled_at: showSchedule && formData.scheduled_at ? new Date(formData.scheduled_at).toISOString() : null,
+      }
+      if (!seoColumnsSupported) {
+        delete payload.meta_title
+        delete payload.meta_description
+        delete payload.canonical_url
+        delete payload.og_image
+        delete payload.noindex
       }
       let articleResult
       if (isEdit) {
@@ -176,7 +256,24 @@ export default function ArticleEditor() {
   const coverImage = watch('cover_image')
   const currentStatus = watch('status')
   const selectedCategoryId = watch('category_id')
+  const metaTitle = watch('meta_title')
+  const metaDescription = watch('meta_description')
+  const canonicalUrl = watch('canonical_url')
+  const ogImage = watch('og_image')
+  const noindex = watch('noindex')
   const selectedCategory = categories.find(c => c.id === selectedCategoryId)
+  const seoHints = buildSeoHints({
+    title: titleValue,
+    excerpt: watch('excerpt'),
+    content,
+    categoryName: selectedCategory?.name,
+    coverImage,
+    metaTitle,
+    metaDescription,
+    canonicalUrl,
+    ogImage,
+    noindex,
+  })
 
   return (
     <div>
@@ -320,6 +417,115 @@ export default function ArticleEditor() {
                   <p className="text-xs text-gray-400 mt-1">L'articolo sarà pubblicato in automatico alla data indicata</p>
                 </motion.div>
               )}
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider">SEO</h3>
+                <p className="mt-1 text-xs text-gray-500">Titolo, descrizione e segnali social del singolo articolo.</p>
+              </div>
+              <div className="text-right">
+                <p className="font-display text-2xl font-black text-juve-black">{seoHints.score}/100</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{seoHints.label}</p>
+              </div>
+            </div>
+
+            {!seoColumnsSupported && (
+              <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-xs text-amber-800">
+                  I campi SEO sono pronti lato UI, ma il database remoto non risulta ancora aggiornato.
+                  Finche lo schema non viene allineato, i suggerimenti SEO restano visibili ma non vengono salvati.
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-sm border border-gray-200 bg-gray-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Anteprima SERP</p>
+              <p className="mt-2 text-base font-medium text-blue-700 line-clamp-2">
+                {seoHints.suggestedTitle || 'Titolo SEO dell\'articolo'}
+              </p>
+              <p className="mt-1 text-xs text-green-700 break-all">
+                {seoHints.suggestedCanonical || `${SITE_URL}/articolo/${slugValue || 'slug-articolo'}`}
+              </p>
+              <p className="mt-2 text-sm text-gray-600 line-clamp-3">
+                {seoHints.suggestedDescription || 'La descrizione comparira qui appena aggiungi occhiello o meta description.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Meta title</label>
+              <input
+                {...register('meta_title')}
+                placeholder="Lascia vuoto per usare il titolo articolo"
+                className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">{(metaTitle || titleValue || '').length}/60 consigliati</p>
+              {errors.meta_title && <p className="text-xs text-red-500 mt-1">{errors.meta_title.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Meta description</label>
+              <textarea
+                {...register('meta_description')}
+                rows={3}
+                placeholder="Lascia vuoto per usare occhiello o estratto automatico"
+                className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black resize-none"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">{(metaDescription || watch('excerpt') || '').length}/160 consigliati</p>
+              {errors.meta_description && <p className="text-xs text-red-500 mt-1">{errors.meta_description.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Canonical URL</label>
+              <input
+                {...register('canonical_url')}
+                placeholder="https://bianconerihub.com/articolo/slug o URL canonica esterna"
+                className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Immagine OG social</label>
+              <input
+                {...register('og_image')}
+                placeholder="Lascia vuoto per usare la cover"
+                className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+              />
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-t border-gray-100">
+              <div>
+                <p className="text-sm font-medium">Noindex</p>
+                <p className="text-[11px] text-gray-400">Utile solo per contenuti che non vuoi indicizzare.</p>
+              </div>
+              <Controller
+                name="noindex"
+                control={control}
+                render={({ field }) => (
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(!field.value)}
+                    className={`relative w-10 h-5 transition-colors ${field.value ? 'bg-red-500' : 'bg-gray-300'}`}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white transition-transform ${field.value ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                )}
+              />
+            </div>
+
+            <div className="rounded-sm border border-gray-100 bg-gray-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Check rapido</p>
+              <div className="mt-2 space-y-1.5">
+                {seoHints.issues.length ? (
+                  seoHints.issues.map((issue) => (
+                    <p key={issue} className="text-xs text-gray-600">• {issue}</p>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-600">• Ottima base: i segnali principali sono tutti coperti.</p>
+                )}
+              </div>
             </div>
           </div>
 

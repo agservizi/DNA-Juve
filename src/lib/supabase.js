@@ -181,6 +181,28 @@ export const updateArticle = (id, data) =>
 export const deleteArticle = (id) =>
   supabase.from('articles').delete().eq('id', id)
 
+let articleSeoSupportPromise
+
+export const checkArticleSeoSupport = async () => {
+  if (!articleSeoSupportPromise) {
+    articleSeoSupportPromise = supabase
+      .from('articles')
+      .select('meta_title')
+      .limit(1)
+      .then(({ error }) => {
+        if (!error) return true
+        const message = String(error.message || '').toLowerCase()
+        if (error.code === '42703' || message.includes('meta_title') || message.includes('column')) {
+          return false
+        }
+        return false
+      })
+      .catch(() => false)
+  }
+
+  return articleSeoSupportPromise
+}
+
 // ─── CATEGORIES ──────────────────────────────────────────────────────────────
 export const getCategories = () =>
   supabase.from('categories').select('*').order('name')

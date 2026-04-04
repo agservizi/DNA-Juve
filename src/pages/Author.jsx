@@ -64,6 +64,10 @@ export default function Author() {
         description={`Tutti gli articoli scritti da ${author?.username || username} per BianconeriHub`}
         image={author?.avatar_url}
         url={`/autore/${username}`}
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          { name: author?.username || username, url: `/autore/${username}` },
+        ]}
       />
 
       <div className="max-w-7xl mx-auto px-4 py-10">

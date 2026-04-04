@@ -122,12 +122,22 @@ export default function Article() {
         description={description}
         image={article.cover_image}
         url={`/articolo/${article.slug}`}
+        metaTitle={article.meta_title}
+        metaDescription={article.meta_description}
+        canonical={article.canonical_url}
+        ogImage={article.og_image}
         type="article"
         publishedAt={article.published_at}
         modifiedAt={article.updated_at}
         author={article.profiles?.username}
         category={article.categories?.name}
         tags={tags.map(t => t.name)}
+        noindex={article.noindex}
+        breadcrumbs={[
+          { name: 'Home', url: '/' },
+          ...(article.categories ? [{ name: article.categories.name, url: `/categoria/${article.categories.slug}` }] : []),
+          { name: article.title, url: `/articolo/${article.slug}` },
+        ]}
         articleData={article}
       />
 

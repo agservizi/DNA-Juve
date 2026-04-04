@@ -144,10 +144,6 @@ export default function Login() {
                 'Accedi'
               )}
             </button>
-
-            <p className="text-center text-xs text-gray-500">
-              Account admin configurato: <span className="font-semibold text-gray-700">admin@bianconerihub.com</span>
-            </p>
           </form>
         </div>
 

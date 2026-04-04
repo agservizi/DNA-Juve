@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS articles (
   excerpt      TEXT,
   content      TEXT,
   cover_image  TEXT,
+  meta_title   TEXT,
+  meta_description TEXT,
+  canonical_url TEXT,
+  og_image     TEXT,
+  noindex      BOOLEAN DEFAULT FALSE,
   category_id  UUID REFERENCES categories(id) ON DELETE SET NULL,
   author_id    UUID REFERENCES profiles(id) ON DELETE SET NULL,
   status       TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
@@ -66,6 +71,12 @@ CREATE TABLE IF NOT EXISTS articles (
   published_at TIMESTAMPTZ,
   scheduled_at TIMESTAMPTZ   -- Pianificazione pubblicazione automatica
 );
+
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_title TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_description TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS canonical_url TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS og_image TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS noindex BOOLEAN DEFAULT FALSE;
 
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
