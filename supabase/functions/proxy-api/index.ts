@@ -13,10 +13,10 @@ const ROUTES: Record<string, { target: string; headers?: Record<string, string>;
     queryParams: { apiKey: Deno.env.get('NEWS_API_KEY') || '' },
   },
   'rss/gazzetta': { target: 'https://www.gazzetta.it/rss/calcio.xml' },
-  'rss/sky': { target: 'https://sport.sky.it/rss/sport_calcio_serie_a.xml' },
   'rss/tuttosport': { target: 'https://www.tuttosport.com/rss/calcio/serie-a/juventus' },
-  'rss/calciomercato': { target: 'https://www.calciomercato.com/feed' },
   'rss/tuttojuve': { target: 'https://www.tuttojuve.com/rss/?section=6' },
+  'rss/juventusnews24': { target: 'https://www.juventusnews24.com/feed/' },
+  'rss/juvenews': { target: 'https://www.juvenews.eu/feed/' },
   brevo: {
     target: 'https://api.brevo.com/v3',
     headers: { 'api-key': Deno.env.get('BREVO_API_KEY') || '' },

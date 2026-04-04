@@ -2,26 +2,11 @@
   RewriteEngine On
   RewriteBase /
 
-  # Se il file o la directory esiste, servilo direttamente
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # Serve real files and directories as-is.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
 
-  # Altrimenti redirect tutto a index.html (SPA fallback)
-  RewriteRule ^ index.html [QSA,L]
-</IfModule>
-
-# Compressione gzip
-<IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
-</IfModule>
-
-# Cache per asset statici
-<IfModule mod_expires.c>
-  ExpiresActive On
-  ExpiresByType text/css "access plus 1 year"
-  ExpiresByType application/javascript "access plus 1 year"
-  ExpiresByType image/png "access plus 1 year"
-  ExpiresByType image/jpeg "access plus 1 year"
-  ExpiresByType image/svg+xml "access plus 1 year"
-  ExpiresByType font/woff2 "access plus 1 year"
+  # Fallback to the SPA only for app routes.
+  RewriteRule . /index.html [L]
 </IfModule>

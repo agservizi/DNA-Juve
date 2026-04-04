@@ -89,6 +89,11 @@ export default function Author() {
               <h1 className="font-display text-3xl font-black">{author?.username}</h1>
             )}
             <p className="text-gray-400 text-sm mt-1 uppercase tracking-widest">Redattore BianconeriHub</p>
+            {author?.bio && (
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-gray-300">
+                {author.bio}
+              </p>
+            )}
 
             <div className="flex flex-wrap justify-center sm:justify-start gap-6 mt-4">
               <div className="flex items-center gap-2 text-sm">

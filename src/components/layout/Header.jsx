@@ -137,7 +137,7 @@ export default function Header() {
           </div>
 
           {/* Category nav — desktop */}
-          <nav className="hidden md:flex items-center gap-0 py-0 overflow-x-auto">
+          <nav className="hidden md:flex items-center justify-center gap-0 py-0 overflow-x-auto">
             <NavLink
               to="/"
               end

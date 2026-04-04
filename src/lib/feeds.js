@@ -1,5 +1,8 @@
-// Generates RSS and Sitemap XML as strings — used both in Vite middleware and React pages
-const SITE_URL = import.meta.env?.VITE_SITE_URL || 'https://bianconerihub.com'
+// Generates RSS and Sitemap XML as strings — shared by React routes and build scripts.
+const SITE_URL =
+  import.meta.env?.VITE_SITE_URL ||
+  (typeof process !== 'undefined' ? process.env.VITE_SITE_URL : undefined) ||
+  'https://bianconerihub.com'
 const SITE_NAME = 'BianconeriHub'
 
 export function generateRSS(articles = []) {

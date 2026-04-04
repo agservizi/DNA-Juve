@@ -5,7 +5,7 @@ import { useReader } from '@/hooks/useReader'
 import { UserCircle } from 'lucide-react'
 
 export default function ReaderLoginDialog() {
-  const { showLoginDialog, closeLogin, register, login, loginDemo } = useReader()
+  const { showLoginDialog, closeLogin, register, login } = useReader()
   const [mode, setMode] = useState('register') // 'register' | 'login'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -96,12 +96,6 @@ export default function ReaderLoginDialog() {
                 <>Non hai un account?{' '}<button type="button" onClick={() => setMode('register')} className="text-juve-gold font-bold hover:underline">Registrati</button></>
               )}
             </p>
-
-            <div className="text-center pt-2 border-t border-gray-100 mt-4">
-              <button type="button" onClick={loginDemo} className="text-xs text-gray-400 hover:text-juve-gold transition-colors">
-                Prova con account demo
-              </button>
-            </div>
           </form>
         )}
       </DialogContent>

@@ -35,9 +35,9 @@ const MERCATO_FEED = 'https://www.tuttojuve.com/rss/?section=6'
 
 const NEWS_FEEDS = [
   { url: 'https://www.gazzetta.it/rss/calcio.xml', source: 'La Gazzetta dello Sport' },
-  { url: 'https://sport.sky.it/rss/sport_calcio_serie_a.xml', source: 'Sky Sport' },
   { url: 'https://www.tuttosport.com/rss/calcio/serie-a/juventus', source: 'Tuttosport' },
-  { url: 'https://www.calciomercato.com/feed', source: 'Calciomercato.com' },
+  { url: 'https://www.juventusnews24.com/feed/', source: 'JuventusNews24' },
+  { url: 'https://www.juvenews.eu/feed/', source: 'JuveNews' },
 ]
 
 const JUVE_KEYWORDS = ['juventus', 'juve', 'bianconeri', 'bianconero']

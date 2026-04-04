@@ -13,6 +13,28 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
+  const getAuthErrorMessage = (err) => {
+    const message = String(err?.message || '').toLowerCase()
+
+    if (message.includes('email not confirmed')) {
+      return 'Questa email esiste ma non e ancora confermata.'
+    }
+
+    if (message.includes('invalid login credentials')) {
+      return 'Email o password non validi. Riprova.'
+    }
+
+    if (message.includes('signup disabled')) {
+      return 'L’accesso email/password non e disponibile al momento.'
+    }
+
+    if (message.includes('failed to fetch') || message.includes('network')) {
+      return 'Connessione a Supabase non riuscita. Controlla rete e configurazione.'
+    }
+
+    return 'Accesso non riuscito. Riprova tra un attimo.'
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
@@ -21,7 +43,7 @@ export default function Login() {
       await login(email, password)
       navigate('/admin')
     } catch (err) {
-      setError('Email o password non validi. Riprova.')
+      setError(getAuthErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -68,7 +90,7 @@ export default function Login() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
-                  placeholder="redazione@bianconerihub.com"
+                  placeholder="admin@bianconerihub.com"
                   className="w-full border-2 border-gray-200 pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-juve-black transition-colors"
                 />
               </div>
@@ -122,6 +144,10 @@ export default function Login() {
                 'Accedi'
               )}
             </button>
+
+            <p className="text-center text-xs text-gray-500">
+              Account admin configurato: <span className="font-semibold text-gray-700">admin@bianconerihub.com</span>
+            </p>
           </form>
         </div>
 

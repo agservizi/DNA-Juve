@@ -189,22 +189,24 @@ export default function MyDnaJuve() {
         {/* ── Tab Navigation ───────────────────────────────────────────── */}
         <div className="sticky top-[74px] z-30 -mx-4 mb-8 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90 sm:-mx-6 md:top-[123px] lg:-mx-8 xl:-mx-10 2xl:-mx-12">
           <div className="px-4 pt-2 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
-            <div className="overflow-x-auto border-b-2 border-juve-black scrollbar-none">
-              <div className="flex min-w-max flex-nowrap pr-6">
-                {TABS.map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-juve-gold text-juve-black border-juve-gold'
-                        : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
-                    }`}
-                  >
-                    <tab.icon className="h-3.5 w-3.5" />
-                    {tab.label}
-                  </button>
-                ))}
+            <div className="overflow-x-auto scrollbar-none">
+              <div className="flex justify-center">
+                <div className="inline-flex min-w-max flex-nowrap border-b-2 border-juve-black pr-6">
+                  {TABS.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                        activeTab === tab.id
+                          ? 'bg-juve-gold text-juve-black border-juve-gold'
+                          : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
+                      }`}
+                    >
+                      <tab.icon className="h-3.5 w-3.5" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -36,23 +36,23 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: () => '',
         },
-        '/api/rss/sky': {
-          target: 'https://sport.sky.it/rss/sport_calcio_serie_a.xml',
-          changeOrigin: true,
-          rewrite: () => '',
-        },
         '/api/rss/tuttosport': {
           target: 'https://www.tuttosport.com/rss/calcio/serie-a/juventus',
           changeOrigin: true,
           rewrite: () => '',
         },
-        '/api/rss/calciomercato': {
-          target: 'https://www.calciomercato.com/feed',
+        '/api/rss/tuttojuve': {
+          target: 'https://www.tuttojuve.com/rss/?section=6',
           changeOrigin: true,
           rewrite: () => '',
         },
-        '/api/rss/tuttojuve': {
-          target: 'https://www.tuttojuve.com/rss/?section=6',
+        '/api/rss/juventusnews24': {
+          target: 'https://www.juventusnews24.com/feed/',
+          changeOrigin: true,
+          rewrite: () => '',
+        },
+        '/api/rss/juvenews': {
+          target: 'https://www.juvenews.eu/feed/',
           changeOrigin: true,
           rewrite: () => '',
         },

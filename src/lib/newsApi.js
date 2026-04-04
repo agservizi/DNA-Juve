@@ -45,9 +45,10 @@ function normalizeNewsApiArticle(a) {
 
 const RSS_FEEDS = [
   { name: 'Gazzetta dello Sport', route: 'rss/gazzetta', source: 'La Gazzetta dello Sport' },
-  { name: 'Sky Sport', route: 'rss/sky', source: 'Sky Sport' },
   { name: 'Tuttosport', route: 'rss/tuttosport', source: 'Tuttosport' },
-  { name: 'Calciomercato.com', route: 'rss/calciomercato', source: 'Calciomercato.com' },
+  { name: 'TuttoJuve', route: 'rss/tuttojuve', source: 'TuttoJuve' },
+  { name: 'JuventusNews24', route: 'rss/juventusnews24', source: 'JuventusNews24' },
+  { name: 'JuveNews', route: 'rss/juvenews', source: 'JuveNews' },
 ]
 
 const JUVE_KEYWORDS = ['juventus', 'juve', 'bianconeri', 'bianconero']

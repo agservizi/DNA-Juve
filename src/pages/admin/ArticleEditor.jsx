@@ -10,7 +10,7 @@ import {
   getArticleById, createArticle, updateArticle,
   getCategories, getArticleTags, upsertArticleTags,
 } from '@/lib/supabase'
-import { slugify } from '@/lib/utils'
+import { slugify, stripHtml } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import RichEditor from '@/components/admin/RichEditor'
@@ -131,7 +131,41 @@ export default function ArticleEditor() {
     onError: (err) => toast({ title: 'Errore', description: err.message, variant: 'destructive' }),
   })
 
-  const onSubmit = (formData, status) => saveMutation.mutate({ formData, status })
+  const onSubmit = (formData, status) => {
+    if (status === 'published') {
+      const plainContent = stripHtml(content || '').replace(/\s+/g, ' ').trim()
+      const excerpt = (formData.excerpt || '').trim()
+
+      if (!formData.category_id) {
+        toast({
+          title: 'Categoria obbligatoria',
+          description: 'Seleziona una categoria prima di pubblicare.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (plainContent.length < 120) {
+        toast({
+          title: 'Contenuto insufficiente',
+          description: 'Per pubblicare serve un articolo con almeno 120 caratteri reali di contenuto.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (excerpt.length < 20) {
+        toast({
+          title: 'Occhiello troppo breve',
+          description: "Aggiungi un sommario piu chiaro prima di pubblicare l'articolo.",
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
+    saveMutation.mutate({ formData, status })
+  }
 
   if (loadingArticle) return (
     <div className="flex items-center justify-center py-24">

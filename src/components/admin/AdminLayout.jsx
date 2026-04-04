@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
   ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare,
@@ -41,6 +41,7 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, logout } = useAuth()
   const { toasts, toast, dismiss } = useToast()
+  const location = useLocation()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -66,6 +67,18 @@ export default function AdminLayout() {
     await logout()
     toast({ title: 'Logout effettuato', variant: 'success' })
     navigate('/admin/login')
+  }
+
+  const isItemActive = (to) => {
+    const pathname = location.pathname
+
+    if (to === '/admin') return pathname === '/admin'
+    if (to === '/admin/articoli') {
+      return pathname === '/admin/articoli' || Boolean(matchPath('/admin/articoli/:id/modifica', pathname))
+    }
+    if (to === '/admin/articoli/nuovo') return pathname === '/admin/articoli/nuovo'
+
+    return pathname === to
   }
 
   return (
@@ -100,20 +113,20 @@ export default function AdminLayout() {
                       <NavLink
                         key={to}
                         to={to}
-                        end={to === '/admin'}
-                        className={({ isActive }) =>
+                        end
+                        className={() =>
                           `flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors ${
-                            isActive
+                            isItemActive(to)
                               ? 'bg-juve-gold text-black'
                               : 'text-gray-400 hover:text-white hover:bg-gray-800'
                           }`
                         }
                       >
-                        {({ isActive }) => (
+                        {() => (
                           <>
                             <Icon className="h-4 w-4 shrink-0" />
                             <span>{label}</span>
-                            {isActive && <ChevronRight className="h-3 w-3 ml-auto" />}
+                            {isItemActive(to) && <ChevronRight className="h-3 w-3 ml-auto" />}
                           </>
                         )}
                       </NavLink>
