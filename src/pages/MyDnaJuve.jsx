@@ -191,6 +191,7 @@ export default function MyDnaJuve() {
 
   const gamification = useMemo(() => getGamificationState(), [activeTab])
   const level = useMemo(() => getLevel(gamification.xp), [gamification.xp])
+  const officialMatches = useMemo(() => teamMatches || [], [teamMatches])
 
   // Check badges on change
   useEffect(() => {
@@ -246,7 +247,6 @@ export default function MyDnaJuve() {
   }
 
   const avatar = AVATARS.find(a => a.id === gamification.avatar) || AVATARS[0]
-  const officialMatches = useMemo(() => teamMatches || [], [teamMatches])
 
   return (
     <>
