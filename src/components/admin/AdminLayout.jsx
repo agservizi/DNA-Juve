@@ -37,6 +37,7 @@ const navGroups = [
 ]
 
 export default function AdminLayout() {
+  const [isDesktop, setIsDesktop] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, logout } = useAuth()
   const { toasts, toast, dismiss } = useToast()
@@ -45,8 +46,12 @@ export default function AdminLayout() {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
     const media = window.matchMedia('(min-width: 1024px)')
-    const syncSidebar = (event) => setSidebarOpen(event.matches)
+    const syncSidebar = (event) => {
+      setIsDesktop(event.matches)
+      setSidebarOpen(event.matches)
+    }
 
+    setIsDesktop(media.matches)
     setSidebarOpen(media.matches)
     if (media.addEventListener) {
       media.addEventListener('change', syncSidebar)
@@ -67,8 +72,10 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-juve-black text-white transition-transform duration-200 ease-in-out lg:sticky ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-juve-black text-white transition-[width,transform] duration-200 ease-in-out lg:sticky ${
+          isDesktop
+            ? (sidebarOpen ? 'w-64 translate-x-0' : 'w-0 translate-x-0')
+            : (sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full')
         }`}
       >
         <div className="flex h-full w-64 min-w-[16rem] flex-col">
@@ -161,7 +168,7 @@ export default function AdminLayout() {
       {/* Mobile overlay */}
       <div
         className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-200 ${
-          sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          !isDesktop && sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setSidebarOpen(false)}
       />
