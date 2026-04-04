@@ -15,7 +15,7 @@ function saveNotifPrefs(data) {
 }
 
 export default function NotificationAlert() {
-  const { reader, preferences } = useReader()
+  const { reader, preferences, syncRemoteState } = useReader()
   const [enabled, setEnabled] = useState(false)
   const [permission, setPermission] = useState('default')
 
@@ -39,9 +39,11 @@ export default function NotificationAlert() {
       }
       saveNotifPrefs({ enabled: true, lastCheck: new Date().toISOString() })
       setEnabled(true)
+      syncRemoteState?.()
     } else {
       saveNotifPrefs({ enabled: false, lastCheck: null })
       setEnabled(false)
+      syncRemoteState?.()
     }
   }
 

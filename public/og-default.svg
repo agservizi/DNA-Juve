@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="BianconeriHub">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0a0a" />
+      <stop offset="100%" stop-color="#2b2b2b" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect x="64" y="64" width="1072" height="502" fill="none" stroke="#f5a623" stroke-width="4" />
+  <text x="90" y="250" fill="#ffffff" font-family="Georgia, serif" font-size="86" font-weight="700">BIANCONERI</text>
+  <text x="90" y="340" fill="#f5a623" font-family="Georgia, serif" font-size="86" font-weight="700">HUB</text>
+  <text x="90" y="420" fill="#d4d4d4" font-family="Arial, sans-serif" font-size="34">
+    Il magazine digitale dedicato alla Juventus
+  </text>
+</svg>

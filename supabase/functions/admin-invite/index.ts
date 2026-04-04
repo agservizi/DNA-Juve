@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
     if (!email) throw new Error('Email is required')
 
     // Invite user
-    const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email)
+    const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: { role: 'editor' },
+    })
     if (error) throw error
 
     // Create profile
@@ -36,6 +38,7 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from('profiles').upsert({
         id: data.user.id,
         username: email.split('@')[0],
+        role: 'editor',
       }, { onConflict: 'id' })
     }
 

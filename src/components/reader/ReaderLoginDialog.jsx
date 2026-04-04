@@ -2,25 +2,34 @@ import { useState } from 'react'
 import { Dialog, DialogHeader, DialogTitle, DialogContent } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { useReader } from '@/hooks/useReader'
-import { UserCircle } from 'lucide-react'
+import { Loader2, MailCheck, UserCircle } from 'lucide-react'
 
 export default function ReaderLoginDialog() {
   const { showLoginDialog, closeLogin, register, login } = useReader()
   const [mode, setMode] = useState('register') // 'register' | 'login'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [successMode, setSuccessMode] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (mode === 'register' && name.trim() && email.trim()) {
-      register(name.trim(), email.trim())
-      setSuccess(true)
-      setTimeout(() => { setSuccess(false); setName(''); setEmail('') }, 1500)
-    } else if (mode === 'login' && email.trim()) {
-      login(email.trim())
-      setSuccess(true)
-      setTimeout(() => { setSuccess(false); setName(''); setEmail('') }, 1500)
+    setError('')
+    setLoading(true)
+
+    try {
+      if (mode === 'register' && name.trim() && email.trim()) {
+        const result = await register(name.trim(), email.trim())
+        setSuccessMode(result?.mode === 'magic-link' ? 'magic-link' : 'success')
+      } else if (mode === 'login' && email.trim()) {
+        const result = await login(email.trim())
+        setSuccessMode(result?.mode === 'magic-link' ? 'magic-link' : 'success')
+      }
+    } catch (err) {
+      setError(String(err?.message || 'Accesso non riuscito. Riprova.'))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -29,7 +38,9 @@ export default function ReaderLoginDialog() {
     setMode('register')
     setName('')
     setEmail('')
-    setSuccess(false)
+    setSuccessMode(null)
+    setLoading(false)
+    setError('')
   }
 
   return (
@@ -44,13 +55,22 @@ export default function ReaderLoginDialog() {
       </DialogHeader>
 
       <DialogContent>
-        {success ? (
+        {successMode ? (
           <div className="text-center py-8">
             <div className="w-12 h-12 bg-juve-gold flex items-center justify-center mx-auto mb-4">
-              <span className="text-black font-black text-lg">✓</span>
+              {successMode === 'magic-link'
+                ? <MailCheck className="h-6 w-6 text-black" />
+                : <span className="text-black font-black text-lg">✓</span>
+              }
             </div>
-            <p className="font-display text-xl font-bold">Benvenuto!</p>
-            <p className="text-sm text-gray-500 mt-1">Accesso effettuato con successo</p>
+            <p className="font-display text-xl font-bold">
+              {successMode === 'magic-link' ? 'Controlla la tua email' : 'Benvenuto!'}
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              {successMode === 'magic-link'
+                ? 'Ti abbiamo inviato un link magico per accedere e sincronizzare il tuo profilo.'
+                : 'Accesso effettuato con successo'}
+            </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -85,8 +105,21 @@ export default function ReaderLoginDialog() {
               />
             </div>
 
+            {error && (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+
             <Button type="submit" variant="gold" size="lg" className="w-full">
-              {mode === 'register' ? 'Registrati' : 'Accedi'}
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Invio in corso...
+                </span>
+              ) : (
+                mode === 'register' ? 'Registrati' : 'Accedi'
+              )}
             </Button>
 
             <p className="text-center text-xs text-gray-500">

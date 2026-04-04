@@ -2,7 +2,7 @@ import { Helmet } from 'react-helmet-async'
 
 const SITE_NAME = 'BianconeriHub'
 const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com'
-const DEFAULT_IMAGE = `${SITE_URL}/og-default.jpg`
+const DEFAULT_IMAGE = `${SITE_URL}/og-default.svg`
 const DEFAULT_DESCRIPTION = 'Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato e tanto altro dalla redazione bianconera.'
 
 function normalizeAbsoluteUrl(value, fallbackPath = '') {

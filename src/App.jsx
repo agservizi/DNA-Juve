@@ -19,6 +19,9 @@ const Tag       = lazy(() => import('@/pages/Tag'))
 const ChiSiamo     = lazy(() => import('@/pages/ChiSiamo'))
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'))
 const CookiePolicy  = lazy(() => import('@/pages/CookiePolicy'))
+const Contatti      = lazy(() => import('@/pages/Contatti'))
+const Faq           = lazy(() => import('@/pages/Faq'))
+const Terms         = lazy(() => import('@/pages/Terms'))
 const MyDnaJuve     = lazy(() => import('@/pages/MyDnaJuve'))
 const MatchCalendar = lazy(() => import('@/pages/MatchCalendar'))
 const Calciomercato = lazy(() => import('@/pages/Calciomercato'))
@@ -38,6 +41,7 @@ const Settings      = lazy(() => import('@/pages/admin/Settings'))
 const Profile       = lazy(() => import('@/pages/admin/Profile'))
 const Analytics     = lazy(() => import('@/pages/admin/Analytics'))
 const Authors       = lazy(() => import('@/pages/admin/Authors'))
+const CommentsAdmin = lazy(() => import('@/pages/admin/Comments'))
 const FeedManager   = lazy(() => import('@/pages/admin/FeedManager'))
 const FanArticleSubmissions = lazy(() => import('@/pages/admin/FanArticleSubmissions'))
 
@@ -50,7 +54,7 @@ function PageLoader() {
 }
 
 function AdminGuard({ children }) {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
   if (loading) return (
     <div className="min-h-screen bg-juve-black flex items-center justify-center">
       <div className="flex items-baseline gap-1">
@@ -60,6 +64,7 @@ function AdminGuard({ children }) {
     </div>
   )
   if (!user) return <Navigate to="/admin/login" replace />
+  if (profile?.role && !['admin', 'editor'].includes(profile.role)) return <Navigate to="/" replace />
   return children
 }
 
@@ -78,6 +83,9 @@ function AppRoutes() {
           <Route path="chi-siamo" element={<ChiSiamo />} />
           <Route path="privacy" element={<PrivacyPolicy />} />
           <Route path="cookie-policy" element={<CookiePolicy />} />
+          <Route path="contatti" element={<Contatti />} />
+          <Route path="faq" element={<Faq />} />
+          <Route path="termini" element={<Terms />} />
           <Route path="area-bianconera" element={<MyDnaJuve />} />
           <Route path="calendario" element={<MatchCalendar />} />
           <Route path="calciomercato" element={<Calciomercato />} />
@@ -108,6 +116,7 @@ function AppRoutes() {
           <Route path="categorie" element={<Categories />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="redattori" element={<Authors />} />
+          <Route path="commenti" element={<CommentsAdmin />} />
           <Route path="proposte-tifosi" element={<FanArticleSubmissions />} />
           <Route path="profilo" element={<Profile />} />
           <Route path="feed" element={<FeedManager />} />

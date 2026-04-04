@@ -23,6 +23,7 @@ const navGroups = [
     items: [
       { icon: BarChart2, label: 'Analytics', to: '/admin/analytics' },
       { icon: Users, label: 'Redattori', to: '/admin/redattori' },
+      { icon: MessagesSquare, label: 'Commenti', to: '/admin/commenti' },
       { icon: MessagesSquare, label: 'Proposte Tifosi', to: '/admin/proposte-tifosi' },
       { icon: Rss, label: 'RSS / Sitemap', to: '/admin/feed' },
     ],
@@ -39,7 +40,7 @@ const navGroups = [
 export default function AdminLayout() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { user, logout } = useAuth()
+  const { user, profile, logout } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const location = useLocation()
   const navigate = useNavigate()
@@ -145,8 +146,8 @@ export default function AdminLayout() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{user?.email}</p>
-                  <p className="text-xs text-gray-500">Amministratore</p>
+                  <p className="text-xs font-medium text-white truncate">{profile?.username || user?.email}</p>
+                  <p className="text-xs text-gray-500">{profile?.role === 'admin' ? 'Amministratore' : 'Redazione'}</p>
                 </div>
               </div>
               <button

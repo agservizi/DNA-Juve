@@ -6,12 +6,43 @@ import { buildFanArticlePlaceholder, deriveFanArticleTags } from './fanArticles'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
 const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
+let readerStateSupported = true
+let profileRoleSupported = true
 
 export const supabase = IS_MOCK ? createMockClient() : createClient(supabaseUrl, supabaseAnonKey)
+
+function isMissingColumnOrRelation(error, token) {
+  const message = String(error?.message || '').toLowerCase()
+  const details = String(error?.details || '').toLowerCase()
+  const hint = String(error?.hint || '').toLowerCase()
+  const combined = `${message} ${details} ${hint}`
+
+  return (
+    error?.code === 'PGRST205' ||
+    error?.code === '42703' ||
+    error?.status === 404 ||
+    combined.includes('could not find') ||
+    combined.includes('schema cache') ||
+    combined.includes('does not exist') ||
+    combined.includes('relation') ||
+    combined.includes('column') ||
+    combined.includes(String(token || '').toLowerCase())
+  )
+}
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 export const signIn = (email, password) =>
   supabase.auth.signInWithPassword({ email, password })
+
+export const signInWithMagicLink = (email, options = {}) =>
+  supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/area-bianconera` : undefined,
+      data: options.data || {},
+    },
+  })
 
 export const signOut = () => supabase.auth.signOut()
 
@@ -19,6 +50,83 @@ export const getSession = () => supabase.auth.getSession()
 
 export const onAuthStateChange = (callback) =>
   supabase.auth.onAuthStateChange(callback)
+
+export const getProfileByUserId = async (userId) => {
+  if (!userId) return { data: null, error: null }
+
+  if (profileRoleSupported) {
+    const roleProbe = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url, bio, role, created_at, updated_at')
+      .eq('id', userId)
+      .single()
+
+    if (!roleProbe.error) return roleProbe
+
+    if (!isMissingColumnOrRelation(roleProbe.error, 'role')) {
+      return roleProbe
+    }
+
+    profileRoleSupported = false
+  }
+
+  const fallback = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url, bio, created_at, updated_at')
+    .eq('id', userId)
+    .single()
+
+  if (fallback.error) return fallback
+  return { data: { ...fallback.data, role: null }, error: null }
+}
+
+export const updateProfileData = async (userId, data) =>
+  supabase
+    .from('profiles')
+    .update(data)
+    .eq('id', userId)
+    .select()
+    .single()
+
+export const getReaderState = async (userId) => {
+  if (!userId) return { data: null, error: null }
+  if (!readerStateSupported) return { data: null, error: null }
+
+  const { data, error } = await supabase
+    .from('reader_states')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error && isMissingColumnOrRelation(error, 'reader_states')) {
+    readerStateSupported = false
+    return { data: null, error: null }
+  }
+
+  const message = String(error?.message || '').toLowerCase()
+  if (error && (error.code === 'PGRST116' || error.status === 406 || message.includes('no rows'))) {
+    return { data: null, error: null }
+  }
+
+  return { data, error }
+}
+
+export const upsertReaderState = async (userId, payload) => {
+  if (!readerStateSupported) return { data: null, error: null }
+
+  const result = await supabase
+    .from('reader_states')
+    .upsert([{ user_id: userId, ...payload }], { onConflict: 'user_id' })
+    .select()
+    .single()
+
+  if (result.error && isMissingColumnOrRelation(result.error, 'reader_states')) {
+    readerStateSupported = false
+    return { data: null, error: null }
+  }
+
+  return result
+}
 
 // ─── ARTICLES ────────────────────────────────────────────────────────────────
 export const getPublishedArticles = async ({ page = 1, limit = 12, category = null } = {}) => {
@@ -279,6 +387,36 @@ export const getDashboardStats = async () => {
     views,
   }
 }
+
+// ─── COMMENTS MODERATION ───────────────────────────────────────────────────
+export const getAllComments = async ({ status = 'pending' } = {}) => {
+  let query = supabase
+    .from('comments')
+    .select(`
+      *,
+      articles(id, title, slug)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (status === 'pending') query = query.eq('approved', false)
+  if (status === 'approved') query = query.eq('approved', true)
+
+  return query
+}
+
+export const updateComment = (id, data) =>
+  supabase
+    .from('comments')
+    .update(data)
+    .eq('id', id)
+    .select()
+    .single()
+
+export const deleteComment = (id) =>
+  supabase
+    .from('comments')
+    .delete()
+    .eq('id', id)
 
 // ─── FAN ARTICLE SUBMISSIONS ───────────────────────────────────────────────
 export const createFanArticleSubmission = (data) =>

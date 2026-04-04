@@ -12,6 +12,7 @@ const store = {
   tags:                    structuredClone(seed.tags),
   article_tags:            structuredClone(seed.article_tags),
   comments:                structuredClone(seed.comments),
+  reader_states:           [],
   newsletter_subscribers:  structuredClone(seed.newsletter_subscribers),
 }
 
@@ -265,6 +266,42 @@ export function createMockClient() {
         return Promise.resolve({
           data: { user: null, session: null },
           error: { message: 'Credenziali demo: demo@bianconerihub.com / demo' },
+        })
+      },
+
+      signInWithOtp: ({ email, options }) => {
+        const existingProfile = store.profiles.find(profile => profile.email === email)
+        const userId = existingProfile?.id || mockId()
+        const username = options?.data?.display_name || email.split('@')[0]
+
+        _authUser = {
+          id: userId,
+          email,
+          created_at: existingProfile?.created_at || new Date().toISOString(),
+          user_metadata: options?.data || {},
+        }
+
+        if (!existingProfile) {
+          store.profiles.push({
+            id: userId,
+            email,
+            username,
+            avatar_url: null,
+            bio: null,
+            role: options?.data?.role || 'reader',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+        }
+
+        _notifyAuth('SIGNED_IN')
+
+        return Promise.resolve({
+          data: {
+            user: _authUser,
+            session: { user: _authUser },
+          },
+          error: null,
         })
       },
 

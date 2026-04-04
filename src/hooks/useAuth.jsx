@@ -1,23 +1,45 @@
 import { useState, useEffect, createContext, useContext } from 'react'
-import { supabase, signIn, signOut, onAuthStateChange } from '@/lib/supabase'
+import { supabase, signIn, signOut, onAuthStateChange, getProfileByUserId } from '@/lib/supabase'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+    let mounted = true
+
+    const syncUserState = async (sessionUser) => {
+      if (!mounted) return
+
+      setUser(sessionUser ?? null)
+
+      if (!sessionUser?.id) {
+        setProfile(null)
+        setLoading(false)
+        return
+      }
+
+      const { data } = await getProfileByUserId(sessionUser.id)
+      if (!mounted) return
+      setProfile(data || null)
       setLoading(false)
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      syncUserState(session?.user ?? null)
     })
 
     const { data: { subscription } } = onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      syncUserState(session?.user ?? null)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const login = async (email, password) => {
@@ -29,10 +51,11 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     await signOut()
     setUser(null)
+    setProfile(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

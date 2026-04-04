@@ -82,7 +82,9 @@ export default function Footer() {
               {[
                 { label: 'Chi siamo', to: '/chi-siamo' },
                 { label: 'Redazione', to: '/chi-siamo' },
-                { label: 'Contatti', to: '/chi-siamo' },
+                { label: 'Contatti', to: '/contatti' },
+                { label: 'FAQ', to: '/faq' },
+                { label: 'Termini', to: '/termini' },
                 { label: 'Privacy Policy', to: '/privacy' },
                 { label: 'Cookie Policy', to: '/cookie-policy' },
               ].map((item) => (
