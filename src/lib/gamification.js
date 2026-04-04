@@ -22,6 +22,7 @@ function getDefaults() {
     collectedCards: [],
     diary: [],
     predictions: [],
+    fanArticles: [],
     avatar: 'shield',
     streak: 0,
     lastVisitDate: null,
@@ -67,6 +68,8 @@ export const XP_ACTIONS = {
   streak7: 100,
   prediction: 15,
   diaryEntry: 10,
+  fanArticleDraft: 15,
+  fanArticleSubmit: 40,
   challengeComplete: 50,
 }
 
@@ -316,6 +319,48 @@ export function addPrediction(prediction) {
 
 export function getPredictions() {
   return load().predictions || []
+}
+
+// ── Fan Articles ────────────────────────────────────────────────────────────
+
+export function saveFanArticleDraft(article) {
+  const state = load()
+  const now = new Date().toISOString()
+  const id = article.id || `fan-${Date.now().toString(36)}`
+  const current = state.fanArticles || []
+  const nextItem = {
+    ...article,
+    id,
+    status: article.status || 'draft',
+    createdAt: article.createdAt || now,
+    updatedAt: now,
+  }
+
+  state.fanArticles = [
+    nextItem,
+    ...current.filter((item) => item.id !== id),
+  ]
+  save(state)
+  return nextItem
+}
+
+export function submitFanArticle(article) {
+  return saveFanArticleDraft({
+    ...article,
+    status: 'submitted',
+    submittedAt: new Date().toISOString(),
+  })
+}
+
+export function getFanArticles() {
+  return load().fanArticles || []
+}
+
+export function deleteFanArticle(id) {
+  const state = load()
+  state.fanArticles = (state.fanArticles || []).filter((item) => item.id !== id)
+  save(state)
+  return state
 }
 
 // ── Formation ───────────────────────────────────────────────────────────────

@@ -39,6 +39,7 @@ const Profile       = lazy(() => import('@/pages/admin/Profile'))
 const Analytics     = lazy(() => import('@/pages/admin/Analytics'))
 const Authors       = lazy(() => import('@/pages/admin/Authors'))
 const FeedManager   = lazy(() => import('@/pages/admin/FeedManager'))
+const FanArticleSubmissions = lazy(() => import('@/pages/admin/FanArticleSubmissions'))
 
 function PageLoader() {
   return (
@@ -107,6 +108,7 @@ function AppRoutes() {
           <Route path="categorie" element={<Categories />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="redattori" element={<Authors />} />
+          <Route path="proposte-tifosi" element={<FanArticleSubmissions />} />
           <Route path="profilo" element={<Profile />} />
           <Route path="feed" element={<FeedManager />} />
           <Route path="impostazioni" element={<Settings />} />

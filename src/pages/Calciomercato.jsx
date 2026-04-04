@@ -47,8 +47,8 @@ function getTimeRemaining(target) {
 function CountdownUnit({ value, label }) {
   return (
     <div className="flex flex-col items-center">
-      <div className="bg-gray-900 border border-gray-700 w-14 h-14 flex items-center justify-center">
-        <span className="font-display text-2xl font-black text-juve-gold">{String(value).padStart(2, '0')}</span>
+      <div className="flex h-12 w-12 items-center justify-center border border-gray-700 bg-gray-900 sm:h-14 sm:w-14">
+        <span className="font-display text-xl font-black text-juve-gold sm:text-2xl">{String(value).padStart(2, '0')}</span>
       </div>
       <span className="text-[9px] uppercase tracking-wider text-gray-500 mt-1.5">{label}</span>
     </div>
@@ -159,19 +159,19 @@ export default function Calciomercato() {
               <span className="text-xs font-black uppercase tracking-widest text-juve-gold">{transferWindow.label}</span>
               <Star className="h-4 w-4 text-juve-gold" />
             </div>
-            <h1 className="font-display text-3xl md:text-5xl font-black leading-tight mb-2">CALCIOMERCATO</h1>
-            <p className="text-gray-400 text-sm mb-8">
+            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black leading-tight mb-2">CALCIOMERCATO</h1>
+            <p className="mx-auto mb-8 max-w-xl text-sm text-gray-400">
               {transferWindow.isOpen ? 'La finestra di mercato chiude tra:' : 'La finestra di mercato apre tra:'}
             </p>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="flex items-center justify-center gap-3 md:gap-5 mb-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-8 grid grid-cols-2 gap-4 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-3 md:gap-5">
             <CountdownUnit value={countdown.days} label="Giorni" />
-            <span className="font-display text-2xl font-black text-juve-gold mt-[-18px]">:</span>
+            <span className="mt-[-18px] hidden font-display text-2xl font-black text-juve-gold sm:block">:</span>
             <CountdownUnit value={countdown.hours} label="Ore" />
-            <span className="font-display text-2xl font-black text-juve-gold mt-[-18px]">:</span>
+            <span className="mt-[-18px] hidden font-display text-2xl font-black text-juve-gold sm:block">:</span>
             <CountdownUnit value={countdown.minutes} label="Min" />
-            <span className="font-display text-2xl font-black text-juve-gold mt-[-18px]">:</span>
+            <span className="mt-[-18px] hidden font-display text-2xl font-black text-juve-gold sm:block">:</span>
             <CountdownUnit value={countdown.seconds} label="Sec" />
           </motion.div>
 
@@ -287,7 +287,7 @@ export default function Calciomercato() {
 
         {/* Source credits */}
         {hasNews && (
-          <div className="flex items-center justify-center gap-2 mt-8 pt-6 border-t border-gray-200">
+          <div className="mt-8 flex flex-col items-center justify-center gap-2 border-t border-gray-200 pt-6 text-center sm:flex-row">
             <Newspaper className="h-3.5 w-3.5 text-gray-400" />
             <p className="text-[10px] text-gray-400">
               Fonte: TuttoJuve.com — Sezione Calciomercato | Aggiornamento ogni 15 min
@@ -300,7 +300,7 @@ export default function Calciomercato() {
           <p className="text-xs text-gray-400 mb-2">Vuoi tutte le notizie Juve in tempo reale?</p>
           <Link
             to="/notizie-live"
-            className="inline-flex items-center gap-2 bg-juve-gold text-juve-black px-5 py-2 text-xs font-black uppercase tracking-widest hover:bg-juve-gold-dark transition-colors"
+            className="inline-flex w-full items-center justify-center gap-2 bg-juve-gold px-5 py-2 text-xs font-black uppercase tracking-widest text-juve-black transition-colors hover:bg-juve-gold-dark sm:w-auto"
           >
             <Newspaper className="h-3.5 w-3.5" />
             Vai a Notizie Live

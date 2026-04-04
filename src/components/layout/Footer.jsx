@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom'
-import { Twitter, Instagram, Youtube, Facebook, Mail } from 'lucide-react'
+import { Mail, ArrowRight } from 'lucide-react'
 
-const socials = [
-  { icon: Twitter, label: 'Twitter', href: '#' },
-  { icon: Instagram, label: 'Instagram', href: '#' },
-  { icon: Youtube, label: 'YouTube', href: '#' },
-  { icon: Facebook, label: 'Facebook', href: '#' },
+const editorialHighlights = [
+  { label: 'Notizie Live', to: '/notizie-live' },
+  { label: 'Calciomercato', to: '/calciomercato' },
+  { label: 'Area Bianconera', to: '/area-bianconera' },
 ]
 
 export default function Footer() {
@@ -26,17 +25,26 @@ export default function Footer() {
               Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato
               e tanto altro dalla redazione bianconera.
             </p>
-            <div className="flex items-center gap-3 mt-5">
-              {socials.map(({ icon: Icon, label, href }) => (
-                <a
-                  key={label}
-                  href={href}
-                  aria-label={label}
-                  className="w-9 h-9 border border-gray-700 flex items-center justify-center hover:border-juve-gold hover:text-juve-gold transition-colors"
-                >
-                  <Icon className="h-4 w-4" />
-                </a>
-              ))}
+            <div className="mt-6 max-w-md border border-white/10 bg-white/5 p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-juve-gold">
+                Da Seguire
+              </p>
+              <p className="mt-2 text-sm text-gray-300 leading-relaxed">
+                Un accesso rapido alle aree piu calde del magazine, tra aggiornamenti,
+                mercato e contenuti per la community bianconera.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {editorialHighlights.map((item) => (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    className="inline-flex items-center gap-2 border border-gray-700 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-200 transition-colors hover:border-juve-gold hover:text-juve-gold"
+                  >
+                    {item.label}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
 

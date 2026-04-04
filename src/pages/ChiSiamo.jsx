@@ -20,15 +20,15 @@ export default function ChiSiamo() {
       <SEO title="Chi siamo" url="/chi-siamo" />
 
       {/* Hero */}
-      <section className="bg-juve-black text-white py-20 px-4">
+      <section className="bg-juve-black text-white py-16 sm:py-20 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-baseline justify-center gap-1 mb-4">
-              <span className="font-display text-5xl font-black">BIANCONERI</span>
-              <span className="font-display text-5xl font-black text-juve-gold">HUB</span>
+            <div className="flex items-baseline justify-center gap-1 mb-4 flex-wrap">
+              <span className="font-display text-3xl sm:text-5xl font-black">BIANCONERI</span>
+              <span className="font-display text-3xl sm:text-5xl font-black text-juve-gold">HUB</span>
             </div>
             <div className="h-0.5 w-16 bg-juve-gold mx-auto my-6" />
-            <p className="text-lg text-gray-300 leading-relaxed">
+            <p className="text-base sm:text-lg text-gray-300 leading-relaxed">
               Il magazine digitale bianconero. Nato dalla passione, guidato dalla qualità.
             </p>
           </motion.div>
@@ -113,14 +113,14 @@ export default function ChiSiamo() {
         </section>
 
         {/* Contact */}
-        <section className="bg-gray-50 border border-gray-200 p-8 text-center">
-          <h2 className="font-display text-2xl font-bold mb-3">Vuoi collaborare?</h2>
+        <section className="bg-gray-50 border border-gray-200 p-6 sm:p-8 text-center">
+          <h2 className="font-display text-xl sm:text-2xl font-bold mb-3">Vuoi collaborare?</h2>
           <p className="text-gray-600 text-sm mb-5">
             Siamo sempre alla ricerca di penne appassionate. Scrivi alla redazione per proporre i tuoi contenuti.
           </p>
           <a
             href="mailto:info@bianconerihub.com"
-            className="inline-block px-6 py-3 bg-juve-black text-white text-sm font-black uppercase tracking-widest hover:bg-juve-gold hover:text-black transition-colors"
+            className="inline-flex w-full sm:w-auto justify-center px-6 py-3 bg-juve-black text-white text-sm font-black uppercase tracking-widest hover:bg-juve-gold hover:text-black transition-colors"
           >
             Contattaci
           </a>

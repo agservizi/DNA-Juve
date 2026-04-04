@@ -28,14 +28,14 @@ function NewsCard({ article, index }) {
       className="bg-white border border-gray-200 overflow-hidden"
     >
       <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setExpanded(!expanded)}>
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
           {article.image && (
-            <div className="w-20 h-20 shrink-0 bg-gray-100 overflow-hidden">
+            <div className="h-40 w-full shrink-0 bg-gray-100 overflow-hidden sm:h-20 sm:w-20">
               <img src={article.image} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-juve-gold">{article.source}</span>
               <span className="text-[10px] text-gray-400">{timeAgo}</span>
             </div>
@@ -44,7 +44,7 @@ function NewsCard({ article, index }) {
               <p className="text-xs text-gray-500 mt-1 line-clamp-2">{article.description}</p>
             )}
           </div>
-          <button className="p-1 text-gray-400 shrink-0 mt-1">
+          <button className="self-end p-1 text-gray-400 shrink-0 sm:mt-1 sm:self-start">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
         </div>
@@ -52,7 +52,7 @@ function NewsCard({ article, index }) {
       <AnimatePresence>
         {expanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="px-4 pb-4 border-t border-gray-100 pt-3">
+            <div className="border-t border-gray-100 px-4 pb-4 pt-3">
               <p className="text-sm text-gray-600 leading-relaxed mb-3">{article.description}</p>
               {article.url && (
                 <a href={article.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-bold text-juve-gold hover:text-juve-gold-dark transition-colors">
@@ -121,8 +121,8 @@ export default function NotizeLive() {
                 {hasNews ? 'Live' : 'Feed'}
               </span>
             </div>
-            <h1 className="font-display text-3xl md:text-5xl font-black leading-tight mb-2">NOTIZIE LIVE</h1>
-            <p className="text-gray-400 text-sm">
+            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl font-black leading-tight mb-2">NOTIZIE LIVE</h1>
+            <p className="mx-auto max-w-2xl text-sm text-gray-400">
               Rassegna stampa Juventus in tempo reale da Gazzetta, Sky Sport, Tuttosport e Calciomercato.com
             </p>
           </motion.div>
@@ -133,8 +133,8 @@ export default function NotizeLive() {
 
         {/* ── TOOLBAR ────────────────────────────────────────────────────── */}
         {hasNews && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-2">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
               <Wifi className="h-4 w-4 text-green-500" />
               <span className="text-xs font-black uppercase tracking-widest text-gray-500">
                 {filtered.length} notizie
@@ -149,13 +149,13 @@ export default function NotizeLive() {
               </button>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               {/* Source filter */}
               {sources.length > 1 && (
                 <select
                   value={filterSource}
                   onChange={(e) => setFilterSource(e.target.value)}
-                  className="text-[10px] font-bold uppercase tracking-widest border-2 border-gray-200 px-2 py-1 bg-white focus:outline-none focus:border-juve-gold"
+                  className="w-full text-[10px] font-bold uppercase tracking-widest border-2 border-gray-200 px-2 py-2 bg-white focus:outline-none focus:border-juve-gold sm:w-auto sm:py-1"
                 >
                   <option value="all">Tutte le fonti</option>
                   {sources.map(s => (
@@ -165,12 +165,12 @@ export default function NotizeLive() {
               )}
 
               {/* Sort */}
-              <div className="flex gap-1">
+              <div className="grid grid-cols-2 gap-1 sm:flex">
                 {[{ key: 'date', label: 'Recenti' }, { key: 'source', label: 'Fonte' }].map(s => (
                   <button
                     key={s.key}
                     onClick={() => setSortBy(s.key)}
-                    className={`px-2 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    className={`px-2 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors sm:py-1 ${
                       sortBy === s.key ? 'text-juve-black bg-gray-100' : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
@@ -220,7 +220,7 @@ export default function NotizeLive() {
 
         {/* ── SOURCE CREDITS ─────────────────────────────────────────────── */}
         {hasNews && (
-          <div className="flex items-center justify-center gap-2 mt-8 pt-6 border-t border-gray-200">
+          <div className="mt-8 flex flex-col items-center justify-center gap-2 border-t border-gray-200 pt-6 text-center sm:flex-row">
             <Newspaper className="h-3.5 w-3.5 text-gray-400" />
             <p className="text-[10px] text-gray-400">
               Fonti: NewsAPI.org, Gazzetta, Sky Sport, Tuttosport, Calciomercato.com | Aggiornamento ogni 15 min
@@ -233,7 +233,7 @@ export default function NotizeLive() {
           <p className="text-xs text-gray-400 mb-2">Vuoi i rumors con l'indice di affidabilità?</p>
           <Link
             to="/calciomercato"
-            className="inline-flex items-center gap-2 bg-juve-gold text-juve-black px-5 py-2 text-xs font-black uppercase tracking-widest hover:bg-juve-gold-dark transition-colors"
+            className="inline-flex w-full items-center justify-center gap-2 bg-juve-gold px-5 py-2 text-xs font-black uppercase tracking-widest text-juve-black transition-colors hover:bg-juve-gold-dark sm:w-auto"
           >
             Voci di Mercato
             <ArrowRight className="h-3.5 w-3.5" />

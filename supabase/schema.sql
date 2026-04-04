@@ -109,12 +109,37 @@ CREATE TABLE IF NOT EXISTS article_tags (
   PRIMARY KEY (article_id, tag_id)
 );
 
+-- ─── FAN ARTICLE SUBMISSIONS ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS fan_article_submissions (
+  id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title             TEXT NOT NULL,
+  excerpt           TEXT,
+  content           TEXT NOT NULL,
+  pitch             TEXT,
+  category_slug     TEXT REFERENCES categories(slug) ON DELETE SET NULL,
+  author_name       TEXT NOT NULL,
+  author_email      TEXT NOT NULL,
+  status            TEXT DEFAULT 'submitted' CHECK (status IN ('submitted', 'reviewing', 'approved', 'rejected')),
+  review_notes      TEXT,
+  linked_article_id UUID REFERENCES articles(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW(),
+  submitted_at      TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at       TIMESTAMPTZ
+);
+
+DROP TRIGGER IF EXISTS fan_article_submissions_updated_at ON fan_article_submissions;
+CREATE TRIGGER fan_article_submissions_updated_at
+  BEFORE UPDATE ON fan_article_submissions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- ─── ROW LEVEL SECURITY ──────────────────────────────────────
 ALTER TABLE profiles   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE articles   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tags       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fan_article_submissions ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
 DROP POLICY IF EXISTS "Profiles: public read"  ON profiles;
@@ -151,6 +176,24 @@ DROP POLICY IF EXISTS "Article tags: auth write"  ON article_tags;
 CREATE POLICY "Article tags: public read" ON article_tags FOR SELECT USING (true);
 CREATE POLICY "Article tags: auth write"  ON article_tags FOR ALL USING (auth.role() = 'authenticated');
 
+-- Fan article submissions
+DROP POLICY IF EXISTS "Fan submissions: public insert" ON fan_article_submissions;
+DROP POLICY IF EXISTS "Fan submissions: auth read" ON fan_article_submissions;
+DROP POLICY IF EXISTS "Fan submissions: auth update" ON fan_article_submissions;
+DROP POLICY IF EXISTS "Fan submissions: auth delete" ON fan_article_submissions;
+CREATE POLICY "Fan submissions: public insert"
+  ON fan_article_submissions FOR INSERT
+  WITH CHECK (true);
+CREATE POLICY "Fan submissions: auth read"
+  ON fan_article_submissions FOR SELECT
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "Fan submissions: auth update"
+  ON fan_article_submissions FOR UPDATE
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "Fan submissions: auth delete"
+  ON fan_article_submissions FOR DELETE
+  USING (auth.role() = 'authenticated');
+
 -- ─── STORAGE ─────────────────────────────────────────────────
 -- Dalla dashboard Supabase → Storage → New Bucket:
 --   Name: article-images | Public: ON
@@ -167,6 +210,8 @@ CREATE INDEX IF NOT EXISTS articles_scheduled_idx   ON articles(scheduled_at) WH
 CREATE INDEX IF NOT EXISTS article_tags_article_idx ON article_tags(article_id);
 CREATE INDEX IF NOT EXISTS article_tags_tag_idx     ON article_tags(tag_id);
 CREATE INDEX IF NOT EXISTS tags_slug_idx            ON tags(slug);
+CREATE INDEX IF NOT EXISTS fan_article_submissions_status_idx ON fan_article_submissions(status);
+CREATE INDEX IF NOT EXISTS fan_article_submissions_submitted_idx ON fan_article_submissions(submitted_at DESC);
 
 -- ─── OPTIONAL: pg_cron per scheduled publish ─────────────────
 -- Se il tuo piano Supabase supporta pg_cron:

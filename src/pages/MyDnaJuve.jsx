@@ -7,7 +7,7 @@ import {
   Target, Timer, ChevronDown, ChevronUp, Plus, X, Check, Share2, Sparkles,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { getCategories, getPublishedArticles } from '@/lib/supabase'
+import { createFanArticleSubmission, getCategories, getPublishedArticles } from '@/lib/supabase'
 import { getSquadPlayers } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
 import { Button } from '@/components/ui/Button'
@@ -27,7 +27,10 @@ import {
   addPrediction, getPredictions,
   saveFormation, getFormation,
   addXP, XP_ACTIONS,
+  getFanArticles, saveFanArticleDraft, submitFanArticle, deleteFanArticle,
 } from '@/lib/gamification'
+import { stripHtml, truncate, readingTime } from '@/lib/utils'
+import RichEditor from '@/components/admin/RichEditor'
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +44,7 @@ const TABS = [
   { id: 'formation', label: 'Formazione', icon: Swords },
   { id: 'diary', label: 'Diario', icon: PenLine },
   { id: 'predictions', label: 'Pronostici', icon: Zap },
+  { id: 'fan-articles', label: 'La Tua Voce', icon: PenLine },
   { id: 'leaderboard', label: 'Classifica', icon: Trophy },
   { id: 'preferences', label: 'Preferenze', icon: Settings2 },
 ]
@@ -123,23 +127,23 @@ export default function MyDnaJuve() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* ── Hero Header ──────────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+            <div className="flex items-start gap-4">
               {/* Avatar */}
-              <div className="w-16 h-16 bg-juve-black flex items-center justify-center text-3xl shrink-0">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center bg-juve-black text-3xl">
                 {avatar.emoji}
               </div>
-              <div>
-                <h1 className="font-display text-3xl md:text-4xl font-black text-juve-black">
+              <div className="min-w-0 flex-1">
+                <h1 className="font-display text-3xl md:text-4xl font-black text-juve-black break-words">
                   Ciao, <span className="text-juve-gold">{reader.name}</span>
                 </h1>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-sm font-bold">{level.icon} {level.name}</span>
                   <span className="text-xs text-gray-400">Lv {level.index + 1}</span>
                   <span className="text-xs text-juve-gold font-bold">{gamification.xp} XP</span>
                 </div>
                 {/* XP bar */}
-                <div className="w-48 h-1.5 bg-gray-200 mt-1.5">
+                <div className="mt-1.5 h-1.5 w-full max-w-xs bg-gray-200">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${level.progress * 100}%` }}
@@ -151,7 +155,7 @@ export default function MyDnaJuve() {
                 )}
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={logout} className="text-gray-400 hover:text-red-500">
+            <Button variant="ghost" size="sm" onClick={logout} className="self-start text-gray-400 hover:text-red-500 sm:self-auto">
               <LogOut className="h-4 w-4" /> Esci
             </Button>
           </div>
@@ -206,6 +210,7 @@ export default function MyDnaJuve() {
             {activeTab === 'formation' && <FormationTab />}
             {activeTab === 'diary' && <DiaryTab />}
             {activeTab === 'predictions' && <PredictionsTab />}
+            {activeTab === 'fan-articles' && <FanArticlesTab reader={reader} />}
             {activeTab === 'leaderboard' && <Leaderboard />}
             {activeTab === 'preferences' && (
               <PreferencesTab
@@ -263,13 +268,13 @@ function DashboardTab({ stats, level, gamification, history, bookmarks }) {
   return (
     <div className="space-y-8">
       {/* Level card */}
-      <div className="bg-juve-black text-white p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-juve-black p-6 text-white">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-juve-gold mb-1">Il tuo livello</p>
             <p className="font-display text-3xl font-black">{level.icon} {level.name}</p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <p className="font-display text-3xl font-black text-juve-gold">{gamification.xp}</p>
             <p className="text-[10px] uppercase tracking-widest text-gray-400">XP totali</p>
           </div>
@@ -300,7 +305,7 @@ function DashboardTab({ stats, level, gamification, history, bookmarks }) {
       {recentBadges.length > 0 && (
         <div>
           <SectionHeader icon={Medal} title="Ultimi badge sbloccati" />
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {recentBadges.map(b => (
               <div key={b.id} className="flex items-center gap-2 bg-juve-gold/10 border border-juve-gold/30 px-3 py-2">
                 <span className="text-xl">{b.icon}</span>
@@ -864,6 +869,393 @@ function PredictionsTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TAB: FAN ARTICLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FAN_ARTICLE_INITIAL_FORM = {
+  id: null,
+  title: '',
+  category: 'calcio',
+  excerpt: '',
+  content: '',
+  pitch: '',
+}
+
+function FanArticlesTab({ reader }) {
+  const [articles, setArticles] = useState(() => getFanArticles())
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(FAN_ARTICLE_INITIAL_FORM)
+  const [submitState, setSubmitState] = useState({ busy: false, error: '', success: '' })
+
+  const submitArticleProposal = useCallback((articleData) => {
+    if (!articleData.title.trim() || !articleData.excerpt.trim() || stripHtml(articleData.content).trim().length < 250) return false
+
+    return createFanArticleSubmission({
+      title: articleData.title.trim(),
+      excerpt: articleData.excerpt.trim(),
+      content: articleData.content,
+      pitch: articleData.pitch?.trim() || '',
+      category_slug: articleData.category,
+      author_name: reader.name,
+      author_email: reader.email,
+    }).then(({ data, error }) => {
+      if (error) throw error
+
+      submitFanArticle({
+        ...articleData,
+        authorName: reader.name,
+        authorEmail: reader.email,
+        status: 'submitted',
+        submissionId: data?.id || null,
+      })
+      addXP(XP_ACTIONS.fanArticleSubmit, 'fanArticleSubmit')
+      setArticles(getFanArticles())
+      setForm(FAN_ARTICLE_INITIAL_FORM)
+      setShowForm(false)
+      setSubmitState({
+        busy: false,
+        error: '',
+        success: 'Proposta inviata alla redazione. La troverai nel pannello admin per la moderazione.',
+      })
+      return true
+    }).catch((error) => {
+      setSubmitState({
+        busy: false,
+        error: error.message || 'Invio non riuscito. Controlla la connessione a Supabase e riprova.',
+        success: '',
+      })
+      return false
+    })
+  }, [reader.email, reader.name])
+
+  const handleDraftSave = () => {
+    if (!form.title.trim() || stripHtml(form.content).trim().length < 120) return
+
+    const saved = saveFanArticleDraft({
+      ...form,
+      authorName: reader.name,
+      authorEmail: reader.email,
+    })
+    addXP(XP_ACTIONS.fanArticleDraft, 'fanArticleDraft')
+    setArticles(getFanArticles())
+    setForm(saved)
+    setShowForm(true)
+    setSubmitState({ busy: false, error: '', success: 'Bozza salvata nella tua area personale.' })
+  }
+
+  const handleSubmit = async () => {
+    setSubmitState({ busy: true, error: '', success: '' })
+    await submitArticleProposal(form)
+  }
+
+  const handleEdit = (article) => {
+    setForm({
+      id: article.id,
+      title: article.title || '',
+      category: article.category || 'calcio',
+      excerpt: article.excerpt || '',
+      content: article.content || '',
+      pitch: article.pitch || '',
+    })
+    setShowForm(true)
+  }
+
+  const handleDelete = (id) => {
+    deleteFanArticle(id)
+    setArticles(getFanArticles())
+    if (form.id === id) {
+      setForm(FAN_ARTICLE_INITIAL_FORM)
+      setShowForm(false)
+    }
+  }
+
+  const resetComposer = () => {
+    setForm(FAN_ARTICLE_INITIAL_FORM)
+    setShowForm(false)
+    setSubmitState({ busy: false, error: '', success: '' })
+  }
+
+  const draftCount = articles.filter((item) => item.status === 'draft').length
+  const submittedCount = articles.filter((item) => item.status === 'submitted').length
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-6">
+        <Card className="border-juve-black bg-juve-black text-white shadow-none">
+          <CardContent className="pt-6">
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-juve-gold">La tua firma bianconera</p>
+            <h3 className="mt-3 font-display text-2xl sm:text-3xl font-black leading-tight">
+              Scrivi il tuo articolo da tifoso e trasformalo in proposta per la redazione
+            </h3>
+            <p className="mt-3 max-w-2xl text-sm text-gray-300 leading-relaxed">
+              Dentro Area Bianconera puoi preparare bozze, rifinirle con calma e inviarle come proposta.
+              Il pezzo resta nella tua area personale finche non decidi di mandarlo.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <div className="min-w-[120px] border border-white/10 bg-white/5 px-4 py-3">
+                <p className="font-display text-2xl font-black text-juve-gold">{draftCount}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Bozze attive</p>
+              </div>
+              <div className="min-w-[120px] border border-white/10 bg-white/5 px-4 py-3">
+                <p className="font-display text-2xl font-black text-juve-gold">{submittedCount}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Proposte inviate</p>
+              </div>
+              <div className="min-w-[120px] border border-white/10 bg-white/5 px-4 py-3">
+                <p className="font-display text-2xl font-black text-juve-gold">{articles.length}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Totale articoli</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-none">
+          <CardContent className="pt-6">
+            <SectionHeader icon={Sparkles} title="Linee guida rapide" />
+            <div className="space-y-3 text-sm text-gray-600 leading-relaxed">
+              <p>Apri un taglio chiaro: cronaca, opinione, analisi o racconto da stadio.</p>
+              <p>Usa un titolo netto, un occhiello breve e un corpo ben diviso con sottotitoli.</p>
+              <p>Prima salva in bozza, poi invia la proposta quando il pezzo e davvero pronto.</p>
+            </div>
+            <div className="mt-5">
+              <Button variant="gold" onClick={() => setShowForm(true)} className="w-full sm:w-auto">
+                <Plus className="h-4 w-4" />
+                Scrivi un articolo
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <SectionHeader icon={PenLine} title="Il tuo laboratorio editoriale" />
+        {showForm ? (
+          <Button variant="ghost" size="sm" onClick={resetComposer} className="w-full sm:w-auto">
+            <X className="h-4 w-4" />
+            Chiudi editor
+          </Button>
+        ) : (
+          <Button variant="gold" size="sm" onClick={() => setShowForm(true)} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4" />
+            Nuova bozza
+          </Button>
+        )}
+      </div>
+
+      {(submitState.error || submitState.success) && (
+        <div className={`border px-4 py-3 text-sm ${
+          submitState.error
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : 'border-green-200 bg-green-50 text-green-700'
+        }`}>
+          {submitState.error || submitState.success}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+          >
+            <Card className="shadow-none">
+              <CardContent className="pt-6 space-y-5">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Titolo</label>
+                    <input
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      placeholder="Es. Perche questa Juve va giudicata con piu pazienza"
+                      className="w-full border-2 border-gray-300 px-4 py-3 text-sm focus:outline-none focus:border-juve-gold transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Categoria</label>
+                    <select
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className="w-full border-2 border-gray-300 px-4 py-3 text-sm focus:outline-none focus:border-juve-gold"
+                    >
+                      <option value="calcio">Calcio</option>
+                      <option value="mercato">Mercato</option>
+                      <option value="formazione">Formazione</option>
+                      <option value="champions">Champions</option>
+                      <option value="serie-a">Serie A</option>
+                      <option value="interviste">Interviste</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Occhiello</label>
+                  <textarea
+                    rows={2}
+                    value={form.excerpt}
+                    onChange={(e) => setForm({ ...form, excerpt: e.target.value })}
+                    placeholder="Scrivi un riassunto breve e incisivo del tuo pezzo."
+                    className="w-full border-2 border-gray-300 px-4 py-3 text-sm focus:outline-none focus:border-juve-gold resize-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Taglio editoriale</label>
+                  <textarea
+                    rows={2}
+                    value={form.pitch}
+                    onChange={(e) => setForm({ ...form, pitch: e.target.value })}
+                    placeholder="Spiega in una riga l’idea del pezzo: analisi, opinione, racconto personale..."
+                    className="w-full border-2 border-gray-300 px-4 py-3 text-sm focus:outline-none focus:border-juve-gold resize-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Corpo dell'articolo</label>
+                  <RichEditor content={form.content} onChange={(content) => setForm((prev) => ({ ...prev, content }))} />
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="border border-gray-200 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Caratteri</p>
+                    <p className="mt-1 font-display text-2xl font-black">{stripHtml(form.content).trim().length}</p>
+                  </div>
+                  <div className="border border-gray-200 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Lettura stimata</p>
+                    <p className="mt-1 font-display text-2xl font-black">{readingTime(form.content)} min</p>
+                  </div>
+                  <div className="border border-gray-200 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Autore</p>
+                    <p className="mt-1 text-sm font-bold text-juve-black">{reader.name}</p>
+                  </div>
+                  <div className="border border-gray-200 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Stato attuale</p>
+                    <p className="mt-1 text-sm font-bold text-juve-gold">{form.id ? 'Bozza in modifica' : 'Nuovo articolo'}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <Button variant="outline" onClick={handleDraftSave} className="w-full sm:w-auto">
+                    <Check className="h-4 w-4" />
+                    Salva bozza
+                  </Button>
+                  <Button variant="gold" onClick={handleSubmit} className="w-full sm:w-auto">
+                    <Share2 className="h-4 w-4" />
+                    {submitState.busy ? 'Invio in corso…' : 'Invia proposta'}
+                  </Button>
+                  <Button variant="ghost" onClick={resetComposer} className="w-full sm:w-auto">
+                    Annulla
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div>
+        <SectionHeader icon={BookOpen} title="Le tue bozze e proposte" />
+        {articles.length === 0 ? (
+          <div className="text-center py-14 border border-dashed border-gray-300">
+            <PenLine className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+            <p className="font-display text-xl font-bold text-gray-400 mb-2">Ancora nessun articolo</p>
+            <p className="text-sm text-gray-500 mb-6">Apri l’editor e scrivi il tuo primo pezzo bianconero.</p>
+            <Button variant="gold" onClick={() => setShowForm(true)}>
+              Inizia a scrivere
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {articles.map((article, index) => {
+              const plainContent = stripHtml(article.content || '')
+              const submitted = article.status === 'submitted'
+              return (
+                <motion.div
+                  key={article.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                >
+                  <Card className="h-full shadow-none">
+                    <CardContent className="pt-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${
+                              submitted ? 'bg-green-100 text-green-700' : 'bg-juve-gold/15 text-juve-black'
+                            }`}>
+                              {submitted ? 'Proposta inviata' : 'Bozza'}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                              {article.category}
+                            </span>
+                          </div>
+                          <h4 className="mt-3 font-display text-2xl font-black leading-tight text-juve-black break-words">
+                            {article.title || 'Senza titolo'}
+                          </h4>
+                        </div>
+                        <button
+                          onClick={() => handleDelete(article.id)}
+                          className="self-end text-gray-300 transition-colors hover:text-red-500 sm:self-start"
+                          aria-label="Elimina articolo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {article.excerpt && (
+                        <p className="mt-3 text-sm text-gray-600 leading-relaxed">
+                          {article.excerpt}
+                        </p>
+                      )}
+
+                      {article.pitch && (
+                        <div className="mt-4 border-l-2 border-juve-gold pl-3">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Taglio editoriale</p>
+                          <p className="mt-1 text-sm text-gray-600">{article.pitch}</p>
+                        </div>
+                      )}
+
+                      <p className="mt-4 text-sm text-gray-500 leading-relaxed">
+                        {truncate(plainContent, 220) || 'Nessun contenuto ancora scritto.'}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap items-center gap-4 text-[11px] font-bold uppercase tracking-widest text-gray-400">
+                        <span>{readingTime(article.content)} min</span>
+                        <span>{plainContent.trim().length} caratteri</span>
+                        <span>Aggiornato {formatDate(article.updatedAt)}</span>
+                      </div>
+
+                      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(article)} className="w-full sm:w-auto">
+                          Modifica
+                        </Button>
+                        {!submitted && (
+                          <Button
+                            variant="gold"
+                            size="sm"
+                            className="w-full sm:w-auto"
+                            onClick={async () => {
+                              setSubmitState({ busy: true, error: '', success: '' })
+                              await submitArticleProposal(article)
+                            }}
+                          >
+                            Invia ora
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TAB: SEGNALIBRI (unchanged)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -886,9 +1278,9 @@ function BookmarksTab({ bookmarks, clearBookmarks }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-500">{bookmarks.length} articol{bookmarks.length === 1 ? 'o' : 'i'} salvat{bookmarks.length === 1 ? 'o' : 'i'}</p>
-        <Button variant="ghost" size="sm" onClick={clearBookmarks} className="text-gray-400 hover:text-red-500">
+        <Button variant="ghost" size="sm" onClick={clearBookmarks} className="w-full text-gray-400 hover:text-red-500 sm:w-auto">
           <Trash2 className="h-3.5 w-3.5" /> Rimuovi tutti
         </Button>
       </div>
@@ -931,9 +1323,9 @@ function HistoryTab({ history, clearHistory }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-500">{history.length} articol{history.length === 1 ? 'o' : 'i'}</p>
-        <Button variant="ghost" size="sm" onClick={clearHistory} className="text-gray-400 hover:text-red-500">
+        <Button variant="ghost" size="sm" onClick={clearHistory} className="w-full text-gray-400 hover:text-red-500 sm:w-auto">
           <Trash2 className="h-3.5 w-3.5" /> Cancella cronologia
         </Button>
       </div>

@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createMockClient } from './mockClient'
+import { slugify } from './utils'
+import { buildFanArticlePlaceholder, deriveFanArticleTags } from './fanArticles'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
@@ -254,4 +256,103 @@ export const getDashboardStats = async () => {
     categories: categories.count || 0,
     views,
   }
+}
+
+// ─── FAN ARTICLE SUBMISSIONS ───────────────────────────────────────────────
+export const createFanArticleSubmission = (data) =>
+  supabase
+    .from('fan_article_submissions')
+    .insert([{
+      ...data,
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+    }])
+    .select()
+    .single()
+
+export const getFanArticleSubmissions = ({ status = null } = {}) => {
+  let query = supabase
+    .from('fan_article_submissions')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+
+  if (status) query = query.eq('status', status)
+  return query
+}
+
+export const updateFanArticleSubmission = (id, data) =>
+  supabase
+    .from('fan_article_submissions')
+    .update({
+      ...data,
+      reviewed_at: data.status && data.status !== 'submitted' ? new Date().toISOString() : data.reviewed_at,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+async function ensureUniqueArticleSlug(baseSlug) {
+  const normalized = slugify(baseSlug || 'articolo-tifoso')
+  const { data } = await supabase
+    .from('articles')
+    .select('id')
+    .eq('slug', normalized)
+    .limit(1)
+
+  if (!data?.length) return normalized
+  return `${normalized}-${Date.now().toString().slice(-6)}`
+}
+
+export const approveFanArticleSubmission = async (submission, { authorId } = {}) => {
+  const slug = await ensureUniqueArticleSlug(submission.title)
+
+  let categoryId = null
+  if (submission.category_slug) {
+    const { data: category } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('slug', submission.category_slug)
+      .maybeSingle()
+    categoryId = category?.id || null
+  }
+
+  const articlePayload = {
+    title: submission.title,
+    slug,
+    excerpt: submission.excerpt || '',
+    content: submission.content,
+    cover_image: buildFanArticlePlaceholder(submission.category_slug, submission.title),
+    category_id: categoryId,
+    author_id: authorId || null,
+    status: 'draft',
+    featured: false,
+    published_at: null,
+  }
+
+  const { data: article, error: articleError } = await supabase
+    .from('articles')
+    .insert([articlePayload])
+    .select()
+    .single()
+
+  if (articleError) throw articleError
+
+  const generatedTags = deriveFanArticleTags({
+    title: submission.title,
+    excerpt: submission.excerpt,
+    pitch: submission.pitch,
+    categorySlug: submission.category_slug,
+  })
+  if (generatedTags.length) {
+    await upsertArticleTags(article.id, generatedTags)
+  }
+
+  const { data: updatedSubmission, error: submissionError } = await updateFanArticleSubmission(submission.id, {
+    status: 'approved',
+    linked_article_id: article.id,
+  })
+
+  if (submissionError) throw submissionError
+
+  return { article, submission: updatedSubmission }
 }

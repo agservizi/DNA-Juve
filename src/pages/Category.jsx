@@ -64,16 +64,16 @@ export default function Category() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="flex items-center gap-4 pb-6 border-b-4 border-juve-black">
-            <div className="w-2 h-12" style={{ backgroundColor: category?.color || '#F5A623' }} />
-            <div>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 pb-6 border-b-4 border-juve-black">
+            <div className="w-2 h-10 sm:h-12" style={{ backgroundColor: category?.color || '#F5A623' }} />
+            <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-widest text-gray-500 mb-1">Categoria</p>
-              <h1 className="font-display text-4xl font-black text-juve-black">
+              <h1 className="font-display text-3xl sm:text-4xl font-black text-juve-black">
                 {category?.name || slug}
               </h1>
             </div>
             {articles.length > 0 && (
-              <span className="ml-auto text-sm text-gray-400">{articles.length} articoli</span>
+              <span className="w-full sm:w-auto sm:ml-auto text-sm text-gray-400">{articles.length} articoli</span>
             )}
           </div>
         </motion.div>

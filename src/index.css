@@ -34,6 +34,14 @@
 
   body {
     @apply bg-white text-juve-gray font-sans antialiased;
+    overflow-x: hidden;
+  }
+
+  img,
+  video,
+  iframe {
+    max-width: 100%;
+    height: auto;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -53,6 +61,7 @@
     display: inline-block;
     white-space: nowrap;
     animation: ticker 60s linear infinite;
+    will-change: transform;
   }
 
   .breaking-ticker:hover {
@@ -88,6 +97,24 @@
   /* TipTap Editor Styles */
   .ProseMirror {
     @apply outline-none min-h-[400px] prose prose-lg max-w-none;
+  }
+
+  .prose {
+    overflow-wrap: anywhere;
+  }
+
+  .prose table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .prose pre,
+  .prose code {
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .ProseMirror p.is-editor-empty:first-child::before {
@@ -143,5 +170,13 @@
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }

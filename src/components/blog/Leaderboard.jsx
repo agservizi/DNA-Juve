@@ -79,7 +79,7 @@ export default function Leaderboard({ variant = 'full' }) {
       </div>
 
       {/* Top 3 podium */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {entries.slice(0, 3).map((entry, i) => (
           <motion.div
             key={entry.name}
@@ -107,7 +107,53 @@ export default function Leaderboard({ variant = 'full' }) {
       </div>
 
       {/* Full list */}
-      <div className="border-2 border-gray-200">
+      <div className="space-y-3 md:hidden">
+        {displayed.map((entry, i) => (
+          <motion.div
+            key={entry.name}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: i * 0.03 }}
+            className={`border-2 border-gray-200 p-4 ${
+              entry.isCurrentUser ? 'bg-juve-gold/10' : 'bg-white'
+            }`}
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <span className={`flex h-8 w-8 items-center justify-center text-xs font-black ${
+                i < 3 ? MEDAL_COLORS[i] : 'bg-gray-100 text-gray-500'
+              }`}>
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-sm font-bold">
+                  {entry.name} {entry.isCurrentUser && <span className="text-juve-gold">(tu)</span>}
+                </p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Lettore attivo</p>
+              </div>
+              <span className="font-bold text-juve-gold">{entry.points} pt</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="border border-gray-100 px-2 py-2">
+                <p className="text-lg font-display font-black text-juve-black">{entry.articles}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Articoli</p>
+              </div>
+              <div className="border border-gray-100 px-2 py-2">
+                <p className="flex items-center justify-center gap-1 text-lg font-display font-black text-juve-black">
+                  <Flame className="h-3.5 w-3.5 text-orange-400" />
+                  {entry.streak}
+                </p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Streak</p>
+              </div>
+              <div className="border border-gray-100 px-2 py-2">
+                <p className="text-lg font-display font-black text-juve-gold">{entry.points}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Punti</p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="hidden border-2 border-gray-200 md:block">
         <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-500">
           <span className="col-span-1">#</span>
           <span className="col-span-4">Lettore</span>

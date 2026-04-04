@@ -66,10 +66,10 @@ export default function Header() {
     <>
       {/* Breaking news ticker */}
       <div className="bg-juve-black text-white py-1.5 overflow-hidden">
-        <div className="flex items-center gap-4">
-          <div className="shrink-0 flex items-center gap-1.5 bg-juve-gold text-black px-3 py-0.5 ml-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="shrink-0 flex items-center gap-1.5 bg-juve-gold text-black px-2 sm:px-3 py-0.5 ml-2 sm:ml-4">
             <Zap className="h-3.5 w-3.5" />
-            <span className="text-xs font-black uppercase tracking-widest">Breaking</span>
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Breaking</span>
           </div>
           <div className="overflow-hidden flex-1">
             <div className="breaking-ticker text-xs font-medium tracking-wide">
@@ -89,15 +89,17 @@ export default function Header() {
             </span>
 
             {/* Logo */}
-            <Link to="/" className="flex flex-col items-center group">
+            <Link to="/" className="flex flex-col items-center group min-w-0 flex-1 md:flex-none">
               <div className="flex items-baseline gap-1">
-                <span className="font-display text-4xl md:text-5xl font-black text-juve-black leading-none tracking-tight">BIANCONERI</span>
-                <span className="font-display text-4xl md:text-5xl font-black text-juve-gold leading-none tracking-tight">HUB</span>
+                <span className="font-display text-[1.85rem] sm:text-4xl md:text-5xl font-black text-juve-black leading-none tracking-tight">BIANCONERI</span>
+                <span className="font-display text-[1.85rem] sm:text-4xl md:text-5xl font-black text-juve-gold leading-none tracking-tight">HUB</span>
               </div>
-              <span className="text-[9px] uppercase tracking-[0.3em] text-gray-500 font-medium mt-0.5">Il Magazine Bianconero</span>
+              <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] sm:tracking-[0.3em] text-gray-500 font-medium mt-0.5 text-center">
+                Il Magazine Bianconero
+              </span>
             </Link>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <button
                 onClick={() => setSearchOpen(true)}
                 className="p-2 hover:bg-gray-100 transition-colors"
@@ -244,7 +246,7 @@ export default function Header() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="fixed top-0 left-0 right-0 z-50 bg-white shadow-2xl p-6"
+              className="fixed top-0 left-0 right-0 z-50 bg-white shadow-2xl p-4 sm:p-6"
             >
               <div className="max-w-2xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
@@ -253,7 +255,7 @@ export default function Header() {
                     <X className="h-6 w-6" />
                   </button>
                 </div>
-                <form onSubmit={handleSearch} className="flex gap-3">
+                <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
                   <input
                     autoFocus
                     value={searchQ}
@@ -263,7 +265,7 @@ export default function Header() {
                   />
                   <button
                     type="submit"
-                    className="bg-juve-black text-white px-6 py-3 font-bold uppercase tracking-widest text-sm hover:bg-juve-gray transition-colors"
+                    className="bg-juve-black text-white px-6 py-3 font-bold uppercase tracking-widest text-sm hover:bg-juve-gray transition-colors sm:min-w-[132px]"
                   >
                     Cerca
                   </button>

@@ -73,7 +73,7 @@ export default function MatchCountdown() {
       animate={{ opacity: 1, y: 0 }}
       className="bg-juve-black text-white p-5"
     >
-      <div className="flex items-center gap-2 mb-4">
+      <div className="mb-4 flex items-center gap-2">
         <Trophy className="h-4 w-4 text-juve-gold" />
         <h3 className="text-xs font-black uppercase tracking-widest text-juve-gold">Prossima Partita</h3>
       </div>
@@ -87,25 +87,25 @@ export default function MatchCountdown() {
           <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-3">{match.competition}</p>
 
           {/* Teams */}
-          <div className="flex items-center justify-center gap-4 mb-4">
+          <div className="mb-4 flex items-start justify-center gap-3 sm:gap-4">
             <div className="text-center flex-1">
-              <div className="w-12 h-12 bg-white mx-auto mb-1.5 flex items-center justify-center">
+              <div className="mx-auto mb-1.5 flex h-11 w-11 items-center justify-center bg-white sm:h-12 sm:w-12">
                 <span className="font-display text-xl font-black text-black">{match.home[0]}</span>
               </div>
-              <span className="text-xs font-bold">{match.home}</span>
+              <span className="block text-xs font-bold leading-tight">{match.home}</span>
             </div>
-            <span className="text-2xl font-display font-black text-juve-gold">vs</span>
+            <span className="pt-3 text-xl font-display font-black text-juve-gold sm:text-2xl">vs</span>
             <div className="text-center flex-1">
-              <div className="w-12 h-12 bg-white mx-auto mb-1.5 flex items-center justify-center">
+              <div className="mx-auto mb-1.5 flex h-11 w-11 items-center justify-center bg-white sm:h-12 sm:w-12">
                 <span className="font-display text-xl font-black text-black">{match.away[0]}</span>
               </div>
-              <span className="text-xs font-bold">{match.away}</span>
+              <span className="block text-xs font-bold leading-tight">{match.away}</span>
             </div>
           </div>
 
           {/* Countdown */}
           {remaining && (
-            <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
                 { val: remaining.d, label: 'Giorni' },
                 { val: remaining.h, label: 'Ore' },
@@ -124,13 +124,13 @@ export default function MatchCountdown() {
 
           {/* Info */}
           <div className="space-y-1.5 text-xs text-gray-400">
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               <Calendar className="h-3.5 w-3.5 text-juve-gold" />
-              <span className="capitalize">{dateStr}</span>
+              <span className="capitalize leading-relaxed">{dateStr}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               <MapPin className="h-3.5 w-3.5 text-juve-gold" />
-              <span>{match.venue}</span>
+              <span className="leading-relaxed">{match.venue}</span>
             </div>
           </div>
         </>

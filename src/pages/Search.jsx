@@ -36,17 +36,17 @@ export default function Search() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-2xl mb-10"
       >
-        <h1 className="font-display text-3xl font-black mb-6">Cerca nel Magazine</h1>
-        <form onSubmit={handleSubmit} className="flex gap-0">
+        <h1 className="font-display text-2xl sm:text-3xl font-black mb-6">Cerca nel Magazine</h1>
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 sm:gap-0">
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Cerca articoli, notizie, analisi..."
-            className="flex-1 border-2 border-juve-black px-4 py-3 text-base focus:outline-none focus:border-juve-gold"
+            className="flex-1 border-2 border-juve-black px-4 py-3 text-base focus:outline-none focus:border-juve-gold sm:border-r-0"
           />
           <button
             type="submit"
-            className="bg-juve-black text-white px-6 py-3 font-bold uppercase tracking-widest text-sm hover:bg-juve-gold hover:text-black transition-colors"
+            className="bg-juve-black text-white px-6 py-3 font-bold uppercase tracking-widest text-sm hover:bg-juve-gold hover:text-black transition-colors sm:min-w-[76px]"
           >
             <SearchIcon className="h-5 w-5" />
           </button>

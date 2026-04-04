@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
-  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss,
+  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
@@ -23,6 +23,7 @@ const navGroups = [
     items: [
       { icon: BarChart2, label: 'Analytics', to: '/admin/analytics' },
       { icon: Users, label: 'Redattori', to: '/admin/redattori' },
+      { icon: MessagesSquare, label: 'Proposte Tifosi', to: '/admin/proposte-tifosi' },
       { icon: Rss, label: 'RSS / Sitemap', to: '/admin/feed' },
     ],
   },
@@ -36,10 +37,25 @@ const navGroups = [
 ]
 
 export default function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, logout } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const media = window.matchMedia('(min-width: 1024px)')
+    const syncSidebar = (event) => setSidebarOpen(event.matches)
+
+    setSidebarOpen(media.matches)
+    if (media.addEventListener) {
+      media.addEventListener('change', syncSidebar)
+      return () => media.removeEventListener('change', syncSidebar)
+    }
+
+    media.addListener(syncSidebar)
+    return () => media.removeListener(syncSidebar)
+  }, [])
 
   const handleLogout = async () => {
     await logout()
@@ -51,11 +67,11 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <aside
-        className={`bg-juve-black text-white flex flex-col shrink-0 sticky top-0 h-screen z-50 overflow-y-auto overflow-x-hidden transition-[width] duration-200 ease-in-out ${
-          sidebarOpen ? 'w-64' : 'w-0'
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-juve-black text-white transition-transform duration-200 ease-in-out lg:sticky ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="w-64 min-w-[16rem] flex flex-col h-full">
+        <div className="flex h-full w-64 min-w-[16rem] flex-col">
             {/* Logo */}
             <div className="p-6 border-b border-gray-800 shrink-0">
               <div className="flex items-baseline gap-1">
@@ -126,18 +142,18 @@ export default function AdminLayout() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ease-in-out">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 sticky top-0 z-30">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-gray-100 transition-colors">
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           <div className="h-5 w-px bg-gray-200" />
           <a href="/" target="_blank" rel="noopener noreferrer"
-            className="text-xs text-gray-500 hover:text-juve-gold transition-colors flex items-center gap-1.5 ml-auto">
+            className="ml-auto flex items-center gap-1.5 text-right text-xs text-gray-500 transition-colors hover:text-juve-gold">
             Visualizza sito <ChevronRight className="h-3.5 w-3.5" />
           </a>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
