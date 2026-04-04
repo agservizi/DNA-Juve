@@ -140,10 +140,18 @@ export default function AdminLayout() {
             {/* User */}
             <div className="p-4 border-t border-gray-800 shrink-0">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 bg-juve-gold flex items-center justify-center">
-                  <span className="text-black font-bold text-xs">
-                    {user?.email?.[0]?.toUpperCase() || 'A'}
-                  </span>
+                <div className="w-8 h-8 bg-juve-gold flex items-center justify-center overflow-hidden shrink-0">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-black font-bold text-xs">
+                      {user?.email?.[0]?.toUpperCase() || 'A'}
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-white truncate">{profile?.username || user?.email}</p>
