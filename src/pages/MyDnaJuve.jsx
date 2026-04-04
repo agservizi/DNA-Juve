@@ -181,12 +181,12 @@ export default function MyDnaJuve() {
         </motion.div>
 
         {/* ── Tab Navigation ───────────────────────────────────────────── */}
-        <div className="mb-8 flex flex-nowrap overflow-x-auto border-b-2 border-juve-black scrollbar-none lg:flex-wrap lg:gap-x-1 lg:overflow-visible">
+        <div className="mb-8 flex flex-nowrap overflow-x-auto border-b-2 border-juve-black scrollbar-none">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-colors lg:shrink lg:px-2.5 lg:text-[9px] lg:tracking-[0.16em] xl:px-3 xl:text-[10px] xl:tracking-widest ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${
                 activeTab === tab.id
                   ? 'bg-juve-gold text-juve-black border-juve-gold'
                   : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
