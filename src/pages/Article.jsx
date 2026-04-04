@@ -19,11 +19,12 @@ import TldrSummary from '@/components/blog/TldrSummary'
 import BookmarkButton from '@/components/blog/BookmarkButton'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { useReader } from '@/hooks/useReader'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function Article() {
   const { slug } = useParams()
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
+  const [displayViews, setDisplayViews] = useState(0)
 
   const { data: article, isLoading, error } = useQuery({
     queryKey: ['article', slug],
@@ -52,6 +53,10 @@ export default function Article() {
   })
 
   useEffect(() => {
+    setDisplayViews(Number(article?.views) || 0)
+  }, [article?.id, article?.views])
+
+  useEffect(() => {
     if (!article?.id) return
 
     let cancelled = false
@@ -59,6 +64,9 @@ export default function Article() {
     ;(async () => {
       try {
         await incrementViews(article.id)
+        if (!cancelled) {
+          setDisplayViews((prev) => (Number.isFinite(prev) ? prev + 1 : 1))
+        }
       } catch {
         if (cancelled) return
       }
@@ -205,12 +213,10 @@ export default function Article() {
                   <Clock className="h-4 w-4" />
                   {mins} min di lettura
                 </span>
-                {article.views > 0 && (
-                  <span className="flex items-center gap-1.5 text-gray-400">
-                    <Eye className="h-4 w-4" />
-                    {formatViews(article.views)}
-                  </span>
-                )}
+                <span className="flex items-center gap-1.5 text-gray-400">
+                  <Eye className="h-4 w-4" />
+                  {formatViews(displayViews)}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <BookmarkButton article={article} showLabel />
