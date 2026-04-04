@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   getArticleById, createArticle, updateArticle,
-  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, sendArticlePushNotification,
+  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, sendArticlePushNotification, getArticlePoll, upsertArticlePoll,
 } from '@/lib/supabase'
 import { slugify, stripHtml } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -89,6 +89,9 @@ export default function ArticleEditor() {
   const [tags, setTags] = useState([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [pollQuestion, setPollQuestion] = useState('')
+  const [pollOptions, setPollOptions] = useState(['', ''])
+  const [pollEnabled, setPollEnabled] = useState(false)
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -104,6 +107,15 @@ export default function ArticleEditor() {
   const { data: existingTags = [] } = useQuery({
     queryKey: ['article-tags-edit', id],
     queryFn: () => getArticleTags(id),
+    enabled: isEdit,
+  })
+  const { data: existingPoll = null } = useQuery({
+    queryKey: ['article-poll-edit', id],
+    queryFn: async () => {
+      const { data, error } = await getArticlePoll(id)
+      if (error) throw error
+      return data
+    },
     enabled: isEdit,
   })
   const { data: seoColumnsSupported = false } = useQuery({
@@ -160,6 +172,13 @@ export default function ArticleEditor() {
     if (existingTags.length) setTags(existingTags)
   }, [existingTags])
 
+  useEffect(() => {
+    if (!existingPoll) return
+    setPollQuestion(existingPoll.question || '')
+    setPollOptions(existingPoll.options?.map((option) => option.label) || ['', ''])
+    setPollEnabled(Boolean(existingPoll.is_active))
+  }, [existingPoll])
+
   const titleValue = watch('title')
   const slugValue = watch('slug')
   useEffect(() => {
@@ -194,6 +213,13 @@ export default function ArticleEditor() {
       const articleId = articleResult.data?.id || id
       if (articleId && tags.length >= 0) {
         await upsertArticleTags(articleId, tags)
+      }
+      if (articleId) {
+        await upsertArticlePoll(articleId, {
+          question: pollQuestion,
+          options: pollOptions,
+          is_active: pollEnabled,
+        })
       }
       return articleResult
     },
@@ -295,6 +321,20 @@ export default function ArticleEditor() {
     ogImage,
     noindex,
   })
+
+  const updatePollOption = (index, value) => {
+    setPollOptions((prev) => prev.map((option, currentIndex) => (currentIndex === index ? value : option)))
+  }
+
+  const addPollOption = () => {
+    if (pollOptions.length >= 5) return
+    setPollOptions((prev) => [...prev, ''])
+  }
+
+  const removePollOption = (index) => {
+    if (pollOptions.length <= 2) return
+    setPollOptions((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+  }
 
   return (
     <div>
@@ -439,6 +479,68 @@ export default function ArticleEditor() {
                 </motion.div>
               )}
             </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 p-5 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider">Sondaggio articolo</h3>
+                <p className="mt-1 text-xs text-gray-500">Coinvolgi i lettori con una domanda editoriale legata al pezzo.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPollEnabled(!pollEnabled)}
+                className={`relative w-10 h-5 transition-colors ${pollEnabled ? 'bg-juve-gold' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 bg-white transition-transform ${pollEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Domanda</label>
+              <input
+                value={pollQuestion}
+                onChange={(event) => setPollQuestion(event.target.value)}
+                placeholder="Es. Bernardo Silva sarebbe il colpo giusto per la Juve?"
+                className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500">Opzioni</p>
+              {pollOptions.map((option, index) => (
+                <div key={`poll-option-${index}`} className="flex items-center gap-2">
+                  <input
+                    value={option}
+                    onChange={(event) => updatePollOption(index, event.target.value)}
+                    placeholder={`Opzione ${index + 1}`}
+                    className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+                  />
+                  {pollOptions.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removePollOption(index)}
+                      className="px-2 py-2 text-xs font-bold text-gray-500 hover:text-red-600"
+                    >
+                      Rimuovi
+                    </button>
+                  )}
+                </div>
+              ))}
+              {pollOptions.length < 5 && (
+                <button
+                  type="button"
+                  onClick={addPollOption}
+                  className="text-xs font-bold uppercase tracking-wider text-juve-gold hover:underline"
+                >
+                  Aggiungi opzione
+                </button>
+              )}
+            </div>
+
+            <p className="text-[11px] text-gray-400">
+              Il sondaggio viene pubblicato se inserisci una domanda e almeno 2 opzioni valide. Se lasci vuoto, verrà rimosso.
+            </p>
           </div>
 
           <div className="bg-white border border-gray-200 p-5 space-y-4">

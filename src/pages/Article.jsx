@@ -17,6 +17,7 @@ import ArticleReactions from '@/components/blog/ArticleReactions'
 import ArticleAnnotations from '@/components/blog/ArticleAnnotations'
 import TldrSummary from '@/components/blog/TldrSummary'
 import BookmarkButton from '@/components/blog/BookmarkButton'
+import ArticlePoll from '@/components/blog/ArticlePoll'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { useReader } from '@/hooks/useReader'
 import { useEffect, useState } from 'react'
@@ -238,6 +239,8 @@ export default function Article() {
 
             {/* TL;DR */}
             <TldrSummary content={article.content} />
+
+            <ArticlePoll articleId={article.id} />
 
             {/* Table of Contents */}
             <TableOfContents content={article.content} />

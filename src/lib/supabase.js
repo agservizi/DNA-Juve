@@ -255,6 +255,21 @@ export const sendArticlePushNotification = ({ article }) =>
 export const sendFanSubmissionAdminNotification = ({ submissionId }) =>
   invokePushNotifications({ action: 'send-fan-submission', submissionId })
 
+export const getReaderLeaderboard = async ({ limit = 10 } = {}) => {
+  const response = await fetch(`${supabaseUrl}/functions/v1/reader-leaderboard?limit=${limit}`, {
+    headers: {
+      apikey: supabaseAnonKey,
+    },
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    return { data: null, error: new Error(data?.error || 'Classifica lettori non disponibile.') }
+  }
+
+  return { data: data?.entries || [], error: null }
+}
+
 // ─── ARTICLES ────────────────────────────────────────────────────────────────
 export const getPublishedArticles = async ({ page = 1, limit = 12, category = null } = {}) => {
   let query = supabase
@@ -506,6 +521,114 @@ export const upsertArticleTags = async (articleId, tags = []) => {
   // 4. Insert article_tags
   const junctionRows = finalTags.map(t => ({ article_id: articleId, tag_id: t.id }))
   await supabase.from('article_tags').insert(junctionRows)
+}
+
+// ─── ARTICLE POLLS ──────────────────────────────────────────────────────────
+export const getArticlePoll = async (articleId, userId = null) => {
+  const { data: poll, error: pollError } = await supabase
+    .from('article_polls')
+    .select(`
+      id,
+      article_id,
+      question,
+      is_active,
+      article_poll_options(id, label, position)
+    `)
+    .eq('article_id', articleId)
+    .maybeSingle()
+
+  if (pollError) return { data: null, error: pollError }
+  if (!poll) return { data: null, error: null }
+
+  const { data: votes, error: votesError } = await supabase
+    .from('article_poll_votes')
+    .select('option_id, user_id')
+    .eq('poll_id', poll.id)
+
+  if (votesError) return { data: null, error: votesError }
+
+  const voteCounts = (votes || []).reduce((acc, vote) => {
+    acc[vote.option_id] = (acc[vote.option_id] || 0) + 1
+    return acc
+  }, {})
+
+  const totalVotes = Object.values(voteCounts).reduce((sum, count) => sum + count, 0)
+  const currentVote = userId
+    ? (votes || []).find((vote) => vote.user_id === userId)?.option_id || null
+    : null
+
+  return {
+    data: {
+      ...poll,
+      totalVotes,
+      currentVote,
+      options: (poll.article_poll_options || [])
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((option) => ({
+          id: option.id,
+          label: option.label,
+          position: option.position,
+          votes: voteCounts[option.id] || 0,
+        })),
+    },
+    error: null,
+  }
+}
+
+export const upsertArticlePoll = async (articleId, poll = null) => {
+  const question = String(poll?.question || '').trim()
+  const options = Array.isArray(poll?.options)
+    ? poll.options.map((option) => String(option || '').trim()).filter(Boolean)
+    : []
+
+  if (!question || options.length < 2) {
+    await supabase.from('article_polls').delete().eq('article_id', articleId)
+    return { data: null, error: null }
+  }
+
+  const { data: savedPoll, error: pollError } = await supabase
+    .from('article_polls')
+    .upsert([{
+      article_id: articleId,
+      question,
+      is_active: poll?.is_active ?? true,
+    }], { onConflict: 'article_id' })
+    .select()
+    .single()
+
+  if (pollError) return { data: null, error: pollError }
+
+  await supabase
+    .from('article_poll_options')
+    .delete()
+    .eq('poll_id', savedPoll.id)
+
+  const { error: optionsError } = await supabase
+    .from('article_poll_options')
+    .insert(options.map((label, index) => ({
+      poll_id: savedPoll.id,
+      label,
+      position: index,
+    })))
+
+  if (optionsError) return { data: null, error: optionsError }
+
+  return getArticlePoll(articleId)
+}
+
+export const voteArticlePoll = async ({ pollId, optionId, userId }) => {
+  const { error } = await supabase
+    .from('article_poll_votes')
+    .upsert([{
+      poll_id: pollId,
+      option_id: optionId,
+      user_id: userId,
+    }], { onConflict: 'poll_id,user_id' })
+
+  if (error) return { data: null, error }
+
+  return { data: true, error: null }
 }
 
 // ─── STATS ───────────────────────────────────────────────────────────────────

@@ -1,43 +1,81 @@
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Trophy, Flame, BookOpen, MessageSquare } from 'lucide-react'
+import { Trophy, Flame, BookOpen } from 'lucide-react'
 import { useReader } from '@/hooks/useReader'
-
-const DEMO_LEADERBOARD = [
-  { name: 'Alessandro M.', articles: 87, streak: 12, comments: 34, points: 1240 },
-  { name: 'Francesca L.',  articles: 72, streak: 9,  comments: 28, points: 1080 },
-  { name: 'Giovanni R.',   articles: 65, streak: 15, comments: 19, points: 980 },
-  { name: 'Chiara B.',     articles: 58, streak: 7,  comments: 42, points: 920 },
-  { name: 'Davide P.',     articles: 51, streak: 5,  comments: 15, points: 780 },
-  { name: 'Laura T.',      articles: 44, streak: 8,  comments: 22, points: 720 },
-  { name: 'Simone C.',     articles: 39, streak: 4,  comments: 11, points: 610 },
-  { name: 'Martina G.',    articles: 35, streak: 6,  comments: 9,  points: 540 },
-  { name: 'Andrea F.',     articles: 28, streak: 3,  comments: 7,  points: 420 },
-  { name: 'Valentina S.',  articles: 22, streak: 2,  comments: 5,  points: 340 },
-]
+import { getReaderLeaderboard } from '@/lib/supabase'
 
 const MEDAL_COLORS = ['bg-juve-gold text-black', 'bg-gray-300 text-black', 'bg-amber-700 text-white']
+
+function buildCurrentUserEntry(reader, stats) {
+  if (!reader) return null
+
+  return {
+    id: reader.id || reader.email || reader.name,
+    name: reader.name,
+    avatarUrl: reader.avatarUrl || null,
+    articles: stats.totalArticles || 0,
+    streak: 0,
+    points: (stats.totalArticles * 10) + (stats.articlesThisMonth * 5),
+    isCurrentUser: true,
+  }
+}
 
 export default function Leaderboard({ variant = 'full' }) {
   const { reader, stats } = useReader()
 
-  // Insert current reader into leaderboard
-  const userPoints = (stats.totalArticles * 10) + (stats.articlesThisMonth * 5)
-  const entries = [...DEMO_LEADERBOARD]
+  const { data: remoteEntries = [] } = useQuery({
+    queryKey: ['reader-leaderboard', variant],
+    queryFn: async () => {
+      const { data, error } = await getReaderLeaderboard({ limit: variant === 'compact' ? 5 : 10 })
+      if (error) throw error
+      return data || []
+    },
+    staleTime: 60000,
+    retry: 1,
+  })
 
-  if (reader) {
-    const userEntry = {
-      name: reader.name,
-      articles: stats.totalArticles,
-      streak: 0,
-      comments: 0,
-      points: userPoints,
-      isCurrentUser: true,
+  const entries = useMemo(() => {
+    const currentUserEntry = buildCurrentUserEntry(reader, stats)
+    const deduped = [...remoteEntries]
+
+    if (currentUserEntry) {
+      const existingIndex = deduped.findIndex((entry) => entry.id === currentUserEntry.id)
+      if (existingIndex >= 0) {
+        deduped[existingIndex] = { ...deduped[existingIndex], ...currentUserEntry, isCurrentUser: true }
+      } else {
+        deduped.push(currentUserEntry)
+      }
     }
-    entries.push(userEntry)
-    entries.sort((a, b) => b.points - a.points)
-  }
+
+    return deduped
+      .map((entry) => ({
+        ...entry,
+        articles: Number(entry.articles || 0),
+        streak: Number(entry.streak || 0),
+        points: Number(entry.points || 0),
+        isCurrentUser: Boolean(entry.isCurrentUser),
+      }))
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points
+        if (b.articles !== a.articles) return b.articles - a.articles
+        return b.streak - a.streak
+      })
+  }, [reader, remoteEntries, stats])
 
   const displayed = variant === 'compact' ? entries.slice(0, 5) : entries
+
+  if (!displayed.length) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-juve-black">
+          <Trophy className="h-4 w-4 text-juve-gold" />
+          <h3 className="text-xs font-black uppercase tracking-widest">Top Lettori</h3>
+        </div>
+        <p className="text-sm text-gray-500">La classifica si popolerà con i primi lettori attivi.</p>
+      </div>
+    )
+  }
 
   if (variant === 'compact') {
     return (
@@ -49,7 +87,7 @@ export default function Leaderboard({ variant = 'full' }) {
         <div className="space-y-2">
           {displayed.map((entry, i) => (
             <div
-              key={entry.name}
+              key={entry.id || entry.name}
               className={`flex items-center gap-3 px-3 py-2 text-sm ${
                 entry.isCurrentUser ? 'bg-juve-gold/10 border-l-2 border-juve-gold' : ''
               }`}
@@ -78,11 +116,10 @@ export default function Leaderboard({ variant = 'full' }) {
         <div className="flex-1 h-px bg-gray-200" />
       </div>
 
-      {/* Top 3 podium */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {entries.slice(0, 3).map((entry, i) => (
           <motion.div
-            key={entry.name}
+            key={entry.id || entry.name}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
@@ -106,11 +143,10 @@ export default function Leaderboard({ variant = 'full' }) {
         ))}
       </div>
 
-      {/* Full list */}
       <div className="space-y-3 md:hidden">
         {displayed.map((entry, i) => (
           <motion.div
-            key={entry.name}
+            key={entry.id || entry.name}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: i * 0.03 }}
@@ -163,7 +199,7 @@ export default function Leaderboard({ variant = 'full' }) {
         </div>
         {displayed.map((entry, i) => (
           <motion.div
-            key={entry.name}
+            key={entry.id || entry.name}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: i * 0.03 }}
