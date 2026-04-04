@@ -576,6 +576,90 @@ export const getArticlePoll = async (articleId, userId = null) => {
   }
 }
 
+export const getLatestArticlePoll = async (userId = null) => {
+  const { data: activePolls, error: pollsError } = await supabase
+    .from('article_polls')
+    .select(`
+      id,
+      article_id,
+      question,
+      is_active,
+      article_poll_options(id, label, position)
+    `)
+    .eq('is_active', true)
+
+  if (pollsError) return { data: null, error: pollsError }
+  if (!activePolls?.length) return { data: null, error: null }
+
+  const articleIds = activePolls.map((poll) => poll.article_id).filter(Boolean)
+  if (!articleIds.length) return { data: null, error: null }
+
+  const { data: articles, error: articlesError } = await supabase
+    .from('articles')
+    .select(`
+      id,
+      title,
+      slug,
+      published_at,
+      categories(name, slug, color)
+    `)
+    .eq('status', 'published')
+    .in('id', articleIds)
+
+  if (articlesError) return { data: null, error: articlesError }
+  if (!articles?.length) return { data: null, error: null }
+
+  const latestArticle = articles
+    .slice()
+    .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0))[0]
+
+  if (!latestArticle?.id) return { data: null, error: null }
+
+  const matchedPoll = activePolls.find((poll) => poll.article_id === latestArticle.id)
+  if (!matchedPoll) return { data: null, error: null }
+
+  const { data: votes, error: votesError } = await supabase
+    .from('article_poll_votes')
+    .select('option_id, user_id')
+    .eq('poll_id', matchedPoll.id)
+
+  if (votesError) return { data: null, error: votesError }
+
+  const voteCounts = (votes || []).reduce((acc, vote) => {
+    acc[vote.option_id] = (acc[vote.option_id] || 0) + 1
+    return acc
+  }, {})
+
+  const totalVotes = Object.values(voteCounts).reduce((sum, count) => sum + count, 0)
+  const currentVote = userId
+    ? (votes || []).find((vote) => vote.user_id === userId)?.option_id || null
+    : null
+
+  return {
+    data: {
+      id: matchedPoll.id,
+      articleId: latestArticle.id,
+      articleTitle: latestArticle.title,
+      articleSlug: latestArticle.slug,
+      articleCategory: latestArticle.categories || null,
+      question: matchedPoll.question,
+      is_active: matchedPoll.is_active,
+      totalVotes,
+      currentVote,
+      options: (matchedPoll.article_poll_options || [])
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((option) => ({
+          id: option.id,
+          label: option.label,
+          position: option.position,
+          votes: voteCounts[option.id] || 0,
+        })),
+    },
+    error: null,
+  }
+}
+
 export const upsertArticlePoll = async (articleId, poll = null) => {
   const question = String(poll?.question || '').trim()
   const options = Array.isArray(poll?.options)
