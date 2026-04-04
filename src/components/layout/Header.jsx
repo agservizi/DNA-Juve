@@ -39,13 +39,18 @@ export default function Header() {
     retry: 1,
   })
 
-  const tickerText = useMemo(() => {
+  const tickerItems = useMemo(() => {
     const articleTitles = (latestArticles || []).map(a => a.title)
     const newsTitles = (transferNews || []).slice(0, 5).map(n => `📰 ${n.title}`)
-    const all = [...articleTitles, ...newsTitles].filter(Boolean)
-    if (!all.length) return ''
-    return all.join('   •   ') + '   •   ' + all.join('   •   ') + '   •   '
+    return [...articleTitles, ...newsTitles].filter(Boolean)
   }, [latestArticles, transferNews])
+
+  const tickerText = useMemo(() => {
+    if (!tickerItems.length) return ''
+    return tickerItems.join('   •   ') + '   •   ' + tickerItems.join('   •   ') + '   •   '
+  }, [tickerItems])
+
+  const mobileTickerHeadline = tickerItems[0] || 'Le ultime notizie bianconere in aggiornamento'
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 60)
@@ -71,7 +76,12 @@ export default function Header() {
             <Zap className="h-3.5 w-3.5" />
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Breaking</span>
           </div>
-          <div className="overflow-hidden flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden sm:hidden">
+            <div className="truncate pr-3 text-[11px] font-medium tracking-wide text-white/90">
+              {mobileTickerHeadline}
+            </div>
+          </div>
+          <div className="hidden overflow-hidden flex-1 sm:block">
             <div className="breaking-ticker text-xs font-medium tracking-wide">
               {tickerText}
             </div>

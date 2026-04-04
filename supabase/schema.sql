@@ -109,6 +109,23 @@ CREATE TABLE IF NOT EXISTS article_tags (
   PRIMARY KEY (article_id, tag_id)
 );
 
+-- ─── COMMENTS ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS comments (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  article_id   UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  author_name  TEXT NOT NULL,
+  author_email TEXT,
+  content      TEXT NOT NULL,
+  approved     BOOLEAN DEFAULT FALSE,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS comments_updated_at ON comments;
+CREATE TRIGGER comments_updated_at
+  BEFORE UPDATE ON comments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- ─── FAN ARTICLE SUBMISSIONS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS fan_article_submissions (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -139,6 +156,7 @@ ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE articles   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tags       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fan_article_submissions ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
@@ -176,6 +194,20 @@ DROP POLICY IF EXISTS "Article tags: auth write"  ON article_tags;
 CREATE POLICY "Article tags: public read" ON article_tags FOR SELECT USING (true);
 CREATE POLICY "Article tags: auth write"  ON article_tags FOR ALL USING (auth.role() = 'authenticated');
 
+-- Comments
+DROP POLICY IF EXISTS "Comments: public read approved" ON comments;
+DROP POLICY IF EXISTS "Comments: public insert" ON comments;
+DROP POLICY IF EXISTS "Comments: auth moderate" ON comments;
+CREATE POLICY "Comments: public read approved"
+  ON comments FOR SELECT
+  USING (approved = true OR auth.role() = 'authenticated');
+CREATE POLICY "Comments: public insert"
+  ON comments FOR INSERT
+  WITH CHECK (true);
+CREATE POLICY "Comments: auth moderate"
+  ON comments FOR ALL
+  USING (auth.role() = 'authenticated');
+
 -- Fan article submissions
 DROP POLICY IF EXISTS "Fan submissions: public insert" ON fan_article_submissions;
 DROP POLICY IF EXISTS "Fan submissions: auth read" ON fan_article_submissions;
@@ -210,6 +242,7 @@ CREATE INDEX IF NOT EXISTS articles_scheduled_idx   ON articles(scheduled_at) WH
 CREATE INDEX IF NOT EXISTS article_tags_article_idx ON article_tags(article_id);
 CREATE INDEX IF NOT EXISTS article_tags_tag_idx     ON article_tags(tag_id);
 CREATE INDEX IF NOT EXISTS tags_slug_idx            ON tags(slug);
+CREATE INDEX IF NOT EXISTS comments_article_idx     ON comments(article_id, approved, created_at);
 CREATE INDEX IF NOT EXISTS fan_article_submissions_status_idx ON fan_article_submissions(status);
 CREATE INDEX IF NOT EXISTS fan_article_submissions_submitted_idx ON fan_article_submissions(submitted_at DESC);
 

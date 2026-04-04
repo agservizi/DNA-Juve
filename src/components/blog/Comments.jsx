@@ -5,14 +5,24 @@ import { MessageCircle, Send, User, Loader2, ThumbsUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatDate, timeAgo } from '@/lib/utils'
 
+function isMissingCommentsTable(error) {
+  if (!error) return false
+  const message = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase()
+  return error.code === 'PGRST205' || message.includes('comments') || message.includes('relation') || message.includes('schema cache')
+}
+
 async function getComments(articleId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('comments')
     .select('*')
     .eq('article_id', articleId)
     .eq('approved', true)
     .order('created_at', { ascending: true })
-  return data || []
+  if (isMissingCommentsTable(error)) {
+    return { comments: [], available: false }
+  }
+  if (error) throw error
+  return { comments: data || [], available: true }
 }
 
 async function postComment({ articleId, authorName, authorEmail, content }) {
@@ -23,6 +33,9 @@ async function postComment({ articleId, authorName, authorEmail, content }) {
     content,
     approved: false, // moderation required
   }]).select().single()
+  if (isMissingCommentsTable(error)) {
+    throw new Error('COMMENTS_UNAVAILABLE')
+  }
   if (error) throw error
   return data
 }
@@ -54,11 +67,14 @@ export default function Comments({ articleId }) {
   const [form, setForm] = useState({ name: '', email: '', content: '' })
   const [submitted, setSubmitted] = useState(false)
 
-  const { data: comments = [], isLoading } = useQuery({
+  const { data: commentsData = { comments: [], available: true }, isLoading } = useQuery({
     queryKey: ['comments', articleId],
     queryFn: () => getComments(articleId),
     enabled: !!articleId,
   })
+
+  const comments = commentsData.comments || []
+  const commentsAvailable = commentsData.available !== false
 
   const submitMutation = useMutation({
     mutationFn: () => postComment({
@@ -90,7 +106,11 @@ export default function Comments({ articleId }) {
       </div>
 
       {/* Comments list */}
-      {isLoading ? (
+      {!commentsAvailable ? (
+        <p className="py-4 text-sm text-gray-400">
+          I commenti non sono ancora attivi su questo magazine.
+        </p>
+      ) : isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-juve-gold" />
         </div>
@@ -109,7 +129,16 @@ export default function Comments({ articleId }) {
         <h3 className="font-display text-lg font-bold mb-4">Lascia un commento</h3>
 
         <AnimatePresence mode="wait">
-          {submitted ? (
+          {!commentsAvailable ? (
+            <motion.div
+              key="unavailable"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="py-2 text-sm text-gray-500"
+            >
+              La sezione commenti verra abilitata a breve.
+            </motion.div>
+          ) : submitted ? (
             <motion.div
               key="success"
               initial={{ opacity: 0, y: 10 }}
@@ -180,7 +209,11 @@ export default function Comments({ articleId }) {
               </div>
 
               {submitMutation.isError && (
-                <p className="text-xs text-red-600">Errore nell'invio. Riprova.</p>
+                <p className="text-xs text-red-600">
+                  {submitMutation.error?.message === 'COMMENTS_UNAVAILABLE'
+                    ? 'I commenti non sono ancora attivi.'
+                    : "Errore nell'invio. Riprova."}
+                </p>
               )}
 
               <div className="flex items-center justify-between">

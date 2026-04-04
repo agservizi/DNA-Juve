@@ -52,7 +52,21 @@ export default function Article() {
   })
 
   useEffect(() => {
-    if (article?.id) incrementViews(article.id).catch(() => {})
+    if (!article?.id) return
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        await incrementViews(article.id)
+      } catch {
+        if (cancelled) return
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [article?.id])
 
   const { reader, addToHistory } = useReader()
