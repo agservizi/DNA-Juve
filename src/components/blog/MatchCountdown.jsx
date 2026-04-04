@@ -69,27 +69,21 @@ function getHeadToHeadLabel(match) {
 }
 
 function TeamBadge({ team }) {
-  const [imageFailed, setImageFailed] = useState(false)
-  const showImage = team.crest && !imageFailed
-
-  if (showImage) {
-    return (
-      <div className="flex h-14 w-14 items-center justify-center rounded-sm border border-black/10 bg-white p-2 shadow-sm sm:h-16 sm:w-16">
+  return (
+    <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-sm border border-black/10 bg-white shadow-sm sm:h-16 sm:w-16">
+      <span className="font-display text-xl font-black text-black">{team.name.slice(0, 2).toUpperCase()}</span>
+      {team.crest && (
         <img
           src={team.crest}
           alt={team.name}
-          className="h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-contain bg-white p-2"
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
+          onError={(event) => {
+            event.currentTarget.style.display = 'none'
+          }}
         />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex h-14 w-14 items-center justify-center rounded-sm border border-black/10 bg-white shadow-sm sm:h-16 sm:w-16">
-      <span className="font-display text-xl font-black text-black">{team.name.slice(0, 2).toUpperCase()}</span>
+      )}
     </div>
   )
 }

@@ -15,30 +15,24 @@ function getTeamDisplay(team, fallback = 'Squadra') {
 }
 
 function TeamBadge({ team, align = 'left' }) {
-  const [imageFailed, setImageFailed] = useState(false)
-  const showImage = team.crest && !imageFailed
-
-  if (showImage) {
-    return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-black/10 bg-white p-1.5 shadow-sm">
+  return (
+    <div className={cn(
+      'relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-black/10 bg-white text-[10px] font-black text-juve-black shadow-sm',
+      align === 'right' ? 'order-last' : ''
+    )}>
+      <span>{team.name.slice(0, 2).toUpperCase()}</span>
+      {team.crest && (
         <img
           src={team.crest}
           alt={team.name}
-          className="h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-contain bg-white p-1.5"
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
+          onError={(event) => {
+            event.currentTarget.style.display = 'none'
+          }}
         />
-      </div>
-    )
-  }
-
-  return (
-    <div className={cn(
-      'flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-black/10 bg-white text-[10px] font-black text-juve-black shadow-sm',
-      align === 'right' ? 'order-last' : ''
-    )}>
-      {team.name.slice(0, 2).toUpperCase()}
+      )}
     </div>
   )
 }
