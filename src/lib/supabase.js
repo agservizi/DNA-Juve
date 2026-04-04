@@ -46,7 +46,17 @@ export const signInWithMagicLink = (email, options = {}) =>
     },
   })
 
-export const signOut = () => supabase.auth.signOut()
+export const signOut = async () => {
+  const result = await supabase.auth.signOut({ scope: 'local' })
+
+  // Some environments can still refuse the logout request; the app only needs
+  // the local session cleared, so avoid surfacing a noisy console/runtime error.
+  if (result?.error?.status === 403) {
+    return { error: null }
+  }
+
+  return result
+}
 
 export const getSession = () => supabase.auth.getSession()
 
