@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -51,6 +52,14 @@ export default function RichEditor({ content = '', onChange }) {
     content,
     onUpdate: ({ editor }) => onChange?.(editor.getHTML()),
   })
+
+  useEffect(() => {
+    if (!editor) return
+    const incoming = content || ''
+    const current = editor.getHTML()
+    if (current === incoming) return
+    editor.commands.setContent(incoming, { emitUpdate: false })
+  }, [editor, content])
 
   if (!editor) return null
 

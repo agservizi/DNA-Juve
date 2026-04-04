@@ -227,10 +227,43 @@ CREATE POLICY "Fan submissions: auth delete"
   USING (auth.role() = 'authenticated');
 
 -- ─── STORAGE ─────────────────────────────────────────────────
--- Dalla dashboard Supabase → Storage → New Bucket:
---   Name: article-images | Public: ON
--- Policy per upload autenticati:
---   SELECT: true | INSERT/UPDATE/DELETE: (auth.role() = 'authenticated')
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'article-images',
+  'article-images',
+  true,
+  5242880,
+  ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+)
+ON CONFLICT (id) DO UPDATE
+SET public = EXCLUDED.public,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "Storage: public read article-images" ON storage.objects;
+DROP POLICY IF EXISTS "Storage: auth upload article-images" ON storage.objects;
+DROP POLICY IF EXISTS "Storage: auth update article-images" ON storage.objects;
+DROP POLICY IF EXISTS "Storage: auth delete article-images" ON storage.objects;
+
+CREATE POLICY "Storage: public read article-images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'article-images');
+
+CREATE POLICY "Storage: auth upload article-images"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'article-images');
+
+CREATE POLICY "Storage: auth update article-images"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'article-images')
+  WITH CHECK (bucket_id = 'article-images');
+
+CREATE POLICY "Storage: auth delete article-images"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'article-images');
 
 -- ─── INDEXES ─────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS articles_status_idx      ON articles(status);
