@@ -5,18 +5,32 @@ import { useReader } from '@/hooks/useReader'
 import { Loader2, UserCircle } from 'lucide-react'
 
 export default function ReaderLoginDialog() {
-  const { showLoginDialog, loginDialogMode, closeLogin, register, login } = useReader()
-  const [mode, setMode] = useState('register') // 'register' | 'login'
+  const {
+    showLoginDialog,
+    loginDialogMode,
+    closeLogin,
+    register,
+    login,
+    sendPasswordReset,
+    completePasswordReset,
+  } = useReader()
+  const [mode, setMode] = useState('register') // 'register' | 'login' | 'recovery'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [nextPassword, setNextPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [successMode, setSuccessMode] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (showLoginDialog) {
-      setMode(loginDialogMode === 'login' ? 'login' : 'register')
+      if (loginDialogMode === 'recovery') {
+        setMode('recovery')
+      } else {
+        setMode(loginDialogMode === 'login' ? 'login' : 'register')
+      }
       setError('')
       setSuccessMode(null)
     }
@@ -52,6 +66,10 @@ export default function ReaderLoginDialog() {
       return 'La password deve contenere almeno 6 caratteri.'
     }
 
+    if (normalized.includes('same password')) {
+      return 'Scegli una password diversa da quella attuale.'
+    }
+
     return message || 'Accesso non riuscito. Riprova.'
   }
 
@@ -65,11 +83,20 @@ export default function ReaderLoginDialog() {
         const result = await register(name.trim(), email.trim(), password.trim())
         setSuccessMode(result?.mode === 'confirm-email' ? 'confirm-email' : 'success')
       } else if (mode === 'login' && email.trim() && password.trim()) {
-        const result = await login({
+        await login({
           email: email.trim(),
           password: password.trim(),
         })
         setSuccessMode('success')
+      } else if (mode === 'recovery') {
+        if (nextPassword.trim().length < 6) {
+          throw new Error('La password deve contenere almeno 6 caratteri.')
+        }
+        if (nextPassword !== confirmPassword) {
+          throw new Error('Le password non coincidono.')
+        }
+        await completePasswordReset(nextPassword.trim())
+        setSuccessMode('password-updated')
       }
     } catch (err) {
       const normalized = String(err?.message || '').toLowerCase()
@@ -88,9 +115,25 @@ export default function ReaderLoginDialog() {
     setName('')
     setEmail('')
     setPassword('')
+    setNextPassword('')
+    setConfirmPassword('')
     setSuccessMode(null)
     setLoading(false)
     setError('')
+  }
+
+  const handleForgotPassword = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      await sendPasswordReset(email.trim())
+      setSuccessMode('reset-email')
+    } catch (err) {
+      setError(formatReaderAuthError(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -111,12 +154,22 @@ export default function ReaderLoginDialog() {
               <span className="text-black font-black text-lg">✓</span>
             </div>
             <p className="font-display text-xl font-bold">
-              {successMode === 'confirm-email' ? 'Conferma il tuo account' : 'Benvenuto!'}
+              {successMode === 'confirm-email'
+                ? 'Conferma il tuo account'
+                : successMode === 'reset-email'
+                  ? 'Controlla la tua email'
+                  : successMode === 'password-updated'
+                    ? 'Password aggiornata'
+                    : 'Benvenuto!'}
             </p>
             <p className="text-sm text-gray-500 mt-1">
               {successMode === 'confirm-email'
                 ? 'Ti abbiamo inviato un link di conferma. Dopo la verifica potrai accedere con email e password.'
-                : 'Accesso effettuato con successo'}
+                : successMode === 'reset-email'
+                  ? 'Ti abbiamo inviato un link per reimpostare la password. Aprilo e torna qui per scegliere la nuova password.'
+                  : successMode === 'password-updated'
+                    ? 'Ora puoi accedere ad Area Bianconera con la nuova password.'
+                    : 'Accesso effettuato con successo'}
             </p>
           </div>
         ) : (
@@ -124,7 +177,9 @@ export default function ReaderLoginDialog() {
             <p className="text-sm text-gray-600 mb-4">
               {mode === 'register'
                 ? 'Crea il tuo profilo gratuito con password per salvare articoli, tracciare la tua cronologia e personalizzare il magazine.'
-                : 'Accedi alla tua area personale con email e password.'}
+                : mode === 'recovery'
+                  ? 'Imposta una nuova password per completare il recupero del tuo account.'
+                  : 'Accedi alla tua area personale con email e password.'}
             </p>
 
             {mode === 'register' && (
@@ -140,32 +195,63 @@ export default function ReaderLoginDialog() {
               </div>
             )}
 
-            <div>
-              <label className="text-xs font-black uppercase tracking-widest mb-1.5 block">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="la-tua@email.it"
-                className="w-full border-2 border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:border-juve-gold transition-colors"
-                required
-              />
-            </div>
+            {mode !== 'recovery' && (
+              <div>
+                <label className="text-xs font-black uppercase tracking-widest mb-1.5 block">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="la-tua@email.it"
+                  className="w-full border-2 border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:border-juve-gold transition-colors"
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <label className="text-xs font-black uppercase tracking-widest mb-1.5 block">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={mode === 'register' ? 'Almeno 6 caratteri' : 'La tua password'}
-                className="w-full border-2 border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:border-juve-gold transition-colors"
-                required
-                minLength={6}
-              />
-            </div>
+            {mode !== 'recovery' ? (
+              <div>
+                <label className="text-xs font-black uppercase tracking-widest mb-1.5 block">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={mode === 'register' ? 'Almeno 6 caratteri' : 'La tua password'}
+                  className="w-full border-2 border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:border-juve-gold transition-colors"
+                  required
+                  minLength={6}
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-black uppercase tracking-widest mb-1.5 block">Nuova password</label>
+                  <input
+                    type="password"
+                    value={nextPassword}
+                    onChange={e => setNextPassword(e.target.value)}
+                    placeholder="Almeno 6 caratteri"
+                    className="w-full border-2 border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:border-juve-gold transition-colors"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black uppercase tracking-widest mb-1.5 block">Conferma password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Ripeti la nuova password"
+                    className="w-full border-2 border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:border-juve-gold transition-colors"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </>
+            )}
 
             {error && (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -173,22 +259,41 @@ export default function ReaderLoginDialog() {
               </p>
             )}
 
+            {mode === 'login' && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={loading}
+                  className="text-xs font-bold text-juve-gold hover:underline disabled:opacity-60"
+                >
+                  Password dimenticata?
+                </button>
+              </div>
+            )}
+
             <Button type="submit" variant="gold" size="lg" className="w-full">
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {mode === 'login' ? 'Accesso in corso...' : 'Invio in corso...'}
+                  {mode === 'login'
+                    ? 'Accesso in corso...'
+                    : mode === 'recovery'
+                      ? 'Aggiornamento in corso...'
+                      : 'Invio in corso...'}
                 </span>
               ) : (
-                mode === 'register' ? 'Registrati' : 'Accedi'
+                mode === 'register' ? 'Registrati' : mode === 'recovery' ? 'Aggiorna password' : 'Accedi'
               )}
             </Button>
 
             <p className="text-center text-xs text-gray-500">
               {mode === 'register' ? (
                 <>Hai gia un account?{' '}<button type="button" onClick={() => setMode('login')} className="text-juve-gold font-bold hover:underline">Accedi</button></>
-              ) : (
+              ) : mode === 'login' ? (
                 <>Non hai un account?{' '}<button type="button" onClick={() => setMode('register')} className="text-juve-gold font-bold hover:underline">Registrati</button></>
+              ) : (
+                <>Torna all’accesso{' '}<button type="button" onClick={() => setMode('login')} className="text-juve-gold font-bold hover:underline">Accedi</button></>
               )}
             </p>
           </form>

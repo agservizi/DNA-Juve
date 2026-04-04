@@ -15,6 +15,8 @@ import {
   signIn,
   signUpReader,
   signOut,
+  resetReaderPassword,
+  updateReaderPassword,
   getProfileByUserId,
   ensureProfileData,
   updateProfileData,
@@ -101,6 +103,7 @@ export function ReaderProvider({ children }) {
   const [preferences, setPreferences] = useState(() => localSnapshot.preferences)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [loginDialogMode, setLoginDialogMode] = useState('register')
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
   const [authUser, setAuthUser] = useState(null)
   const [authReady, setAuthReady] = useState(IS_MOCK)
   const storageScope = authUser?.id || GUEST_SCOPE
@@ -150,9 +153,15 @@ export function ReaderProvider({ children }) {
 
     let active = true
 
-    const hydrateFromSession = async (sessionUser) => {
+    const hydrateFromSession = async (sessionUser, authEvent = null) => {
       if (!active) return
       setAuthUser(sessionUser ?? null)
+      setIsPasswordRecovery(authEvent === 'PASSWORD_RECOVERY')
+
+      if (authEvent === 'PASSWORD_RECOVERY') {
+        setLoginDialogMode('recovery')
+        setShowLoginDialog(true)
+      }
 
       if (!sessionUser?.id) {
         setAuthReady(true)
@@ -228,8 +237,8 @@ export function ReaderProvider({ children }) {
       hydrateFromSession(session?.user ?? null)
     })
 
-    const { data: { subscription } } = onAuthStateChange((_event, session) => {
-      hydrateFromSession(session?.user ?? null)
+    const { data: { subscription } } = onAuthStateChange((event, session) => {
+      hydrateFromSession(session?.user ?? null, event)
     })
 
     return () => {
@@ -289,6 +298,30 @@ export function ReaderProvider({ children }) {
     const { error } = await signIn(email, password)
     if (error) throw error
     return { mode: 'success' }
+  }, [])
+
+  const sendPasswordReset = useCallback(async (email) => {
+    const normalizedEmail = String(email || '').trim()
+    if (!normalizedEmail) {
+      throw new Error('Inserisci prima la tua email.')
+    }
+
+    const { error } = await resetReaderPassword(normalizedEmail)
+    if (error) throw error
+    return { mode: 'reset-email' }
+  }, [])
+
+  const completePasswordReset = useCallback(async (password) => {
+    const nextPassword = String(password || '').trim()
+    if (nextPassword.length < 6) {
+      throw new Error('La password deve contenere almeno 6 caratteri.')
+    }
+
+    const { error } = await updateReaderPassword(nextPassword)
+    if (error) throw error
+
+    setIsPasswordRecovery(false)
+    return { mode: 'password-updated' }
   }, [])
 
   const logout = useCallback(async () => {
@@ -446,10 +479,19 @@ export function ReaderProvider({ children }) {
   }, [])
 
   const openLogin = useCallback((mode = 'register') => {
-    setLoginDialogMode(mode === 'login' ? 'login' : 'register')
+    if (mode === 'recovery') {
+      setLoginDialogMode('recovery')
+    } else {
+      setLoginDialogMode(mode === 'login' ? 'login' : 'register')
+    }
     setShowLoginDialog(true)
   }, [])
-  const closeLogin = useCallback(() => setShowLoginDialog(false), [])
+  const closeLogin = useCallback(() => {
+    setShowLoginDialog(false)
+    if (!isPasswordRecovery) {
+      setLoginDialogMode('register')
+    }
+  }, [isPasswordRecovery])
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -482,8 +524,11 @@ export function ReaderProvider({ children }) {
       loginDialogMode,
       stats,
       authReady,
+      isPasswordRecovery,
       register,
       login,
+      sendPasswordReset,
+      completePasswordReset,
       loginDemo,
       logout,
       updateProfile,

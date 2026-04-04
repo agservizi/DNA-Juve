@@ -60,6 +60,14 @@ export const signUpReader = (email, password, options = {}) =>
     },
   })
 
+export const resetReaderPassword = (email) =>
+  supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: getReaderAuthRedirectUrl(),
+  })
+
+export const updateReaderPassword = (password) =>
+  supabase.auth.updateUser({ password })
+
 export const signInWithMagicLink = (email, options = {}) =>
   supabase.auth.signInWithOtp({
     email,
