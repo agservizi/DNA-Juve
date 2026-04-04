@@ -66,6 +66,7 @@ function buildReaderProfile(sessionUser, profile) {
     name: profile?.username || sessionUser.user_metadata?.display_name || sessionUser.email?.split('@')[0] || 'Tifoso',
     email: sessionUser.email || '',
     avatarUrl: profile?.avatar_url || null,
+    bio: profile?.bio || '',
     role: profile?.role || 'reader',
     createdAt: profile?.created_at || sessionUser.created_at || new Date().toISOString(),
   }
@@ -265,6 +266,43 @@ export function ReaderProvider({ children }) {
     remove(LS.prefs)
   }, [authUser])
 
+  const updateProfile = useCallback(async ({ name, bio }) => {
+    const nextName = String(name || '').trim()
+    const nextBio = String(bio || '').trim()
+
+    if (!nextName) {
+      throw new Error('Il nome profilo non puo essere vuoto.')
+    }
+
+    if (IS_MOCK) {
+      setReader((prev) => {
+        const nextReader = { ...(prev || {}), name: nextName, bio: nextBio }
+        save(LS.reader, nextReader)
+        return nextReader
+      })
+      return { data: { username: nextName, bio: nextBio }, error: null }
+    }
+
+    if (!authUser?.id) {
+      throw new Error('Devi essere autenticato per aggiornare il profilo.')
+    }
+
+    const result = await updateProfileData(authUser.id, {
+      username: nextName,
+      bio: nextBio,
+    })
+
+    if (result.error) throw result.error
+
+    setReader((prev) => {
+      const nextReader = { ...(prev || {}), name: nextName, bio: nextBio }
+      save(LS.reader, nextReader)
+      return nextReader
+    })
+
+    return result
+  }, [authUser])
+
   const loginDemo = useCallback(() => {
     const profile = { name: 'Tifoso Bianconero', email: 'tifoso@bianconerihub.com', createdAt: '2026-02-15T10:00:00Z' }
     const demoBookmarks = [
@@ -400,6 +438,7 @@ export function ReaderProvider({ children }) {
       login,
       loginDemo,
       logout,
+      updateProfile,
       deleteAccount,
       toggleBookmark,
       isBookmarked,
@@ -409,7 +448,7 @@ export function ReaderProvider({ children }) {
       setFavoriteCategories,
       openLogin,
       closeLogin,
-      syncRemoteState: () => syncRemoteState(authUser),
+      syncRemoteState: (overrides) => syncRemoteState(authUser, overrides),
     }}>
       {children}
     </ReaderContext.Provider>

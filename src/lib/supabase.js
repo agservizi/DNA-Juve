@@ -5,6 +5,8 @@ import { buildFanArticlePlaceholder, deriveFanArticleTags } from './fanArticles'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
+export const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
+export const pushNotificationsConfigured = Boolean(vapidPublicKey)
 const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
 let readerStateSupported = true
 let profileRoleSupported = true
@@ -127,6 +129,76 @@ export const upsertReaderState = async (userId, payload) => {
 
   return result
 }
+
+// ─── PUSH NOTIFICATIONS ─────────────────────────────────────────────────────
+export const getPushSubscriptionsByUserId = (userId) => {
+  if (!userId) return Promise.resolve({ data: [], error: null })
+
+  return supabase
+    .from('push_subscriptions')
+    .select('id, endpoint, is_active, created_at, updated_at, last_success_at, last_error')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+}
+
+export const upsertPushSubscription = async (userId, subscription, metadata = {}) => {
+  if (!userId || !subscription?.endpoint) {
+    return { data: null, error: new Error('Subscription push non valida.') }
+  }
+
+  const json = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
+  const keys = json?.keys || {}
+
+  return supabase
+    .from('push_subscriptions')
+    .upsert([{
+      user_id: userId,
+      endpoint: json.endpoint,
+      subscription: json,
+      p256dh: keys.p256dh || '',
+      auth: keys.auth || '',
+      user_agent: metadata.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+      is_active: true,
+      last_seen_at: new Date().toISOString(),
+      last_error: null,
+    }], { onConflict: 'endpoint' })
+    .select()
+    .single()
+}
+
+export const deletePushSubscription = (userId, endpoint) =>
+  supabase
+    .from('push_subscriptions')
+    .delete()
+    .eq('user_id', userId)
+    .eq('endpoint', endpoint)
+
+export const invokePushNotifications = async (payload) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${session?.access_token || ''}`,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    return { data: null, error: new Error(data?.error || 'Invio notifiche non riuscito.') }
+  }
+
+  return { data, error: null }
+}
+
+export const sendTestPushNotification = () =>
+  invokePushNotifications({ action: 'send-test' })
+
+export const sendArticlePushNotification = ({ article }) =>
+  invokePushNotifications({ action: 'send-article', article })
 
 // ─── ARTICLES ────────────────────────────────────────────────────────────────
 export const getPublishedArticles = async ({ page = 1, limit = 12, category = null } = {}) => {

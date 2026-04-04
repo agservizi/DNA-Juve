@@ -176,9 +176,30 @@ CREATE TABLE IF NOT EXISTS reader_states (
   updated_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  endpoint        TEXT NOT NULL UNIQUE,
+  subscription    JSONB NOT NULL,
+  p256dh          TEXT NOT NULL,
+  auth            TEXT NOT NULL,
+  user_agent      TEXT,
+  is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+  last_success_at TIMESTAMPTZ,
+  last_error      TEXT,
+  last_seen_at    TIMESTAMPTZ DEFAULT NOW(),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
 DROP TRIGGER IF EXISTS reader_states_updated_at ON reader_states;
 CREATE TRIGGER reader_states_updated_at
   BEFORE UPDATE ON reader_states
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS push_subscriptions_updated_at ON push_subscriptions;
+CREATE TRIGGER push_subscriptions_updated_at
+  BEFORE UPDATE ON push_subscriptions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 DROP TRIGGER IF EXISTS fan_article_submissions_updated_at ON fan_article_submissions;
@@ -195,6 +216,7 @@ ALTER TABLE article_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fan_article_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reader_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Profiles
 DROP POLICY IF EXISTS "Profiles: public read"  ON profiles;
@@ -276,6 +298,25 @@ CREATE POLICY "Reader states: owner write"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- Push subscriptions
+DROP POLICY IF EXISTS "Push subscriptions: owner read" ON push_subscriptions;
+DROP POLICY IF EXISTS "Push subscriptions: owner insert" ON push_subscriptions;
+DROP POLICY IF EXISTS "Push subscriptions: owner update" ON push_subscriptions;
+DROP POLICY IF EXISTS "Push subscriptions: owner delete" ON push_subscriptions;
+CREATE POLICY "Push subscriptions: owner read"
+  ON push_subscriptions FOR SELECT
+  USING (auth.uid() = user_id);
+CREATE POLICY "Push subscriptions: owner insert"
+  ON push_subscriptions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Push subscriptions: owner update"
+  ON push_subscriptions FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Push subscriptions: owner delete"
+  ON push_subscriptions FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- ─── STORAGE ─────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -329,6 +370,8 @@ CREATE INDEX IF NOT EXISTS comments_article_idx     ON comments(article_id, appr
 CREATE INDEX IF NOT EXISTS fan_article_submissions_status_idx ON fan_article_submissions(status);
 CREATE INDEX IF NOT EXISTS fan_article_submissions_submitted_idx ON fan_article_submissions(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS profiles_role_idx        ON profiles(role);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS push_subscriptions_active_idx ON push_subscriptions(is_active);
 
 -- ─── OPTIONAL: pg_cron per scheduled publish ─────────────────
 -- Se il tuo piano Supabase supporta pg_cron:

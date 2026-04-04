@@ -17,6 +17,7 @@ import ArticleCard from '@/components/blog/ArticleCard'
 import SEO from '@/components/blog/SEO'
 import Leaderboard from '@/components/blog/Leaderboard'
 import NotificationAlert from '@/components/blog/NotificationAlert'
+import { useToast } from '@/hooks/useToast'
 import { cn, formatDate } from '@/lib/utils'
 import {
   LEVELS, getLevel, BADGES, getWeeklyChallenges, PLAYER_CARDS, AVATARS,
@@ -172,8 +173,9 @@ export default function MyDnaJuve() {
   const {
     reader, bookmarks, history, preferences, stats,
     logout, loginDemo, deleteAccount, clearBookmarks, clearHistory,
-    setFavoriteCategories, openLogin,
+    setFavoriteCategories, openLogin, updateProfile,
   } = useReader()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
@@ -363,6 +365,8 @@ export default function MyDnaJuve() {
                 setFavoriteCategories={setFavoriteCategories}
                 reader={reader}
                 gamification={gamification}
+                onUpdateProfile={updateProfile}
+                toast={toast}
                 onDelete={() => setShowDeleteDialog(true)}
               />
             )}
@@ -1712,8 +1716,18 @@ function HistoryTab({ history, clearHistory }) {
 // TAB: PREFERENZE (updated with avatar picker)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PreferencesTab({ categories, preferences, setFavoriteCategories, reader, gamification, onDelete }) {
+function PreferencesTab({ categories, preferences, setFavoriteCategories, reader, gamification, onUpdateProfile, toast, onDelete }) {
   const favs = preferences.favoriteCategories || []
+  const [profileName, setProfileName] = useState(reader.name || '')
+  const [profileBio, setProfileBio] = useState(reader.bio || '')
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+
+  useEffect(() => {
+    setProfileName(reader.name || '')
+    setProfileBio(reader.bio || '')
+    setIsEditingProfile(false)
+  }, [reader.name, reader.bio])
 
   const toggleCat = (id) => {
     setFavoriteCategories(favs.includes(id) ? favs.filter(c => c !== id) : [...favs, id])
@@ -1722,6 +1736,30 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, reader
   const handleAvatarChange = (avatarId) => {
     setAvatar(avatarId)
     window.location.reload() // Refresh to reflect avatar change
+  }
+
+  const handleProfileSave = async () => {
+    setSavingProfile(true)
+    try {
+      await onUpdateProfile({
+        name: profileName,
+        bio: profileBio,
+      })
+      toast?.({
+        title: 'Profilo aggiornato',
+        description: 'Le tue informazioni sono state salvate.',
+        variant: 'success',
+      })
+      setIsEditingProfile(false)
+    } catch (error) {
+      toast?.({
+        title: 'Salvataggio non riuscito',
+        description: error.message || 'Non sono riuscito ad aggiornare il profilo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingProfile(false)
+    }
   }
 
   return (
@@ -1764,18 +1802,74 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, reader
       {/* Info profilo */}
       <div>
         <SectionHeader icon={Settings2} title="Il tuo profilo" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+        <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Nome</p>
-            <p className="text-sm font-medium">{reader.name}</p>
+            <input
+              type="text"
+              value={profileName}
+              onChange={(event) => setProfileName(event.target.value)}
+              disabled={!isEditingProfile}
+              className="w-full border-2 border-gray-200 px-3 py-2 text-sm font-medium outline-none transition-colors focus:border-juve-gold"
+              placeholder="Il tuo nome da tifoso"
+            />
           </div>
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Email</p>
             <p className="text-sm font-medium">{reader.email}</p>
           </div>
+          <div className="sm:col-span-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Bio</p>
+            <textarea
+              value={profileBio}
+              onChange={(event) => setProfileBio(event.target.value)}
+              disabled={!isEditingProfile}
+              rows={4}
+              maxLength={240}
+              className="w-full resize-none border-2 border-gray-200 px-3 py-2 text-sm outline-none transition-colors focus:border-juve-gold"
+              placeholder="Racconta in due righe il tuo DNA bianconero"
+            />
+            <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-gray-400">
+              {profileBio.length}/240
+            </p>
+          </div>
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Iscritto dal</p>
             <p className="text-sm font-medium">{formatDate(reader.createdAt)}</p>
+          </div>
+          <div className="flex items-end">
+            {isEditingProfile ? (
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setProfileName(reader.name || '')
+                    setProfileBio(reader.bio || '')
+                    setIsEditingProfile(false)
+                  }}
+                  disabled={savingProfile}
+                >
+                  Annulla
+                </Button>
+                <Button
+                  variant="gold"
+                  size="sm"
+                  onClick={handleProfileSave}
+                  disabled={savingProfile || !profileName.trim()}
+                >
+                  {savingProfile ? 'Salvataggio...' : 'Salva profilo'}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingProfile(true)}
+              >
+                Modifica profilo
+              </Button>
+            )}
           </div>
         </div>
       </div>

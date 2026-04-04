@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   getArticleById, createArticle, updateArticle,
-  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport,
+  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, sendArticlePushNotification,
 } from '@/lib/supabase'
 import { slugify, stripHtml } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -201,6 +201,27 @@ export default function ArticleEditor() {
       qc.invalidateQueries(['all-articles'])
       qc.invalidateQueries(['dashboard-stats'])
       qc.invalidateQueries(['article-tags-edit', id])
+
+      const shouldSendPush =
+        status === 'published' &&
+        result?.data?.slug &&
+        (!isEdit || existing?.status !== 'published')
+
+      if (shouldSendPush) {
+        const category = categories.find((item) => item.id === result.data.category_id)
+        sendArticlePushNotification({
+          article: {
+            title: result.data.title,
+            slug: result.data.slug,
+            excerpt: result.data.excerpt,
+            categoryId: result.data.category_id,
+            categoryName: category?.name || null,
+          },
+        }).catch(() => {
+          // Publishing should succeed even if push delivery fails.
+        })
+      }
+
       toast({
         title: isEdit ? 'Articolo aggiornato!' : 'Articolo creato!',
         description: status === 'published' ? 'Visibile sul sito.' : showSchedule ? 'Pubblicazione programmata.' : 'Salvato come bozza.',
