@@ -14,23 +14,38 @@ export function AuthProvider({ children }) {
     const syncUserState = async (sessionUser) => {
       if (!mounted) return
 
-      setUser(sessionUser ?? null)
+      const nextUser = sessionUser ?? null
+      setUser(nextUser)
 
-      if (!sessionUser?.id) {
+      if (!nextUser?.id) {
         setProfile(null)
         setLoading(false)
         return
       }
 
-      const { data } = await getProfileByUserId(sessionUser.id)
-      if (!mounted) return
-      setProfile(data || null)
-      setLoading(false)
+      try {
+        const { data } = await getProfileByUserId(nextUser.id)
+        if (!mounted) return
+        setProfile(data || null)
+      } catch {
+        if (!mounted) return
+        setProfile(null)
+      } finally {
+        if (!mounted) return
+        setLoading(false)
+      }
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      syncUserState(session?.user ?? null)
-    })
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        syncUserState(session?.user ?? null)
+      })
+      .catch(() => {
+        if (!mounted) return
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+      })
 
     const { data: { subscription } } = onAuthStateChange((_event, session) => {
       syncUserState(session?.user ?? null)

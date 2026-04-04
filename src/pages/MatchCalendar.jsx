@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Calendar, MapPin, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import SEO from '@/components/blog/SEO'
-import { getTeamMatches } from '@/lib/footballApi'
+import { getTeamMatches, shouldRetryFootballQuery } from '@/lib/footballApi'
 
 // Fallback demo matches
 const DEMO_MATCHES = [
@@ -48,7 +48,7 @@ export default function MatchCalendar() {
     queryFn: () => getTeamMatches(),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: shouldRetryFootballQuery,
   })
 
   const allMatches = apiMatches ? mapApiMatches(apiMatches) : DEMO_MATCHES

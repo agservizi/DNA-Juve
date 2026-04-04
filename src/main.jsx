@@ -7,11 +7,16 @@ import App from './App.jsx'
 import AppErrorBoundary from '@/components/app/AppErrorBoundary'
 import './index.css'
 
+function shouldRetryQuery(failureCount, error) {
+  if (error?.status === 429) return false
+  return failureCount < 1
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
-      retry: 1,
+      retry: shouldRetryQuery,
     },
   },
 })

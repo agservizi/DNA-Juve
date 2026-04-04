@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Calendar, MapPin, Trophy, Loader2, Activity, History } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { getNextMatch, getRecentFinishedMatches, getTeamMatches, getVenueLabel, JUVE_ID } from '@/lib/footballApi'
+import { getNextMatch, getRecentFinishedMatches, getTeamMatches, getVenueLabel, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 
 function getDemoMatch() {
   const now = new Date()
@@ -136,7 +136,7 @@ export default function MatchCountdown() {
     },
     staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: shouldRetryFootballQuery,
   })
 
   const match = bundle?.match || getDemoMatch()

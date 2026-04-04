@@ -1,6 +1,9 @@
 import { apiUrl, apiHeaders } from './apiProxy'
 
 const JUVE_ID = 109
+const FOOTBALL_CACHE_PREFIX = 'football-api-cache:'
+const memoryCache = new Map()
+const inFlightRequests = new Map()
 const STADIUM_BY_TEAM_ID = {
   109: 'Allianz Stadium, Torino',
   108: 'Stadio Giuseppe Meazza, Milano',
@@ -24,12 +27,91 @@ const STADIUM_BY_TEAM_ID = {
   657: 'Stadio Pier Luigi Penzo, Venezia',
 }
 
+function getCacheTtl(endpoint) {
+  if (endpoint.includes('status=SCHEDULED')) return 60 * 1000
+  return 5 * 60 * 1000
+}
+
+function getCacheKey(endpoint) {
+  return `${FOOTBALL_CACHE_PREFIX}${endpoint}`
+}
+
+function readCachedEntry(cacheKey) {
+  const cached = memoryCache.get(cacheKey)
+  if (cached) return cached
+
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.sessionStorage.getItem(cacheKey)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    memoryCache.set(cacheKey, parsed)
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeCachedEntry(cacheKey, entry) {
+  memoryCache.set(cacheKey, entry)
+
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(cacheKey, JSON.stringify(entry))
+  } catch {
+    // Ignore storage quota/unavailable errors: in-memory cache is enough.
+  }
+}
+
 async function fetchApi(endpoint) {
-  const res = await fetch(`${apiUrl('football')}${endpoint}`, {
+  const cacheKey = getCacheKey(endpoint)
+  const now = Date.now()
+  const ttl = getCacheTtl(endpoint)
+  const cached = readCachedEntry(cacheKey)
+
+  if (cached && now - cached.timestamp < ttl) {
+    return cached.data
+  }
+
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey)
+  }
+
+  const request = fetch(`${apiUrl('football')}${endpoint}`, {
     headers: apiHeaders(),
   })
-  if (!res.ok) throw new Error(`Football API ${res.status}`)
-  return res.json()
+    .then(async (res) => {
+      if (!res.ok) {
+        const error = new Error(`Football API ${res.status}`)
+        error.status = res.status
+        error.retryAfter = res.headers.get('retry-after')
+
+        // If we hit the provider rate limit, prefer slightly stale data over a hard failure.
+        if (res.status === 429 && cached?.data) {
+          return cached.data
+        }
+
+        throw error
+      }
+
+      const data = await res.json()
+      writeCachedEntry(cacheKey, { data, timestamp: Date.now() })
+      return data
+    })
+    .finally(() => {
+      inFlightRequests.delete(cacheKey)
+    })
+
+  inFlightRequests.set(cacheKey, request)
+  return request
+}
+
+export function shouldRetryFootballQuery(failureCount, error) {
+  if (error?.status === 429) return false
+  return failureCount < 1
 }
 
 /**

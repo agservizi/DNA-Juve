@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -10,8 +10,14 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const { login } = useAuth()
+  const { login, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/admin', { replace: true })
+    }
+  }, [authLoading, user, navigate])
 
   const getAuthErrorMessage = (err) => {
     const message = String(err?.message || '').toLowerCase()
@@ -40,8 +46,10 @@ export default function Login() {
     setError(null)
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/admin')
+      const data = await login(email, password)
+      if (data?.session?.user || data?.user) {
+        navigate('/admin', { replace: true })
+      }
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {
@@ -132,10 +140,10 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || authLoading}
               className="w-full bg-juve-black text-white py-3 font-black uppercase tracking-widest text-sm hover:bg-juve-gold hover:text-black transition-colors disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
             >
-              {loading ? (
+              {loading || authLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Accesso in corso…

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { TableIcon, ChevronDown, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { getStandings, JUVE_ID } from '@/lib/footballApi'
+import { getStandings, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 
 // Fallback demo standings
 const DEMO_STANDINGS = [
@@ -38,7 +38,7 @@ export default function StandingsWidget() {
     queryFn: () => getStandings('SA'),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: shouldRetryFootballQuery,
   })
 
   const allRows = apiTable ? mapStandings(apiTable) : DEMO_STANDINGS

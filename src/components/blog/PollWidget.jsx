@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Vote, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getTeamMatches, getVenueLabel } from '@/lib/footballApi'
+import { getTeamMatches, getVenueLabel, shouldRetryFootballQuery } from '@/lib/footballApi'
 
 const STORAGE_KEY = 'fb-poll'
 
@@ -85,7 +85,7 @@ export default function PollWidget() {
     queryFn: () => getTeamMatches(),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: shouldRetryFootballQuery,
   })
 
   const latestFinishedMatch = useMemo(() => (

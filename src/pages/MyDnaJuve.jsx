@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { createFanArticleSubmission, getCategories, getPublishedArticles } from '@/lib/supabase'
-import { getSquadPlayers, getTeamMatches, getVenueLabel } from '@/lib/footballApi'
+import { getSquadPlayers, getTeamMatches, getVenueLabel, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -188,7 +188,7 @@ export default function MyDnaJuve() {
     queryFn: () => getTeamMatches(),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: shouldRetryFootballQuery,
   })
 
   const gamification = useMemo(() => getGamificationState(), [activeTab])
