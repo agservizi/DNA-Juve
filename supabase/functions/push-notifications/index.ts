@@ -98,6 +98,36 @@ async function sendNotificationToRecords(
   return { delivered, invalidated, failed }
 }
 
+async function createInternalNotifications(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userIds: string[],
+  payload: {
+    type?: string
+    title: string
+    body?: string
+    url?: string
+    metadata?: Record<string, unknown>
+  },
+) {
+  const recipients = [...new Set(userIds.filter(Boolean))]
+  if (!recipients.length) return
+
+  const rows = recipients.map((userId) => ({
+    user_id: userId,
+    type: payload.type || 'system',
+    title: payload.title,
+    body: payload.body || null,
+    url: payload.url || null,
+    metadata: payload.metadata || {},
+  }))
+
+  const { error } = await supabaseAdmin
+    .from('reader_notifications')
+    .insert(rows)
+
+  if (error) throw error
+}
+
 async function sendTestNotification(
   supabaseAdmin: ReturnType<typeof createClient>,
   userId: string
@@ -133,43 +163,74 @@ async function sendArticleNotification(
     throw new Error('Article payload missing title or slug')
   }
 
+  const { data: readerStates, error: statesError } = await supabaseAdmin
+    .from('reader_states')
+    .select('user_id, preferences, notifications_enabled')
+
+  if (statesError) throw statesError
+  if (!readerStates?.length) {
+    return { delivered: [], invalidated: [], failed: [], skipped: 0 }
+  }
+
+  const eligibleUserIds = (readerStates || [])
+    .filter((state) => {
+      if (!article.categoryId) return true
+
+      const favoriteCategories = Array.isArray(state.preferences?.favoriteCategories)
+        ? state.preferences.favoriteCategories
+        : []
+
+      return favoriteCategories.length === 0 || favoriteCategories.includes(article.categoryId)
+    })
+    .map((state) => state.user_id)
+
+  if (!eligibleUserIds.length) {
+    return { delivered: [], invalidated: [], failed: [], skipped: 0 }
+  }
+
+  await createInternalNotifications(
+    supabaseAdmin,
+    eligibleUserIds,
+    {
+      type: 'article',
+      title: article.categoryName
+        ? `${article.categoryName}: ${article.title}`
+        : article.title,
+      body: article.excerpt || 'E disponibile un nuovo articolo del magazine.',
+      url: `/articolo/${article.slug}`,
+      metadata: {
+        slug: article.slug,
+        categoryId: article.categoryId || null,
+        categoryName: article.categoryName || null,
+      },
+    },
+  )
+
+  const pushEnabledUserIds = new Set(
+    (readerStates || [])
+      .filter((state) => state.notifications_enabled)
+      .map((state) => state.user_id),
+  )
+
   const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
     .from('push_subscriptions')
     .select('id, user_id, endpoint, subscription')
     .eq('is_active', true)
+    .in('user_id', eligibleUserIds)
 
   if (subscriptionsError) throw subscriptionsError
-  if (!subscriptions?.length) {
-    return { delivered: [], invalidated: [], failed: [], skipped: 0 }
-  }
 
-  const userIds = [...new Set(subscriptions.map((record) => record.user_id))]
-  const { data: readerStates, error: statesError } = await supabaseAdmin
-    .from('reader_states')
-    .select('user_id, preferences, notifications_enabled')
-    .in('user_id', userIds)
-
-  if (statesError) throw statesError
-
-  const stateMap = new Map((readerStates || []).map((row) => [row.user_id, row]))
-  const eligibleRecords = (subscriptions as PushRecord[]).filter((record) => {
-    const state = stateMap.get(record.user_id)
-    if (!state?.notifications_enabled) return false
-
-    if (!article.categoryId) return true
-
-    const favoriteCategories = Array.isArray(state.preferences?.favoriteCategories)
-      ? state.preferences.favoriteCategories
-      : []
-
-    return favoriteCategories.length === 0 || favoriteCategories.includes(article.categoryId)
-  })
-
+  const eligibleRecords = (subscriptions || []).filter((record) => pushEnabledUserIds.has(record.user_id))
   if (!eligibleRecords.length) {
-    return { delivered: [], invalidated: [], failed: [], skipped: subscriptions.length }
+    return {
+      delivered: [],
+      invalidated: [],
+      failed: [],
+      skipped: subscriptions?.length || 0,
+    }
   }
 
-  const summary = await sendNotificationToRecords(supabaseAdmin, eligibleRecords, {
+  const summary = await sendNotificationToRecords(supabaseAdmin, eligibleRecords as PushRecord[], {
     title: article.categoryName
       ? `Nuovo articolo ${article.categoryName}`
       : 'Nuovo articolo BianconeriHub',
@@ -180,7 +241,7 @@ async function sendArticleNotification(
 
   return {
     ...summary,
-    skipped: subscriptions.length - eligibleRecords.length,
+    skipped: (subscriptions?.length || 0) - eligibleRecords.length,
   }
 }
 
@@ -337,6 +398,84 @@ async function sendFanSubmissionNotification(
   }
 }
 
+async function sendReaderEventNotification(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  payload: {
+    userId?: string
+    userEmail?: string
+    type?: string
+    title: string
+    body?: string
+    url?: string
+    metadata?: Record<string, unknown>
+  },
+) {
+  if ((!payload.userId && !payload.userEmail) || !payload.title) {
+    throw new Error('Reader notification payload incompleto.')
+  }
+
+  let userId = payload.userId || ''
+
+  if (!userId && payload.userEmail) {
+    let page = 1
+    const perPage = 200
+
+    while (true) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+      if (error) throw error
+
+      const matched = (data.users || []).find((authUser) => authUser.email === payload.userEmail)
+      if (matched?.id) {
+        userId = matched.id
+        break
+      }
+
+      if (!data.users?.length || data.users.length < perPage) break
+      page += 1
+    }
+  }
+
+  if (!userId) {
+    throw new Error('Utente destinatario non trovato.')
+  }
+
+  await createInternalNotifications(supabaseAdmin, [userId], {
+    type: payload.type || 'system',
+    title: payload.title,
+    body: payload.body || '',
+    url: payload.url || '/area-bianconera',
+    metadata: payload.metadata || {},
+  })
+
+  const { data: state } = await supabaseAdmin
+    .from('reader_states')
+    .select('notifications_enabled')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!state?.notifications_enabled) {
+    return { delivered: [], invalidated: [], failed: [], skipped: 0 }
+  }
+
+  const { data: subscriptions, error } = await supabaseAdmin
+    .from('push_subscriptions')
+    .select('id, user_id, endpoint, subscription')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+
+  if (error) throw error
+  if (!subscriptions?.length) {
+    return { delivered: [], invalidated: [], failed: [], skipped: 0 }
+  }
+
+  return sendNotificationToRecords(supabaseAdmin, subscriptions as PushRecord[], {
+    title: payload.title,
+    body: payload.body || '',
+    url: payload.url || '/area-bianconera',
+    tag: `reader-event-${payload.type || 'system'}-${userId}`,
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -381,6 +520,19 @@ Deno.serve(async (req) => {
     if (action === 'send-fan-submission') {
       const summary = await sendFanSubmissionNotification(supabaseAdmin, user, body.submissionId || '')
       if ('error' in summary) return jsonResponse({ error: summary.error }, 403)
+      return jsonResponse(summary)
+    }
+
+    if (action === 'send-reader-event') {
+      const summary = await sendReaderEventNotification(supabaseAdmin, {
+        userId: body.userId || '',
+        userEmail: body.userEmail || '',
+        type: body.type || 'system',
+        title: body.title || '',
+        body: body.body || '',
+        url: body.url || '/area-bianconera',
+        metadata: body.metadata || {},
+      })
       return jsonResponse(summary)
     }
 

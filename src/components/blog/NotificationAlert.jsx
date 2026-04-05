@@ -4,43 +4,24 @@ import { Bell, BellOff, BellRing, Loader2, Send } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useReader } from '@/hooks/useReader'
 import {
-  deletePushSubscription,
   pushNotificationsConfigured,
   sendTestPushNotification,
-  upsertPushSubscription,
-  vapidPublicKey,
 } from '@/lib/supabase'
 import {
   getCurrentPushSubscription,
   isPushSupported,
-  subscribeToPush,
-  unsubscribeFromPush,
 } from '@/lib/pushNotifications'
 
-const LS_KEY = 'fb-notifications'
-
-function loadNotifPrefs() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)) || { enabled: false, lastCheck: null } }
-  catch { return { enabled: false, lastCheck: null } }
-}
-
-function saveNotifPrefs(data) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
-}
-
 export default function NotificationAlert() {
-  const { reader, preferences, syncRemoteState } = useReader()
-  const [enabled, setEnabled] = useState(false)
+  const { reader, preferences, notifications, enableNotifications, disableNotifications } = useReader()
   const [permission, setPermission] = useState('default')
   const [loading, setLoading] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const pushSupported = isPushSupported()
+  const enabled = Boolean(notifications?.enabled)
 
   useEffect(() => {
-    const prefs = loadNotifPrefs()
-    setEnabled(Boolean(prefs.enabled))
-
     if (typeof Notification !== 'undefined') {
       setPermission(Notification.permission)
     }
@@ -52,13 +33,7 @@ export default function NotificationAlert() {
         .then((subscription) => {
           if (!active) return
 
-          if (!subscription && prefs.enabled) {
-            saveNotifPrefs({ enabled: false, lastCheck: prefs.lastCheck || null })
-            setEnabled(false)
-            return
-          }
-
-          if (subscription) setEnabled(true)
+          if (!subscription && enabled) return
         })
         .catch(() => {})
     }
@@ -66,7 +41,7 @@ export default function NotificationAlert() {
     return () => {
       active = false
     }
-  }, [pushSupported])
+  }, [enabled, pushSupported])
 
   const toggleNotifications = async () => {
     if (!reader?.id || loading) return
@@ -75,37 +50,15 @@ export default function NotificationAlert() {
 
     try {
       if (!enabled) {
-        if (!pushSupported) throw new Error('Il browser non supporta le notifiche push.')
-        if (!pushNotificationsConfigured) throw new Error('Configurazione notifiche incompleta: chiave VAPID pubblica mancante.')
-
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-          const result = await Notification.requestPermission()
-          setPermission(result)
-          if (result !== 'granted') return
-        } else if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
-          return
+        const result = await enableNotifications({ userId: reader.id, prompt: true })
+        if (typeof Notification !== 'undefined') {
+          setPermission(Notification.permission)
         }
-
-        const subscription = await subscribeToPush(vapidPublicKey)
-        const result = await upsertPushSubscription(reader.id, subscription)
-        if (result.error) throw result.error
-
-        const nextPrefs = { enabled: true, lastCheck: new Date().toISOString() }
-        saveNotifPrefs(nextPrefs)
-        setEnabled(true)
-        await syncRemoteState?.({ notificationsEnabled: true })
+        if (!result?.enabled) return
         return
       }
 
-      const subscription = await getCurrentPushSubscription()
-      if (subscription?.endpoint) {
-        await deletePushSubscription(reader.id, subscription.endpoint)
-      }
-      await unsubscribeFromPush()
-
-      saveNotifPrefs({ enabled: false, lastCheck: null })
-      setEnabled(false)
-      await syncRemoteState?.({ notificationsEnabled: false })
+      await disableNotifications({ userId: reader.id })
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Operazione notifiche non riuscita.')
     } finally {

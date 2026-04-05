@@ -23,7 +23,19 @@ import {
   getReaderState,
   upsertReaderState,
   onAuthStateChange,
+  createReaderNotification,
+  getReaderNotifications,
+  upsertPushSubscription,
+  deletePushSubscription,
+  pushNotificationsConfigured,
+  vapidPublicKey,
 } from '@/lib/supabase'
+import {
+  getCurrentPushSubscription,
+  isPushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '@/lib/pushNotifications'
 
 const ReaderContext = createContext(null)
 
@@ -101,6 +113,7 @@ export function ReaderProvider({ children }) {
   const [bookmarks, setBookmarks] = useState(() => localSnapshot.bookmarks)
   const [history, setHistory] = useState(() => localSnapshot.history)
   const [preferences, setPreferences] = useState(() => localSnapshot.preferences)
+  const [notifications, setNotifications] = useState(() => localSnapshot.notifications)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [loginDialogMode, setLoginDialogMode] = useState('register')
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
@@ -116,6 +129,7 @@ export function ReaderProvider({ children }) {
   useEffect(() => { save(storageKeys.bookmarks, bookmarks) }, [bookmarks, storageKeys.bookmarks])
   useEffect(() => { save(storageKeys.history, history) }, [history, storageKeys.history])
   useEffect(() => { save(storageKeys.prefs, preferences) }, [preferences, storageKeys.prefs])
+  useEffect(() => { save(storageKeys.notifications, notifications) }, [notifications, storageKeys.notifications])
   useEffect(() => {
     if (reader) save(storageKeys.reader, reader)
     else remove(storageKeys.reader)
@@ -126,6 +140,7 @@ export function ReaderProvider({ children }) {
     setBookmarks(snapshot.bookmarks || [])
     setHistory(snapshot.history || [])
     setPreferences(snapshot.preferences || DEFAULT_PREFS)
+    setNotifications(snapshot.notifications || { enabled: false, lastCheck: null })
     persistGamificationSnapshot(snapshot.gamification || getGamificationState(), storageScope)
   }, [storageScope])
 
@@ -137,7 +152,7 @@ export function ReaderProvider({ children }) {
       history: overrides.history ?? history,
       preferences: overrides.preferences ?? preferences,
       gamification: overrides.gamification ?? getGamificationState(),
-      notifications_enabled: overrides.notificationsEnabled ?? load(getStorageKeys(sessionUser.id).notifications, { enabled: false }).enabled,
+      notifications_enabled: overrides.notificationsEnabled ?? notifications.enabled,
       last_synced_at: new Date().toISOString(),
     }
 
@@ -146,7 +161,7 @@ export function ReaderProvider({ children }) {
     } catch {
       // Reader sync should never block the experience.
     }
-  }, [bookmarks, history, preferences])
+  }, [bookmarks, history, notifications.enabled, preferences])
 
   useEffect(() => {
     if (IS_MOCK) return undefined
@@ -260,7 +275,79 @@ export function ReaderProvider({ children }) {
     }, 600)
 
     return () => clearTimeout(timer)
-  }, [authUser, authReady, bookmarks, history, preferences, reader?.id, syncRemoteState])
+  }, [authUser, authReady, bookmarks, history, notifications.enabled, preferences, reader?.id, syncRemoteState])
+
+  const ensureWelcomeNotification = useCallback(async (userId, name) => {
+    if (!userId || IS_MOCK) return
+
+    try {
+      const { data } = await getReaderNotifications(userId, { limit: 10 })
+      const hasWelcome = (data || []).some((item) => item.type === 'welcome')
+      if (hasWelcome) return
+
+      await createReaderNotification(userId, {
+        type: 'welcome',
+        title: `Benvenuto in Area Bianconera${name ? `, ${name}` : ''}`,
+        body: 'Hai il tuo spazio personale nel magazine: segnalibri, pronostici, badge e adesso anche notifiche dedicate.',
+        url: '/area-bianconera',
+        metadata: { source: 'reader-onboarding' },
+      })
+    } catch {
+      // Welcome notification should not block login/signup.
+    }
+  }, [])
+
+  const enableNotifications = useCallback(async ({ userId = authUser?.id, prompt = true, silent = false } = {}) => {
+    if (!userId) {
+      return { enabled: false, reason: 'missing-user' }
+    }
+
+    if (!isPushSupported()) {
+      if (silent) return { enabled: false, reason: 'unsupported' }
+      throw new Error('Il browser non supporta le notifiche push.')
+    }
+
+    if (!pushNotificationsConfigured) {
+      if (silent) return { enabled: false, reason: 'not-configured' }
+      throw new Error('Configurazione notifiche incompleta: chiave VAPID pubblica mancante.')
+    }
+
+    let permission = typeof Notification !== 'undefined' ? Notification.permission : 'default'
+
+    if (prompt && permission === 'default') {
+      permission = await Notification.requestPermission()
+    }
+
+    if (permission !== 'granted') {
+      return { enabled: false, reason: permission }
+    }
+
+    const subscription = await subscribeToPush(vapidPublicKey)
+    const result = await upsertPushSubscription(userId, subscription)
+    if (result.error) throw result.error
+
+    const nextNotifications = { enabled: true, lastCheck: new Date().toISOString() }
+    setNotifications(nextNotifications)
+    await syncRemoteState({ id: userId }, { notificationsEnabled: true })
+
+    return { enabled: true, reason: 'granted' }
+  }, [authUser?.id, syncRemoteState, vapidPublicKey])
+
+  const disableNotifications = useCallback(async ({ userId = authUser?.id } = {}) => {
+    if (!userId) return { enabled: false }
+
+    const subscription = await getCurrentPushSubscription()
+    if (subscription?.endpoint) {
+      await deletePushSubscription(userId, subscription.endpoint)
+    }
+
+    await unsubscribeFromPush()
+    const nextNotifications = { enabled: false, lastCheck: null }
+    setNotifications(nextNotifications)
+    await syncRemoteState({ id: userId }, { notificationsEnabled: false })
+
+    return { enabled: false }
+  }, [authUser?.id, syncRemoteState])
 
   const register = useCallback(async (name, email, password) => {
     if (IS_MOCK) {
@@ -276,8 +363,14 @@ export function ReaderProvider({ children }) {
       data: { display_name: name, role: 'reader' },
     })
     if (error) throw error
+    if (data?.user?.id) {
+      ensureWelcomeNotification(data.user.id, name)
+    }
+    if (data?.session?.user?.id) {
+      await enableNotifications({ userId: data.session.user.id, prompt: true, silent: true })
+    }
     return { mode: data?.session ? 'success' : 'confirm-email' }
-  }, [])
+  }, [enableNotifications, ensureWelcomeNotification])
 
   const login = useCallback(async ({ email, password }) => {
     if (IS_MOCK) {
@@ -295,10 +388,15 @@ export function ReaderProvider({ children }) {
       return { mode: 'demo' }
     }
 
-    const { error } = await signIn(email, password)
+    const { data, error } = await signIn(email, password)
     if (error) throw error
+    if (data?.user?.id || data?.session?.user?.id) {
+      const userId = data?.user?.id || data?.session?.user?.id
+      await ensureWelcomeNotification(userId, email.split('@')[0])
+      await enableNotifications({ userId, prompt: true, silent: true })
+    }
     return { mode: 'success' }
-  }, [])
+  }, [enableNotifications, ensureWelcomeNotification])
 
   const sendPasswordReset = useCallback(async (email) => {
     const normalizedEmail = String(email || '').trim()
@@ -333,6 +431,7 @@ export function ReaderProvider({ children }) {
     setBookmarks([])
     setHistory([])
     setPreferences(DEFAULT_PREFS)
+    setNotifications({ enabled: false, lastCheck: null })
 
     remove(storageKeys.reader)
     remove(storageKeys.bookmarks)
@@ -406,6 +505,7 @@ export function ReaderProvider({ children }) {
     setBookmarks([])
     setHistory([])
     setPreferences(DEFAULT_PREFS)
+    setNotifications({ enabled: false, lastCheck: null })
     remove(storageKeys.reader)
     remove(storageKeys.bookmarks)
     remove(storageKeys.history)
@@ -520,6 +620,7 @@ export function ReaderProvider({ children }) {
       bookmarks,
       history,
       preferences,
+      notifications,
       showLoginDialog,
       loginDialogMode,
       stats,
@@ -539,6 +640,8 @@ export function ReaderProvider({ children }) {
       addToHistory,
       clearHistory,
       setFavoriteCategories,
+      enableNotifications,
+      disableNotifications,
       openLogin,
       closeLogin,
       syncRemoteState: (overrides) => syncRemoteState(authUser, overrides),

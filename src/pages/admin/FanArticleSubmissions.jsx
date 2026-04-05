@@ -5,6 +5,7 @@ import { CheckCircle2, Eye, FilePenLine, Mail, ShieldAlert, XCircle, StickyNote 
 import {
   approveFanArticleSubmission,
   getFanArticleSubmissions,
+  sendReaderEventNotification,
   updateFanArticleSubmission,
 } from '@/lib/supabase'
 import { stripHtml, truncate, readingTime, formatDate } from '@/lib/utils'
@@ -92,14 +93,53 @@ export default function FanArticleSubmissions() {
     }
   }
 
+  const notifyReaderInArea = async (submission, status, article = null) => {
+    if (!submission?.author_email) return
+
+    try {
+      const copy = status === 'approved'
+        ? {
+            title: 'La tua proposta è stata approvata',
+            body: `La redazione ha approvato "${submission.title}". È stata aperta una bozza editoriale per la pubblicazione.`,
+          }
+        : status === 'rejected'
+          ? {
+              title: 'La tua proposta non è stata approvata',
+              body: `La redazione ha revisionato "${submission.title}". Controlla le note e riparti da una nuova idea.`,
+            }
+          : {
+              title: 'La redazione sta valutando la tua proposta',
+              body: `"${submission.title}" è passata in revisione interna.`,
+            }
+
+      await sendReaderEventNotification({
+        userEmail: submission.author_email,
+        type: `fan-article-${status}`,
+        title: copy.title,
+        body: copy.body,
+        url: article ? `/admin/articoli/${article.id}/modifica` : '/area-bianconera',
+        metadata: {
+          submissionId: submission.id,
+          status,
+          linkedArticleId: article?.id || null,
+        },
+      })
+    } catch {
+      // Reader notification should not block the moderation workflow.
+    }
+  }
+
   const reviewMutation = useMutation({
     mutationFn: ({ id, status, reviewNotes }) => updateFanArticleSubmission(id, { status, review_notes: reviewNotes }),
-    onSuccess: (_, vars) => {
+    onSuccess: async (_, vars) => {
       refreshLists()
       toast({
         title: vars.status === 'reviewing' ? 'Proposta presa in carico' : 'Proposta aggiornata',
         variant: 'success',
       })
+      if (vars.status === 'reviewing') {
+        await notifyReaderInArea(vars.submission, 'reviewing')
+      }
     },
     onError: (error) => {
       toast({ title: 'Errore', description: error.message, variant: 'destructive' })
@@ -112,6 +152,7 @@ export default function FanArticleSubmissions() {
       refreshLists()
       toast({ title: 'Proposta rifiutata', variant: 'success' })
       await notifySubmissionStatus(vars.submission, 'rejected')
+      await notifyReaderInArea(vars.submission, 'rejected')
     },
     onError: (error) => toast({ title: 'Errore', description: error.message, variant: 'destructive' }),
   })
@@ -132,6 +173,7 @@ export default function FanArticleSubmissions() {
         variant: 'success',
       })
       await notifySubmissionStatus(vars.submission, 'approved', article)
+      await notifyReaderInArea(vars.submission, 'approved', article)
     },
     onError: (error) => toast({ title: 'Errore in approvazione', description: error.message, variant: 'destructive' }),
   })

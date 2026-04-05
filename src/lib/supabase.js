@@ -226,6 +226,59 @@ export const deletePushSubscription = (userId, endpoint) =>
     .eq('user_id', userId)
     .eq('endpoint', endpoint)
 
+export const getReaderNotifications = (userId, { limit = 20, unreadOnly = false } = {}) => {
+  if (!userId) return Promise.resolve({ data: [], error: null })
+
+  let query = supabase
+    .from('reader_notifications')
+    .select('id, type, title, body, url, metadata, is_read, read_at, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (unreadOnly) {
+    query = query.eq('is_read', false)
+  }
+
+  return query
+}
+
+export const createReaderNotification = (userId, notification) =>
+  supabase
+    .from('reader_notifications')
+    .insert([{
+      user_id: userId,
+      type: notification.type || 'system',
+      title: notification.title,
+      body: notification.body || null,
+      url: notification.url || null,
+      metadata: notification.metadata || {},
+    }])
+    .select()
+    .single()
+
+export const markReaderNotificationRead = (userId, notificationId) =>
+  supabase
+    .from('reader_notifications')
+    .update({
+      is_read: true,
+      read_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .eq('id', notificationId)
+    .select()
+    .single()
+
+export const markAllReaderNotificationsRead = (userId) =>
+  supabase
+    .from('reader_notifications')
+    .update({
+      is_read: true,
+      read_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+
 export const invokePushNotifications = async (payload) => {
   const { data: { session } } = await supabase.auth.getSession()
   const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
@@ -254,6 +307,26 @@ export const sendArticlePushNotification = ({ article }) =>
 
 export const sendFanSubmissionAdminNotification = ({ submissionId }) =>
   invokePushNotifications({ action: 'send-fan-submission', submissionId })
+
+export const sendReaderEventNotification = ({
+  userId,
+  userEmail,
+  type = 'system',
+  title,
+  body = '',
+  url = '/area-bianconera',
+  metadata = {},
+}) =>
+  invokePushNotifications({
+    action: 'send-reader-event',
+    userId,
+    userEmail,
+    type,
+    title,
+    body,
+    url,
+    metadata,
+  })
 
 export const getReaderLeaderboard = async ({ limit = 10 } = {}) => {
   const response = await fetch(`${supabaseUrl}/functions/v1/reader-leaderboard?limit=${limit}`, {

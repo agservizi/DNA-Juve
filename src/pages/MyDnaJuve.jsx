@@ -4,13 +4,17 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bookmark, History, Settings2, BarChart3, Trash2, LogOut, BookOpen, Clock,
   Heart, ArrowRight, Trophy, Star, Medal, Zap, Swords, Grid3X3, PenLine,
-  Target, Timer, ChevronDown, ChevronUp, Plus, X, Check, Share2, Sparkles,
+  Target, Timer, ChevronDown, ChevronUp, Plus, X, Check, Share2, Sparkles, Bell,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  createReaderNotification,
   createFanArticleSubmission,
   getCategories,
   getPublishedArticles,
+  getReaderNotifications,
+  markAllReaderNotificationsRead,
+  markReaderNotificationRead,
   sendFanSubmissionAdminNotification,
 } from '@/lib/supabase'
 import { getSquadPlayers, getTeamMatches, getVenueLabel, shouldRetryFootballQuery } from '@/lib/footballApi'
@@ -54,6 +58,7 @@ const TABS = [
   { id: 'predictions', label: 'Pronostici', icon: Zap },
   { id: 'fan-articles', label: 'La Tua Voce', icon: PenLine },
   { id: 'leaderboard', label: 'Classifica', icon: Trophy },
+  { id: 'notifications', label: 'Notifiche', icon: Bell },
   { id: 'preferences', label: 'Preferenze', icon: Settings2 },
 ]
 
@@ -195,10 +200,23 @@ export default function MyDnaJuve() {
     refetchOnWindowFocus: false,
     retry: shouldRetryFootballQuery,
   })
+  const { data: readerNotifications = [] } = useQuery({
+    queryKey: ['reader-notifications', reader?.id],
+    queryFn: async () => {
+      const { data } = await getReaderNotifications(reader?.id, { limit: 40 })
+      return data || []
+    },
+    enabled: Boolean(reader?.id),
+    staleTime: 15000,
+  })
 
   const gamification = useMemo(() => getGamificationState(), [activeTab])
   const level = useMemo(() => getLevel(gamification.xp), [gamification.xp])
   const officialMatches = useMemo(() => teamMatches || [], [teamMatches])
+  const unreadNotifications = useMemo(
+    () => (readerNotifications || []).filter((item) => !item.is_read).length,
+    [readerNotifications],
+  )
 
   // Check badges on change
   useEffect(() => {
@@ -213,7 +231,7 @@ export default function MyDnaJuve() {
     const hasEarly = history.some(h => { const hr = new Date(h.readAt).getHours(); return hr >= 5 && hr < 7 })
     const derbyCount = history.filter(h => h.title?.toLowerCase().includes('derby')).length
 
-    checkAndUnlockBadges({
+    const newBadges = checkAndUnlockBadges({
       totalArticles: history.length,
       streak,
       categoriesRead: catSet.size,
@@ -223,6 +241,21 @@ export default function MyDnaJuve() {
       derbyArticles: derbyCount,
       predictions: getPredictions().length,
     })
+
+    if (reader.id && newBadges.length) {
+      newBadges.forEach((badge) => {
+        createReaderNotification(reader.id, {
+          type: 'badge',
+          title: `Nuovo badge sbloccato: ${badge.name}`,
+          body: badge.desc,
+          url: '/area-bianconera',
+          metadata: {
+            badgeId: badge.id,
+            badgeName: badge.name,
+          },
+        }).catch(() => {})
+      })
+    }
   }, [reader, history, bookmarks])
 
   if (!reader) {
@@ -334,6 +367,11 @@ export default function MyDnaJuve() {
                     >
                       <tab.icon className="h-3.5 w-3.5" />
                       {tab.label}
+                      {tab.id === 'notifications' && unreadNotifications > 0 && (
+                        <span className="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-juve-black px-1.5 py-0.5 text-[9px] font-black text-white">
+                          {unreadNotifications}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -363,6 +401,13 @@ export default function MyDnaJuve() {
             {activeTab === 'predictions' && <PredictionsTab officialMatches={officialMatches} matchesLoading={matchesLoading} />}
             {activeTab === 'fan-articles' && <FanArticlesTab reader={reader} />}
             {activeTab === 'leaderboard' && <Leaderboard />}
+            {activeTab === 'notifications' && (
+              <NotificationsTab
+                notifications={readerNotifications}
+                readerId={reader.id}
+                toast={toast}
+              />
+            )}
             {activeTab === 'preferences' && (
               <PreferencesTab
                 categories={categories}
@@ -1286,6 +1331,19 @@ function FanArticlesTab({ reader }) {
         success: 'Proposta inviata alla redazione. La troverai nel pannello admin per la moderazione.',
       })
 
+      if (reader.id) {
+        createReaderNotification(reader.id, {
+          type: 'fan-article',
+          title: 'Proposta inviata alla redazione',
+          body: `La tua bozza "${articleData.title.trim()}" è stata inviata. La redazione la valuterà nell'area moderazione.`,
+          url: '/area-bianconera',
+          metadata: {
+            submissionId: data?.id || null,
+            category: articleData.category,
+          },
+        }).catch(() => {})
+      }
+
       if (data?.id) {
         sendFanSubmissionAdminNotification({ submissionId: data.id }).catch((notificationError) => {
           console.warn('Admin fan submission notification failed:', notificationError)
@@ -1716,6 +1774,126 @@ function HistoryTab({ history, clearHistory }) {
                 <ArticleCard key={`${h.articleId}-${h.readAt}`} variant="horizontal" index={i}
                   article={{ id: h.articleId, slug: h.slug, title: h.title, cover_image: null, categories: { name: h.categoryName, slug: h.categorySlug }, content: '', excerpt: '', published_at: h.readAt, views: 0 }} />
               ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB: NOTIFICHE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function NotificationsTab({ notifications, readerId, toast }) {
+  const qc = useQueryClient()
+  const markOneMutation = useMutation({
+    mutationFn: async (notificationId) => {
+      const { error } = await markReaderNotificationRead(readerId, notificationId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reader-notifications', readerId] })
+    },
+  })
+  const markAllMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await markAllReaderNotificationsRead(readerId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reader-notifications', readerId] })
+    },
+    onError: (error) => {
+      toast?.({
+        title: 'Notifiche non aggiornate',
+        description: error.message || 'Non sono riuscito a segnare le notifiche come lette.',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  if (!notifications?.length) {
+    return (
+      <div className="text-center py-16">
+        <Bell className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <p className="font-display text-xl font-bold text-gray-400 mb-2">Nessuna notifica</p>
+        <p className="text-sm text-gray-400">Qui troverai novita del magazine, pubblicazioni e movimenti utili per la tua Area Bianconera.</p>
+      </div>
+    )
+  }
+
+  const unreadCount = notifications.filter((item) => !item.is_read).length
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-gray-500">
+            {unreadCount > 0
+              ? `${unreadCount} notific${unreadCount === 1 ? 'a nuova' : 'he nuove'}`
+              : 'Tutte le notifiche sono state lette'}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => markAllMutation.mutate()}
+          disabled={markAllMutation.isPending || unreadCount === 0}
+          className="w-full sm:w-auto"
+        >
+          {markAllMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Segna tutto come letto
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {notifications.map((item) => (
+          <div
+            key={item.id}
+            className={cn(
+              'border p-4 transition-colors',
+              item.is_read ? 'border-gray-200 bg-white' : 'border-juve-gold/40 bg-juve-gold/5',
+            )}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {!item.is_read && (
+                    <span className="inline-flex items-center rounded-full bg-juve-black px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-white">
+                      Nuova
+                    </span>
+                  )}
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    {formatDate(item.created_at)}
+                  </span>
+                </div>
+                <p className="mt-2 font-display text-xl font-bold text-juve-black">{item.title}</p>
+                {item.body && (
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{item.body}</p>
+                )}
+                {item.url && (
+                  <Link
+                    to={item.url}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-juve-gold hover:underline"
+                  >
+                    Apri
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </div>
+              {!item.is_read && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => markOneMutation.mutate(item.id)}
+                  disabled={markOneMutation.isPending}
+                  className="self-start"
+                >
+                  Segna letta
+                </Button>
+              )}
             </div>
           </div>
         ))}
