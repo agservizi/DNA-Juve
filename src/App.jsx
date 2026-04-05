@@ -54,8 +54,8 @@ function PageLoader() {
 }
 
 function AdminGuard({ children }) {
-  const { user, profile, loading } = useAuth()
-  if (loading) return (
+  const { user, profile, loading, profileLoading } = useAuth()
+  if (loading || (user && profileLoading)) return (
     <div className="min-h-screen bg-juve-black flex items-center justify-center">
       <div className="flex items-baseline gap-1">
         <span className="font-display text-3xl font-black text-white animate-pulse">BIANCONERI</span>

@@ -10,14 +10,14 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const { login, user, loading: authLoading } = useAuth()
+  const { login, user, profile, loading: authLoading, profileLoading } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && !profileLoading && user && profile?.role === 'admin') {
       navigate('/admin', { replace: true })
     }
-  }, [authLoading, user, navigate])
+  }, [authLoading, profileLoading, user, profile, navigate])
 
   const getAuthErrorMessage = (err) => {
     const message = String(err?.message || '').toLowerCase()
@@ -46,10 +46,7 @@ export default function Login() {
     setError(null)
     setLoading(true)
     try {
-      const data = await login(email, password)
-      if (data?.session?.user || data?.user) {
-        navigate('/admin', { replace: true })
-      }
+      await login(email, password)
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {

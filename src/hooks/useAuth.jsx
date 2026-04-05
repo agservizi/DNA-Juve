@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(true)
 
   useEffect(() => {
     let mounted = true
@@ -19,9 +20,12 @@ export function AuthProvider({ children }) {
 
       if (!nextUser?.id) {
         setProfile(null)
+        setProfileLoading(false)
         setLoading(false)
         return
       }
+
+      setProfileLoading(true)
 
       try {
         const { data } = await getProfileByUserId(nextUser.id)
@@ -32,6 +36,7 @@ export function AuthProvider({ children }) {
         setProfile(null)
       } finally {
         if (!mounted) return
+        setProfileLoading(false)
         setLoading(false)
       }
     }
@@ -44,6 +49,7 @@ export function AuthProvider({ children }) {
         if (!mounted) return
         setUser(null)
         setProfile(null)
+        setProfileLoading(false)
         setLoading(false)
       })
 
@@ -63,8 +69,11 @@ export function AuthProvider({ children }) {
 
     if (!sessionUser?.id) {
       setProfile(null)
+      setProfileLoading(false)
       return null
     }
+
+    setProfileLoading(true)
 
     try {
       const { data } = await getProfileByUserId(sessionUser.id)
@@ -73,6 +82,8 @@ export function AuthProvider({ children }) {
     } catch {
       setProfile(null)
       return null
+    } finally {
+      setProfileLoading(false)
     }
   }
 
@@ -89,7 +100,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, login, logout, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, profileLoading, login, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )
