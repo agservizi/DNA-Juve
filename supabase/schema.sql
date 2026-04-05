@@ -243,6 +243,14 @@ CREATE TABLE IF NOT EXISTS reader_notifications (
   updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS author_follows (
+  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  author_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, author_id)
+);
+
 CREATE TABLE IF NOT EXISTS article_polls (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   article_id  UUID NOT NULL UNIQUE REFERENCES articles(id) ON DELETE CASCADE,
@@ -285,6 +293,11 @@ CREATE TRIGGER reader_notifications_updated_at
   BEFORE UPDATE ON reader_notifications
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS author_follows_updated_at ON author_follows;
+CREATE TRIGGER author_follows_updated_at
+  BEFORE UPDATE ON author_follows
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 DROP TRIGGER IF EXISTS article_polls_updated_at ON article_polls;
 CREATE TRIGGER article_polls_updated_at
   BEFORE UPDATE ON article_polls
@@ -306,6 +319,7 @@ ALTER TABLE fan_article_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reader_states ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reader_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE author_follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_poll_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_poll_votes ENABLE ROW LEVEL SECURITY;
@@ -424,6 +438,20 @@ CREATE POLICY "Reader notifications: owner update"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- Author follows
+DROP POLICY IF EXISTS "Author follows: public read" ON author_follows;
+DROP POLICY IF EXISTS "Author follows: owner insert" ON author_follows;
+DROP POLICY IF EXISTS "Author follows: owner delete" ON author_follows;
+CREATE POLICY "Author follows: public read"
+  ON author_follows FOR SELECT
+  USING (true);
+CREATE POLICY "Author follows: owner insert"
+  ON author_follows FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Author follows: owner delete"
+  ON author_follows FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- Article polls
 DROP POLICY IF EXISTS "Article polls: public read" ON article_polls;
 DROP POLICY IF EXISTS "Article polls: auth write" ON article_polls;
@@ -516,6 +544,8 @@ CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(use
 CREATE INDEX IF NOT EXISTS push_subscriptions_active_idx ON push_subscriptions(is_active);
 CREATE INDEX IF NOT EXISTS reader_notifications_user_idx ON reader_notifications(user_id);
 CREATE INDEX IF NOT EXISTS reader_notifications_unread_idx ON reader_notifications(user_id, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS author_follows_author_idx ON author_follows(author_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS author_follows_user_idx ON author_follows(user_id, created_at DESC);
 
 -- ─── OPTIONAL: pg_cron per scheduled publish ─────────────────
 -- Se il tuo piano Supabase supporta pg_cron:

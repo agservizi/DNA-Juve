@@ -289,6 +289,75 @@ export const markAllReaderNotificationsRead = (userId) =>
     .eq('user_id', userId)
     .eq('is_read', false)
 
+export const getAuthorFollowMeta = async (authorId, userId = null) => {
+  if (!authorId) {
+    return { data: { isFollowing: false, followersCount: 0 }, error: null }
+  }
+
+  const countPromise = supabase
+    .from('author_follows')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('author_id', authorId)
+
+  const followPromise = userId
+    ? supabase
+        .from('author_follows')
+        .select('author_id')
+        .eq('author_id', authorId)
+        .eq('user_id', userId)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null })
+
+  const [countResult, followResult] = await Promise.all([countPromise, followPromise])
+  const error = countResult.error || followResult.error
+
+  if (error) {
+    return { data: null, error }
+  }
+
+  return {
+    data: {
+      isFollowing: Boolean(followResult.data),
+      followersCount: countResult.count || 0,
+    },
+    error: null,
+  }
+}
+
+export const followAuthor = (userId, authorId) =>
+  supabase
+    .from('author_follows')
+    .upsert([{ user_id: userId, author_id: authorId }], { onConflict: 'user_id,author_id' })
+    .select()
+    .single()
+
+export const unfollowAuthor = (userId, authorId) =>
+  supabase
+    .from('author_follows')
+    .delete()
+    .eq('user_id', userId)
+    .eq('author_id', authorId)
+
+export const getFollowedAuthors = (userId) => {
+  if (!userId) return Promise.resolve({ data: [], error: null })
+
+  return supabase
+    .from('author_follows')
+    .select(`
+      author_id,
+      created_at,
+      profiles:author_id (
+        id,
+        username,
+        avatar_url,
+        author_signature,
+        specialties
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+}
+
 export const invokePushNotifications = async (payload) => {
   const { data: { session } } = await supabase.auth.getSession()
   const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {

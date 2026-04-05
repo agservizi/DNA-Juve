@@ -82,7 +82,7 @@ export default function ArticleEditor() {
   const { id } = useParams()
   const isEdit = !!id
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { toast } = useToast()
   const qc = useQueryClient()
   const [content, setContent] = useState('')
@@ -242,6 +242,8 @@ export default function ArticleEditor() {
             excerpt: result.data.excerpt,
             categoryId: result.data.category_id,
             categoryName: category?.name || null,
+            authorId: result.data.author_id || user?.id || null,
+            authorName: profile?.username || null,
           },
         }).catch(() => {
           // Publishing should succeed even if push delivery fails.

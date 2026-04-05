@@ -157,6 +157,8 @@ async function sendArticleNotification(
     excerpt?: string | null
     categoryId?: string | null
     categoryName?: string | null
+    authorId?: string | null
+    authorName?: string | null
   }
 ) {
   if (!article?.title || !article?.slug) {
@@ -172,7 +174,7 @@ async function sendArticleNotification(
     return { delivered: [], invalidated: [], failed: [], skipped: 0 }
   }
 
-  const eligibleUserIds = (readerStates || [])
+  const eligibleCategoryUserIds = (readerStates || [])
     .filter((state) => {
       if (!article.categoryId) return true
 
@@ -184,6 +186,20 @@ async function sendArticleNotification(
     })
     .map((state) => state.user_id)
 
+  const { data: followerRows, error: followerError } = article.authorId
+    ? await supabaseAdmin
+        .from('author_follows')
+        .select('user_id')
+        .eq('author_id', article.authorId)
+    : { data: [], error: null }
+
+  if (followerError) throw followerError
+
+  const eligibleUserIds = [...new Set([
+    ...eligibleCategoryUserIds,
+    ...((followerRows || []).map((row) => row.user_id)),
+  ])]
+
   if (!eligibleUserIds.length) {
     return { delivered: [], invalidated: [], failed: [], skipped: 0 }
   }
@@ -193,7 +209,9 @@ async function sendArticleNotification(
     eligibleUserIds,
     {
       type: 'article',
-      title: article.categoryName
+      title: article.authorName
+        ? `${article.authorName}: ${article.title}`
+        : article.categoryName
         ? `${article.categoryName}: ${article.title}`
         : article.title,
       body: article.excerpt || 'E disponibile un nuovo articolo del magazine.',
@@ -202,14 +220,15 @@ async function sendArticleNotification(
         slug: article.slug,
         categoryId: article.categoryId || null,
         categoryName: article.categoryName || null,
+        authorId: article.authorId || null,
+        authorName: article.authorName || null,
       },
     },
   )
 
+  const stateByUserId = new Map((readerStates || []).map((state) => [state.user_id, state]))
   const pushEnabledUserIds = new Set(
-    (readerStates || [])
-      .filter((state) => state.notifications_enabled)
-      .map((state) => state.user_id),
+    eligibleUserIds.filter((userId) => Boolean(stateByUserId.get(userId)?.notifications_enabled)),
   )
 
   const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
@@ -231,7 +250,9 @@ async function sendArticleNotification(
   }
 
   const summary = await sendNotificationToRecords(supabaseAdmin, eligibleRecords as PushRecord[], {
-    title: article.categoryName
+    title: article.authorName
+      ? `Nuovo articolo di ${article.authorName}`
+      : article.categoryName
       ? `Nuovo articolo ${article.categoryName}`
       : 'Nuovo articolo BianconeriHub',
     body: article.excerpt || article.title,
