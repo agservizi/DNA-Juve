@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, Bell, CalendarDays, FileText, Filter, Globe2, Instagram, Linkedin, Newspaper, Twitter, User, UserPlus, Eye } from 'lucide-react'
+import { ArrowUpRight, Bell, CalendarDays, FileText, Filter, Globe2, Instagram, Linkedin, Newspaper, Search, Twitter, User, UserPlus, Eye } from 'lucide-react'
 import { followAuthor, getAuthorFollowMeta, supabase, unfollowAuthor } from '@/lib/supabase'
 import { formatDate, formatViews, readingTime, stripHtml } from '@/lib/utils'
 import ArticleGrid from '@/components/blog/ArticleGrid'
@@ -38,6 +38,7 @@ export default function Author() {
   const { username } = useParams()
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [sortMode, setSortMode] = useState('recent')
+  const [searchTerm, setSearchTerm] = useState('')
   const qc = useQueryClient()
   const { toast } = useToast()
   const { reader, openLogin } = useReader()
@@ -82,9 +83,21 @@ export default function Author() {
   }, [articles])
 
   const filteredArticles = useMemo(() => {
-    const scoped = categoryFilter === 'all'
+    const scopedByCategory = categoryFilter === 'all'
       ? articles
       : articles.filter((article) => article.categories?.slug === categoryFilter)
+
+    const needle = searchTerm.trim().toLowerCase()
+    const scoped = !needle
+      ? scopedByCategory
+      : scopedByCategory.filter((article) => {
+          const haystack = [
+            article.title,
+            article.excerpt,
+            article.categories?.name,
+          ].map((value) => String(value || '').toLowerCase()).join(' ')
+          return haystack.includes(needle)
+        })
 
     const ordered = [...scoped]
     ordered.sort((a, b) => {
@@ -95,10 +108,20 @@ export default function Author() {
     })
 
     return ordered
-  }, [articles, categoryFilter, sortMode])
+  }, [articles, categoryFilter, sortMode, searchTerm])
 
   const highlightedArticle = filteredArticles[0] || null
   const spotlightArticles = filteredArticles.slice(1, 3)
+  const topReadArticles = useMemo(
+    () => [...articles].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 4),
+    [articles],
+  )
+  const latestFocusArticles = useMemo(
+    () => [...articles]
+      .sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())
+      .slice(0, 4),
+    [articles],
+  )
 
   const stats = useMemo(() => ({
     articles: articles.length,
@@ -367,6 +390,16 @@ export default function Author() {
                 ))}
               </select>
             </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Cerca negli articoli"
+                className="w-full border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-juve-black focus:outline-none focus:border-juve-black sm:w-56"
+              />
+            </div>
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value)}
@@ -378,11 +411,41 @@ export default function Author() {
           </div>
         </section>
 
+        {topReadArticles.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-6 w-1.5 bg-juve-gold" />
+              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
+                I più letti di {author?.username}
+              </h2>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+            <div className="grid gap-px bg-gray-200 md:grid-cols-2 xl:grid-cols-4">
+              {topReadArticles.map((article, index) => (
+                <div key={article.id} className="bg-white p-5">
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-juve-gold">
+                    Top {index + 1}
+                  </p>
+                  <Link
+                    to={`/articolo/${article.slug}`}
+                    className="mt-3 block font-display text-xl font-black leading-tight text-juve-black transition-colors hover:text-juve-gold"
+                  >
+                    {article.title}
+                  </Link>
+                  <p className="mt-3 text-xs text-gray-500">
+                    {formatViews(article.views || 0)} letture · {formatDate(article.published_at)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <ArticleGrid
           articles={filteredArticles}
           loading={loadingArticles}
           title={`Archivio di ${author?.username || 'questo autore'}`}
-          subtitle={`${filteredArticles.length} articoli disponibili${categoryFilter !== 'all' ? ' nella categoria selezionata' : ''}`}
+          subtitle={`${filteredArticles.length} articoli disponibili${categoryFilter !== 'all' ? ' nella categoria selezionata' : ''}${searchTerm.trim() ? ' · filtro ricerca attivo' : ''}`}
         />
       </div>
     </>
