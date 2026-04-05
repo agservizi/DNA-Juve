@@ -10,7 +10,7 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const { login, user, profile, loading: authLoading, profileLoading } = useAuth()
+  const { login, logout, user, profile, loading: authLoading, profileLoading } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -30,6 +30,10 @@ export default function Login() {
       return 'Email o password non validi. Riprova.'
     }
 
+    if (message.includes('not-admin')) {
+      return 'Questo account non ha accesso al pannello admin.'
+    }
+
     if (message.includes('signup disabled')) {
       return 'L’accesso email/password non e disponibile al momento.'
     }
@@ -46,7 +50,14 @@ export default function Login() {
     setError(null)
     setLoading(true)
     try {
-      await login(email, password)
+      const result = await login(email, password)
+      if (result?.profile?.role === 'admin') {
+        navigate('/admin', { replace: true })
+        return
+      }
+
+      await logout()
+      throw new Error('not-admin')
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {

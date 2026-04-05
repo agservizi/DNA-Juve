@@ -90,7 +90,11 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { data, error } = await signIn(email, password)
     if (error) throw error
-    return data
+
+    const sessionUser = data?.user || data?.session?.user || null
+    const profileData = sessionUser?.id ? await refreshProfile(sessionUser) : null
+
+    return { ...data, profile: profileData }
   }
 
   const logout = async () => {
