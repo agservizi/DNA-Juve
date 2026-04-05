@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createMockClient } from './mockClient'
 import { slugify } from './utils'
 import { buildFanArticlePlaceholder, deriveFanArticleTags } from './fanArticles'
+import { getRecentFinishedMatches, JUVE_ID } from './footballApi'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
@@ -12,6 +13,16 @@ export const pushNotificationsConfigured = Boolean(vapidPublicKey)
 const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
 let readerStateSupported = true
 let profileRoleSupported = true
+let matchPollSupported = true
+
+const MATCH_POLL_WINDOW_MS = 48 * 60 * 60 * 1000
+const LOCAL_MATCH_POLL_PREFIX = 'post-match-poll'
+const DEFAULT_MATCH_POLL_OPTIONS = [
+  'Molto positivo',
+  'Segnali incoraggianti',
+  'Prestazione da rivedere',
+  'Delusione totale',
+]
 
 export const supabase = IS_MOCK ? createMockClient() : createClient(supabaseUrl, supabaseAnonKey)
 
@@ -44,6 +55,248 @@ function getReaderAuthRedirectUrl() {
   const baseUrl = isLocalRuntime ? runtimeOrigin : (configuredSiteUrl || runtimeOrigin || defaultSiteUrl)
 
   return `${baseUrl}/area-bianconera`
+}
+
+function getLatestFinishedJuveMatch(matches = []) {
+  return matches
+    .filter((match) => match?.status === 'FINISHED' && match?.utcDate)
+    .slice()
+    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
+}
+
+function isMatchPollStillActive(match) {
+  if (!match?.utcDate) return false
+  const kickoff = new Date(match.utcDate).getTime()
+  if (Number.isNaN(kickoff)) return false
+  return Date.now() - kickoff <= MATCH_POLL_WINDOW_MS
+}
+
+function getPostMatchOpponent(match) {
+  if (!match) return 'l’avversario'
+  const isJuveHome = match.homeTeam?.id === JUVE_ID
+  const opponent = isJuveHome ? match.awayTeam : match.homeTeam
+  return opponent?.shortName || opponent?.name || 'l’avversario'
+}
+
+function getPostMatchQuestion(match) {
+  return `Che giudizio dai alla Juve dopo ${getPostMatchOpponent(match)}?`
+}
+
+function getPostMatchLabel(match) {
+  const home = match?.homeTeam?.shortName || match?.homeTeam?.name || 'Casa'
+  const away = match?.awayTeam?.shortName || match?.awayTeam?.name || 'Ospite'
+  const homeGoals = match?.score?.fullTime?.home
+  const awayGoals = match?.score?.fullTime?.away
+  const score = homeGoals != null && awayGoals != null ? ` ${homeGoals}-${awayGoals}` : ''
+  return `${home}${score} ${away}`.trim()
+}
+
+function getLocalMatchPollStorageKey(matchId, userId = 'guest') {
+  return `${LOCAL_MATCH_POLL_PREFIX}:${matchId}:${userId || 'guest'}`
+}
+
+function readLocalMatchPollVote(matchId, userId = null) {
+  if (typeof window === 'undefined') return null
+
+  try {
+    return window.localStorage.getItem(getLocalMatchPollStorageKey(matchId, userId || 'guest'))
+  } catch {
+    return null
+  }
+}
+
+function writeLocalMatchPollVote(matchId, userId = null, optionId) {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(getLocalMatchPollStorageKey(matchId, userId || 'guest'), optionId)
+  } catch {
+    // Ignore localStorage failures and keep the widget usable.
+  }
+}
+
+function buildLocalPostMatchPoll(match, userId = null) {
+  const matchId = String(match?.id || 'latest')
+  const currentVote = readLocalMatchPollVote(matchId, userId)
+  const totalVotes = currentVote ? 1 : 0
+
+  return {
+    kind: 'post-match',
+    source: 'local',
+    id: `local-${matchId}`,
+    matchId,
+    question: getPostMatchQuestion(match),
+    is_active: true,
+    totalVotes,
+    currentVote,
+    competitionName: match?.competition?.name || 'Post partita',
+    articleCategory: {
+      name: 'Post partita',
+      color: '#C7A14A',
+    },
+    articleTitle: getPostMatchLabel(match),
+    articleSlug: null,
+    url: '/calendario',
+    ctaLabel: 'Apri il calendario',
+    expiresAt: new Date(new Date(match.utcDate).getTime() + MATCH_POLL_WINDOW_MS).toISOString(),
+    options: DEFAULT_MATCH_POLL_OPTIONS.map((label, index) => {
+      const optionId = `local-${matchId}-${index}`
+      return {
+        id: optionId,
+        label,
+        position: index,
+        votes: currentVote === optionId ? 1 : 0,
+      }
+    }),
+  }
+}
+
+async function resolveActivePostMatch(match, userId = null) {
+  if (!matchPollSupported) {
+    return { data: buildLocalPostMatchPoll(match, userId), error: null }
+  }
+
+  const baseSelect = `
+    id,
+    match_id,
+    question,
+    is_active,
+    competition_name,
+    home_team,
+    away_team,
+    kickoff_at,
+    expires_at,
+    match_poll_options(id, label, position)
+  `
+
+  const fetchPoll = async () =>
+    supabase
+      .from('match_polls')
+      .select(baseSelect)
+      .eq('match_id', String(match.id))
+      .maybeSingle()
+
+  let { data: poll, error: pollError } = await fetchPoll()
+
+  if (pollError && isMissingColumnOrRelation(pollError, 'match_polls')) {
+    matchPollSupported = false
+    return { data: buildLocalPostMatchPoll(match, userId), error: null }
+  }
+
+  if (pollError) return { data: null, error: pollError }
+
+  if (!poll && userId) {
+    const expiresAt = new Date(new Date(match.utcDate).getTime() + MATCH_POLL_WINDOW_MS).toISOString()
+    const createPayload = {
+      match_id: String(match.id),
+      question: getPostMatchQuestion(match),
+      competition_name: match?.competition?.name || null,
+      home_team: match?.homeTeam?.shortName || match?.homeTeam?.name || 'Juventus',
+      away_team: match?.awayTeam?.shortName || match?.awayTeam?.name || getPostMatchOpponent(match),
+      kickoff_at: match.utcDate,
+      expires_at: expiresAt,
+      is_active: true,
+    }
+
+    const { data: createdPoll, error: createPollError } = await supabase
+      .from('match_polls')
+      .upsert([createPayload], { onConflict: 'match_id' })
+      .select('id')
+      .maybeSingle()
+
+    if (createPollError && isMissingColumnOrRelation(createPollError, 'match_polls')) {
+      matchPollSupported = false
+      return { data: buildLocalPostMatchPoll(match, userId), error: null }
+    }
+
+    if (createPollError) {
+      return { data: buildLocalPostMatchPoll(match, userId), error: null }
+    }
+
+    if (createdPoll?.id) {
+      const { data: existingOptions, error: optionsError } = await supabase
+        .from('match_poll_options')
+        .select('id')
+        .eq('poll_id', createdPoll.id)
+
+      if (optionsError && isMissingColumnOrRelation(optionsError, 'match_poll_options')) {
+        matchPollSupported = false
+        return { data: buildLocalPostMatchPoll(match, userId), error: null }
+      }
+
+      if (!optionsError && (!existingOptions || existingOptions.length === 0)) {
+        await supabase.from('match_poll_options').insert(
+          DEFAULT_MATCH_POLL_OPTIONS.map((label, index) => ({
+            poll_id: createdPoll.id,
+            label,
+            position: index,
+          }))
+        )
+      }
+    }
+
+    const refetched = await fetchPoll()
+    poll = refetched.data
+    pollError = refetched.error
+  }
+
+  if (pollError) return { data: null, error: pollError }
+  if (!poll) return { data: buildLocalPostMatchPoll(match, userId), error: null }
+
+  const { data: votes, error: votesError } = await supabase
+    .from('match_poll_votes')
+    .select('option_id, user_id')
+    .eq('poll_id', poll.id)
+
+  if (votesError && isMissingColumnOrRelation(votesError, 'match_poll_votes')) {
+    matchPollSupported = false
+    return { data: buildLocalPostMatchPoll(match, userId), error: null }
+  }
+
+  if (votesError) return { data: null, error: votesError }
+
+  const voteCounts = (votes || []).reduce((acc, vote) => {
+    acc[vote.option_id] = (acc[vote.option_id] || 0) + 1
+    return acc
+  }, {})
+
+  const totalVotes = Object.values(voteCounts).reduce((sum, count) => sum + count, 0)
+  const currentVote = userId
+    ? (votes || []).find((vote) => vote.user_id === userId)?.option_id || null
+    : null
+
+  return {
+    data: {
+      kind: 'post-match',
+      source: 'remote',
+      id: poll.id,
+      matchId: String(match.id),
+      question: poll.question,
+      is_active: poll.is_active,
+      totalVotes,
+      currentVote,
+      competitionName: poll.competition_name || match?.competition?.name || 'Post partita',
+      articleCategory: {
+        name: 'Post partita',
+        color: '#C7A14A',
+      },
+      articleTitle: getPostMatchLabel(match),
+      articleSlug: null,
+      url: '/calendario',
+      ctaLabel: 'Apri il calendario',
+      expiresAt: poll.expires_at,
+      options: (poll.match_poll_options || [])
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((option) => ({
+          id: option.id,
+          label: option.label,
+          position: option.position,
+          votes: voteCounts[option.id] || 0,
+        })),
+    },
+    error: null,
+  }
 }
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
@@ -893,11 +1146,15 @@ export const getLatestArticlePoll = async (userId = null) => {
 
   return {
     data: {
+      kind: 'article',
+      source: 'remote',
       id: matchedPoll.id,
       articleId: latestArticle.id,
       articleTitle: latestArticle.title,
       articleSlug: latestArticle.slug,
       articleCategory: latestArticle.categories || null,
+      url: `/articolo/${latestArticle.slug}`,
+      ctaLabel: "Apri l'articolo",
       question: matchedPoll.question,
       is_active: matchedPoll.is_active,
       totalVotes,
@@ -914,6 +1171,19 @@ export const getLatestArticlePoll = async (userId = null) => {
     },
     error: null,
   }
+}
+
+export const getSidebarPoll = async (userId = null) => {
+  const recentMatches = await getRecentFinishedMatches(JUVE_ID, 3).catch(() => [])
+  const latestFinishedMatch = getLatestFinishedJuveMatch(recentMatches)
+
+  if (latestFinishedMatch && isMatchPollStillActive(latestFinishedMatch)) {
+    const postMatchResult = await resolveActivePostMatch(latestFinishedMatch, userId)
+    if (postMatchResult.error) return postMatchResult
+    if (postMatchResult.data?.is_active) return postMatchResult
+  }
+
+  return getLatestArticlePoll(userId)
 }
 
 export const upsertArticlePoll = async (articleId, poll = null) => {
@@ -962,6 +1232,25 @@ export const voteArticlePoll = async ({ pollId, optionId, userId }) => {
     .from('article_poll_votes')
     .upsert([{
       poll_id: pollId,
+      option_id: optionId,
+      user_id: userId,
+    }], { onConflict: 'poll_id,user_id' })
+
+  if (error) return { data: null, error }
+
+  return { data: true, error: null }
+}
+
+export const voteMatchPoll = async ({ poll, optionId, userId }) => {
+  if (poll?.source === 'local') {
+    writeLocalMatchPollVote(poll.matchId, userId, optionId)
+    return { data: true, error: null }
+  }
+
+  const { error } = await supabase
+    .from('match_poll_votes')
+    .upsert([{
+      poll_id: poll.id,
       option_id: optionId,
       user_id: userId,
     }], { onConflict: 'poll_id,user_id' })

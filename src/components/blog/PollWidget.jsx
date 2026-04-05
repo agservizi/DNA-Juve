@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Vote, Check, ArrowRight } from 'lucide-react'
-import { getLatestArticlePoll, voteArticlePoll } from '@/lib/supabase'
+import { getSidebarPoll, voteArticlePoll, voteMatchPoll } from '@/lib/supabase'
 import { useReader } from '@/hooks/useReader'
 import { cn } from '@/lib/utils'
 
@@ -12,9 +12,9 @@ export default function PollWidget() {
   const { reader, openLogin } = useReader()
 
   const { data: poll, isLoading } = useQuery({
-    queryKey: ['sidebar-article-poll', reader?.id || null],
+    queryKey: ['sidebar-poll', reader?.id || null],
     queryFn: async () => {
-      const { data, error } = await getLatestArticlePoll(reader?.id || null)
+      const { data, error } = await getSidebarPoll(reader?.id || null)
       if (error) throw error
       return data
     },
@@ -26,17 +26,23 @@ export default function PollWidget() {
     mutationFn: async (optionId) => {
       if (!reader?.id) throw new Error('login-required')
 
-      const { error } = await voteArticlePoll({
-        pollId: poll.id,
-        optionId,
-        userId: reader.id,
-      })
+      const { error } = poll?.kind === 'post-match'
+        ? await voteMatchPoll({
+          poll,
+          optionId,
+          userId: reader.id,
+        })
+        : await voteArticlePoll({
+          pollId: poll.id,
+          optionId,
+          userId: reader.id,
+        })
 
       if (error) throw error
       return true
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sidebar-article-poll'] })
+      qc.invalidateQueries({ queryKey: ['sidebar-poll'] })
     },
   })
 
@@ -99,14 +105,14 @@ export default function PollWidget() {
         )}
 
         <Link
-          to={`/articolo/${poll.articleSlug}`}
+          to={poll.url || (poll.articleSlug ? `/articolo/${poll.articleSlug}` : '/calendario')}
           className="group mb-4 block border-l-2 border-juve-gold pl-3"
         >
           <p className="line-clamp-2 font-display text-lg font-bold leading-tight text-juve-black transition-colors group-hover:text-juve-gold">
             {poll.articleTitle}
           </p>
           <div className="mt-2 flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest text-gray-500 transition-colors group-hover:text-juve-black">
-            <span>Apri l'articolo</span>
+            <span>{poll.ctaLabel || "Apri l'articolo"}</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </div>
         </Link>
