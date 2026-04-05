@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -35,6 +35,11 @@ const schema = z.object({
 })
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
+const ARTICLE_DRAFT_STORAGE_PREFIX = 'admin-article-draft'
+
+function getArticleDraftStorageKey(articleId) {
+  return `${ARTICLE_DRAFT_STORAGE_PREFIX}:${articleId || 'new'}`
+}
 
 function buildSeoHints({ title, excerpt, content, categoryName, coverImage, metaTitle, metaDescription, canonicalUrl, ogImage, noindex }) {
   const plainContent = stripHtml(content || '').replace(/\s+/g, ' ').trim()
@@ -92,6 +97,10 @@ export default function ArticleEditor() {
   const [pollQuestion, setPollQuestion] = useState('')
   const [pollOptions, setPollOptions] = useState(['', ''])
   const [pollEnabled, setPollEnabled] = useState(false)
+  const [draftSaving, setDraftSaving] = useState(false)
+  const [lastDraftSavedAt, setLastDraftSavedAt] = useState(null)
+  const draftHydratedRef = useRef(false)
+  const draftStorageKey = getArticleDraftStorageKey(id)
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -145,6 +154,7 @@ export default function ArticleEditor() {
       scheduled_at: '',
     },
   })
+  const formValues = watch()
 
   useEffect(() => {
     if (existing) {
@@ -178,6 +188,101 @@ export default function ArticleEditor() {
     setPollOptions(existingPoll.options?.map((option) => option.label) || ['', ''])
     setPollEnabled(Boolean(existingPoll.is_active))
   }, [existingPoll])
+
+  useEffect(() => {
+    if (draftHydratedRef.current) return
+    if (isEdit && loadingArticle) return
+
+    draftHydratedRef.current = true
+
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey)
+      if (!raw) return
+
+      const draft = JSON.parse(raw)
+      if (!draft || typeof draft !== 'object') return
+
+      const values = draft.values || {}
+      Object.entries(values).forEach(([field, value]) => {
+        setValue(field, value)
+      })
+
+      if (typeof draft.content === 'string') setContent(draft.content)
+      if (Array.isArray(draft.tags)) setTags(draft.tags)
+      if (typeof draft.showSchedule === 'boolean') setShowSchedule(draft.showSchedule)
+      if (typeof draft.pollQuestion === 'string') setPollQuestion(draft.pollQuestion)
+      if (Array.isArray(draft.pollOptions) && draft.pollOptions.length) setPollOptions(draft.pollOptions)
+      if (typeof draft.pollEnabled === 'boolean') setPollEnabled(draft.pollEnabled)
+      if (draft.savedAt) setLastDraftSavedAt(draft.savedAt)
+
+      toast({
+        title: 'Bozza recuperata',
+        description: 'Abbiamo ripristinato il testo non ancora salvato dell’editor.',
+        variant: 'success',
+      })
+    } catch {
+      // Ignore malformed local drafts and continue with server data/defaults.
+    }
+  }, [draftStorageKey, isEdit, loadingArticle, setValue, toast])
+
+  useEffect(() => {
+    if (!draftHydratedRef.current || typeof window === 'undefined') return
+
+    const draftPayload = {
+      savedAt: new Date().toISOString(),
+      values: formValues,
+      content,
+      tags,
+      showSchedule,
+      pollQuestion,
+      pollOptions,
+      pollEnabled,
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDraftSaving(true)
+      try {
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(draftPayload))
+        setLastDraftSavedAt(draftPayload.savedAt)
+      } catch {
+        // Ignore localStorage quota errors silently.
+      } finally {
+        setDraftSaving(false)
+      }
+    }, 250)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [draftStorageKey, formValues, content, tags, showSchedule, pollQuestion, pollOptions, pollEnabled])
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return
+
+    const persistDraftNow = () => {
+      if (document.visibilityState !== 'hidden') return
+
+      try {
+        const draftPayload = {
+          savedAt: new Date().toISOString(),
+          values: formValues,
+          content,
+          tags,
+          showSchedule,
+          pollQuestion,
+          pollOptions,
+          pollEnabled,
+        }
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(draftPayload))
+        setLastDraftSavedAt(draftPayload.savedAt)
+      } catch {
+        // Ignore localStorage quota errors silently.
+      }
+    }
+
+    document.addEventListener('visibilitychange', persistDraftNow)
+    return () => document.removeEventListener('visibilitychange', persistDraftNow)
+  }, [draftStorageKey, formValues, content, tags, showSchedule, pollQuestion, pollOptions, pollEnabled])
 
   const titleValue = watch('title')
   const slugValue = watch('slug')
@@ -224,6 +329,15 @@ export default function ArticleEditor() {
       return articleResult
     },
     onSuccess: (result, { status }) => {
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(draftStorageKey)
+          setLastDraftSavedAt(null)
+        } catch {
+          // Ignore storage cleanup failures.
+        }
+      }
+
       qc.invalidateQueries(['all-articles'])
       qc.invalidateQueries(['dashboard-stats'])
       qc.invalidateQueries(['article-tags-edit', id])
@@ -311,6 +425,11 @@ export default function ArticleEditor() {
   const ogImage = watch('og_image')
   const noindex = watch('noindex')
   const selectedCategory = categories.find(c => c.id === selectedCategoryId)
+  const draftStatusLabel = draftSaving
+    ? 'Salvataggio bozza...'
+    : lastDraftSavedAt
+      ? `Bozza salvata alle ${new Date(lastDraftSavedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+      : 'Bozza locale attiva'
   const seoHints = buildSeoHints({
     title: titleValue,
     excerpt: watch('excerpt'),
@@ -353,6 +472,9 @@ export default function ArticleEditor() {
             <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full ${currentStatus === 'published' ? 'bg-green-500' : 'bg-amber-400'}`} />
               {currentStatus === 'published' ? 'Pubblicato' : showSchedule ? 'Programmato' : 'Bozza'}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1">
+              {draftStatusLabel}
             </p>
           </div>
         </div>
