@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Mail, ArrowRight } from 'lucide-react'
+import { openCookiePreferences } from '@/lib/cookieConsent'
 
 const editorialHighlights = [
   { label: 'Notizie Live', to: '/notizie-live' },
@@ -94,6 +95,15 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <button
+                  type="button"
+                  onClick={openCookiePreferences}
+                  className="text-sm text-gray-400 hover:text-juve-gold transition-colors"
+                >
+                  Rivedi preferenze cookie
+                </button>
+              </li>
             </ul>
             <div className="mt-5">
               <a href="mailto:info@bianconerihub.com" className="flex items-center gap-2 text-sm text-gray-400 hover:text-juve-gold transition-colors">
