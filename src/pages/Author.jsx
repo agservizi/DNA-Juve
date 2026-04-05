@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { User, FileText, Eye } from 'lucide-react'
+import { Globe2, Instagram, Linkedin, Twitter, User, FileText, Eye } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatViews } from '@/lib/utils'
 import ArticleGrid from '@/components/blog/ArticleGrid'
@@ -93,10 +93,28 @@ export default function Author() {
               <h1 className="font-display text-3xl font-black">{author?.username}</h1>
             )}
             <p className="text-gray-400 text-sm mt-1 uppercase tracking-widest">Redattore BianconeriHub</p>
+            {author?.author_signature && (
+              <p className="mt-2 text-sm font-semibold text-juve-gold">
+                {author.author_signature}
+              </p>
+            )}
             {author?.bio && (
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-gray-300">
                 {author.bio}
               </p>
+            )}
+
+            {Array.isArray(author?.specialties) && author.specialties.length > 0 && (
+              <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+                {author.specialties.map((item) => (
+                  <span
+                    key={item}
+                    className="border border-white/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-gray-200"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
             )}
 
             <div className="flex flex-wrap justify-center sm:justify-start gap-6 mt-4">
@@ -109,10 +127,32 @@ export default function Author() {
                 <span className="text-gray-300">{formatViews(totalViews)} visualizzazioni totali</span>
               </div>
             </div>
+
+            {(author?.twitter_url || author?.instagram_url || author?.linkedin_url) && (
+              <div className="mt-5 flex flex-wrap justify-center gap-3 sm:justify-start">
+                {[
+                  { href: author.twitter_url, icon: Twitter, label: 'X' },
+                  { href: author.instagram_url, icon: Instagram, label: 'Instagram' },
+                  { href: author.linkedin_url, icon: Linkedin, label: 'LinkedIn' },
+                ].filter((item) => item.href).map(({ href, icon: Icon, label }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-200 transition-colors hover:border-juve-gold hover:text-juve-gold"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="shrink-0 self-start">
             <div className="h-1 w-8 bg-juve-gold" />
+            <Globe2 className="mt-3 h-4 w-4 text-white/30" />
           </div>
         </motion.div>
 

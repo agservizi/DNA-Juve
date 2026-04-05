@@ -249,7 +249,7 @@ async function listAdminRecipients(supabaseAdmin: ReturnType<typeof createClient
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
     .select('id, username, role')
-    .in('role', ['admin', 'editor'])
+    .eq('role', 'admin')
 
   if (profilesError) throw profilesError
   if (!profiles?.length) {
@@ -508,7 +508,7 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (profileError) throw profileError
-    if (!profile?.role || !['admin', 'editor'].includes(profile.role)) {
+    if (profile?.role !== 'admin') {
       return jsonResponse({ error: 'Forbidden' }, 403)
     }
 

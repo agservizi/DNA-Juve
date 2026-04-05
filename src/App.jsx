@@ -64,7 +64,7 @@ function AdminGuard({ children }) {
     </div>
   )
   if (!user) return <Navigate to="/admin/login" replace />
-  if (profile?.role && !['admin', 'editor'].includes(profile.role)) return <Navigate to="/" replace />
+  if (profile?.role !== 'admin') return <Navigate to="/" replace />
   return children
 }
 

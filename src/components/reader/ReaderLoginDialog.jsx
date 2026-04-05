@@ -11,6 +11,7 @@ export default function ReaderLoginDialog() {
     closeLogin,
     register,
     login,
+    resendConfirmationEmail,
     sendPasswordReset,
     completePasswordReset,
   } = useReader()
@@ -60,6 +61,14 @@ export default function ReaderLoginDialog() {
 
     if (normalized.includes('invalid login credentials')) {
       return 'Email o password non corretti.'
+    }
+
+    if (normalized.includes('email-not-confirmed-reminder-sent')) {
+      return 'Il tuo account non è ancora confermato. Ti abbiamo appena reinviato una email di promemoria per completare la verifica.'
+    }
+
+    if (normalized.includes('email not confirmed')) {
+      return 'Il tuo account non è ancora confermato. Controlla la tua email e completa la verifica.'
     }
 
     if (normalized.includes('password should be at least')) {
@@ -136,6 +145,20 @@ export default function ReaderLoginDialog() {
     }
   }
 
+  const handleResendConfirmation = async () => {
+    setError('')
+    setLoading(true)
+
+    try {
+      await resendConfirmationEmail(email.trim())
+      setSuccessMode('confirmation-resent')
+    } catch (err) {
+      setError(formatReaderAuthError(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Dialog open={showLoginDialog} onClose={handleClose}>
       <DialogHeader onClose={handleClose}>
@@ -158,6 +181,8 @@ export default function ReaderLoginDialog() {
                 ? 'Conferma il tuo account'
                 : successMode === 'reset-email'
                   ? 'Controlla la tua email'
+                  : successMode === 'confirmation-resent'
+                    ? 'Promemoria inviato'
                   : successMode === 'password-updated'
                     ? 'Password aggiornata'
                     : 'Benvenuto!'}
@@ -167,6 +192,8 @@ export default function ReaderLoginDialog() {
                 ? 'Ti abbiamo inviato un link di conferma. Dopo la verifica potrai accedere con email e password.'
                 : successMode === 'reset-email'
                   ? 'Ti abbiamo inviato un link per reimpostare la password. Aprilo e torna qui per scegliere la nuova password.'
+                  : successMode === 'confirmation-resent'
+                    ? 'Ti abbiamo reinviato una email di conferma. Aprila per attivare il tuo account.'
                   : successMode === 'password-updated'
                     ? 'Ora puoi accedere ad Area Bianconera con la nuova password.'
                     : 'Accesso effettuato con successo'}
@@ -257,6 +284,17 @@ export default function ReaderLoginDialog() {
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
               </p>
+            )}
+
+            {mode === 'login' && email.trim() && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="text-xs font-bold uppercase tracking-wider text-juve-gold transition-opacity hover:opacity-80 disabled:opacity-50"
+              >
+                Reinvia email di conferma
+              </button>
             )}
 
             {mode === 'login' && (

@@ -288,7 +288,7 @@ export function createMockClient() {
             username,
             avatar_url: null,
             bio: null,
-            role: options?.data?.role || 'reader',
+            role: options?.data?.role || 'author',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })

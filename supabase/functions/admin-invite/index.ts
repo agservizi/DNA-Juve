@@ -24,12 +24,21 @@ Deno.serve(async (req) => {
     )
     if (authError || !user) throw new Error('Unauthorized')
 
-    const { email } = await req.json()
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || profile?.role !== 'admin') throw new Error('Forbidden')
+
+    const { email, role = 'author' } = await req.json()
     if (!email) throw new Error('Email is required')
+    const normalizedRole = role === 'admin' ? 'admin' : 'author'
 
     // Invite user
     const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: { role: 'editor' },
+      data: { role: normalizedRole },
     })
     if (error) throw error
 
@@ -38,7 +47,7 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from('profiles').upsert({
         id: data.user.id,
         username: email.split('@')[0],
-        role: 'editor',
+        role: normalizedRole,
       }, { onConflict: 'id' })
     }
 

@@ -15,6 +15,7 @@ import {
   signIn,
   signUpReader,
   signOut,
+  resendReaderConfirmation,
   resetReaderPassword,
   updateReaderPassword,
   getProfileByUserId,
@@ -49,6 +50,7 @@ const LS = {
 
 const GAMIFICATION_KEY = 'fb-gamification'
 const NOTIFICATIONS_KEY = 'fb-notifications'
+const CONFIRMATION_REMINDER_KEY = 'fb-confirmation-reminders'
 const DEFAULT_PREFS = { favoriteCategories: [] }
 const IS_MOCK = import.meta.env.VITE_SUPABASE_URL?.includes('your-project.supabase.co')
 const GUEST_SCOPE = 'guest'
@@ -77,6 +79,27 @@ function remove(key) {
   try { localStorage.removeItem(key) } catch {}
 }
 
+function shouldSendConfirmationReminder(email) {
+  const normalized = String(email || '').trim().toLowerCase()
+  if (!normalized) return false
+
+  const reminders = load(CONFIRMATION_REMINDER_KEY, {})
+  const lastSentAt = reminders[normalized]
+  if (!lastSentAt) return true
+
+  const diff = Date.now() - new Date(lastSentAt).getTime()
+  return diff >= 6 * 60 * 60 * 1000
+}
+
+function markConfirmationReminderSent(email) {
+  const normalized = String(email || '').trim().toLowerCase()
+  if (!normalized) return
+
+  const reminders = load(CONFIRMATION_REMINDER_KEY, {})
+  reminders[normalized] = new Date().toISOString()
+  save(CONFIRMATION_REMINDER_KEY, reminders)
+}
+
 function getLocalSnapshot(scope = GUEST_SCOPE) {
   const keys = getStorageKeys(scope)
   return {
@@ -97,7 +120,7 @@ function buildReaderProfile(sessionUser, profile) {
     email: sessionUser.email || '',
     avatarUrl: profile?.avatar_url || null,
     bio: profile?.bio || '',
-    role: profile?.role || 'reader',
+    role: profile?.role || sessionUser.user_metadata?.role || 'author',
     createdAt: profile?.created_at || sessionUser.created_at || new Date().toISOString(),
   }
 }
@@ -208,14 +231,14 @@ export function ReaderProvider({ children }) {
         const { data: ensuredProfile } = await ensureProfileData(sessionUser.id, {
           username: fallbackUsername,
           bio: '',
-          role: 'reader',
+          role: 'author',
         })
 
         refreshedProfile = ensuredProfile || {
           id: sessionUser.id,
           username: fallbackUsername,
           bio: '',
-          role: 'reader',
+          role: 'author',
         }
       }
 
@@ -360,7 +383,7 @@ export function ReaderProvider({ children }) {
 
     save(LS.pendingName, name)
     const { data, error } = await signUpReader(email, password, {
-      data: { display_name: name, role: 'reader' },
+      data: { display_name: name, role: 'author' },
     })
     if (error) throw error
     if (data?.user?.id) {
@@ -389,7 +412,19 @@ export function ReaderProvider({ children }) {
     }
 
     const { data, error } = await signIn(email, password)
-    if (error) throw error
+    if (error) {
+      const normalized = String(error?.message || '').toLowerCase()
+      if (normalized.includes('email not confirmed') && shouldSendConfirmationReminder(email)) {
+        const { error: resendError } = await resendReaderConfirmation(email.trim())
+        if (!resendError) {
+          markConfirmationReminderSent(email)
+          const reminderError = new Error('email-not-confirmed-reminder-sent')
+          reminderError.original = error
+          throw reminderError
+        }
+      }
+      throw error
+    }
     if (data?.user?.id || data?.session?.user?.id) {
       const userId = data?.user?.id || data?.session?.user?.id
       await ensureWelcomeNotification(userId, email.split('@')[0])
@@ -397,6 +432,18 @@ export function ReaderProvider({ children }) {
     }
     return { mode: 'success' }
   }, [enableNotifications, ensureWelcomeNotification])
+
+  const resendConfirmationEmail = useCallback(async (email) => {
+    const normalizedEmail = String(email || '').trim()
+    if (!normalizedEmail) {
+      throw new Error('Inserisci prima la tua email.')
+    }
+
+    const { error } = await resendReaderConfirmation(normalizedEmail)
+    if (error) throw error
+    markConfirmationReminderSent(normalizedEmail)
+    return { mode: 'confirmation-resent' }
+  }, [])
 
   const sendPasswordReset = useCallback(async (email) => {
     const normalizedEmail = String(email || '').trim()
@@ -628,6 +675,7 @@ export function ReaderProvider({ children }) {
       isPasswordRecovery,
       register,
       login,
+      resendConfirmationEmail,
       sendPasswordReset,
       completePasswordReset,
       loginDemo,

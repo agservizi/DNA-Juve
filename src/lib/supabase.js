@@ -60,6 +60,16 @@ export const signUpReader = (email, password, options = {}) =>
     },
   })
 
+export const resendReaderConfirmation = (email, options = {}) =>
+  supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: {
+      emailRedirectTo: getReaderAuthRedirectUrl(),
+      ...options,
+    },
+  })
+
 export const resetReaderPassword = (email) =>
   supabase.auth.resetPasswordForEmail(email, {
     redirectTo: getReaderAuthRedirectUrl(),
@@ -327,6 +337,85 @@ export const sendReaderEventNotification = ({
     url,
     metadata,
   })
+
+export const invokeAdminAuthors = async (payload = {}) => {
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    return { data: null, error: new Error('Sessione admin non pronta.') }
+  }
+
+  const { data, error } = await supabase.functions.invoke('admin-authors', {
+    body: payload,
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: supabaseAnonKey,
+    },
+  })
+
+  if (error) {
+    return { data: null, error: new Error(error.message || 'Gestione redattori non disponibile.') }
+  }
+
+  return { data, error: null }
+}
+
+export const getAdminAuthors = async () =>
+  invokeAdminAuthors({ action: 'list' })
+
+export const getLegacyAdminAuthors = async () => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(`
+      id,
+      username,
+      avatar_url,
+      bio,
+      role,
+      created_at,
+      updated_at,
+      articles (
+        id,
+        title,
+        slug,
+        status,
+        created_at,
+        updated_at,
+        published_at
+      )
+    `)
+    .order('updated_at', { ascending: false })
+
+  if (error) return { data: null, error }
+  return { data: (data || []).map((entry) => ({ ...entry, email: null })), error: null }
+}
+
+export const inviteAdminAuthor = async ({ email, role = 'author' }) => {
+  const { data, error } = await supabase.functions.invoke('admin-invite', {
+    body: { email, role },
+  })
+
+  if (error) return { data: null, error }
+  return { data, error: null }
+}
+
+export const updateAdminAuthorRole = async ({ userId, role }) =>
+  invokeAdminAuthors({ action: 'update-role', userId, role })
+
+export const resendAdminAuthorInvite = async ({ email, role }) =>
+  invokeAdminAuthors({ action: 'resend-invite', email, role })
+
+export const sendAdminAuthorReset = async ({ email }) =>
+  invokeAdminAuthors({ action: 'send-reset', email })
+
+export const deleteAdminAuthor = async ({ userId }) => {
+  const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+    body: { userId },
+  })
+
+  if (error) return { data: null, error }
+  return { data, error: null }
+}
 
 export const getReaderLeaderboard = async ({ limit = 10 } = {}) => {
   const response = await fetch(`${supabaseUrl}/functions/v1/reader-leaderboard?limit=${limit}`, {

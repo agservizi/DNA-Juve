@@ -8,10 +8,14 @@ import {
   CheckCircle2,
   ExternalLink,
   FileText,
+  Hash,
+  Instagram,
   Key,
   Loader2,
+  Linkedin,
   Mail,
   ShieldCheck,
+  Twitter,
   User,
 } from 'lucide-react'
 import { supabase, uploadImage } from '@/lib/supabase'
@@ -73,6 +77,13 @@ export default function Profile() {
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [authorSignature, setAuthorSignature] = useState('')
+  const [specialties, setSpecialties] = useState('')
+  const [socials, setSocials] = useState({
+    twitter_url: '',
+    instagram_url: '',
+    linkedin_url: '',
+  })
   const [uploading, setUploading] = useState(false)
   const [pwdForm, setPwdForm] = useState({ newPwd: '', confirm: '' })
   const [pwdLoading, setPwdLoading] = useState(false)
@@ -95,6 +106,13 @@ export default function Profile() {
     setUsername(profile.username || '')
     setBio(profile.bio || '')
     setAvatarUrl(profile.avatar_url || '')
+    setAuthorSignature(profile.author_signature || '')
+    setSpecialties(Array.isArray(profile.specialties) ? profile.specialties.join(', ') : '')
+    setSocials({
+      twitter_url: profile.twitter_url || '',
+      instagram_url: profile.instagram_url || '',
+      linkedin_url: profile.linkedin_url || '',
+    })
   }, [profile])
 
   const updateMutation = useMutation({
@@ -102,6 +120,11 @@ export default function Profile() {
       username: username.trim() || 'Redazione',
       bio: bio.trim() || null,
       avatar_url: avatarUrl || null,
+      author_signature: authorSignature.trim() || null,
+      specialties: specialties.split(',').map((item) => item.trim()).filter(Boolean),
+      twitter_url: socials.twitter_url.trim() || null,
+      instagram_url: socials.instagram_url.trim() || null,
+      linkedin_url: socials.linkedin_url.trim() || null,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', user?.id] })
@@ -269,6 +292,57 @@ export default function Profile() {
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                    Firma autore
+                  </label>
+                  <input
+                    value={authorSignature}
+                    onChange={(e) => setAuthorSignature(e.target.value)}
+                    placeholder="Esempio: Match analyst · Mercato Juventus"
+                    className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                    Specializzazioni
+                  </label>
+                  <div className="relative">
+                    <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={specialties}
+                      onChange={(e) => setSpecialties(e.target.value)}
+                      placeholder="Mercato, tattica, Serie A, Youth"
+                      className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-juve-black"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Separale con una virgola.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  {[
+                    { key: 'twitter_url', label: 'X / Twitter', icon: Twitter, placeholder: 'https://x.com/tuoprofilo' },
+                    { key: 'instagram_url', label: 'Instagram', icon: Instagram, placeholder: 'https://instagram.com/tuoprofilo' },
+                    { key: 'linkedin_url', label: 'LinkedIn', icon: Linkedin, placeholder: 'https://linkedin.com/in/tuoprofilo' },
+                  ].map(({ key, label, icon: Icon, placeholder }) => (
+                    <div key={key}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                        {label}
+                      </label>
+                      <div className="relative">
+                        <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <input
+                          value={socials[key]}
+                          onChange={(e) => setSocials((prev) => ({ ...prev, [key]: e.target.value }))}
+                          placeholder={placeholder}
+                          className="w-full border border-gray-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-juve-black"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
                     Email account
                   </label>
                   <input
@@ -407,9 +481,17 @@ export default function Profile() {
             </div>
 
             {accountCreatedAt && (
-              <p className="mt-4 text-xs text-gray-500">
-                Account creato il {formatDateShort(accountCreatedAt)}.
-              </p>
+              <div className="mt-4 space-y-2 text-xs text-gray-500">
+                <p>Account creato il {formatDateShort(accountCreatedAt)}.</p>
+                {(authorSignature || specialties.trim()) && (
+                  <div className="border border-gray-200 bg-gray-50 p-3">
+                    {authorSignature && <p className="font-semibold text-juve-black">{authorSignature}</p>}
+                    {specialties.trim() && (
+                      <p className="mt-1">Focus: {specialties.split(',').map((item) => item.trim()).filter(Boolean).join(' · ')}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </motion.div>
 

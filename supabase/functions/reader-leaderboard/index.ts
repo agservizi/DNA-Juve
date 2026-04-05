@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       supabaseAdmin
         .from('profiles')
         .select('id, username, avatar_url, role')
-        .eq('role', 'reader'),
+        .in('role', ['reader', 'author']),
     ])
 
     if (statesError) throw statesError

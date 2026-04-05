@@ -11,12 +11,22 @@ CREATE TABLE IF NOT EXISTS profiles (
   username   TEXT NOT NULL DEFAULT 'Redazione',
   avatar_url TEXT,
   bio        TEXT,
-  role       TEXT NOT NULL DEFAULT 'reader' CHECK (role IN ('reader', 'editor', 'admin')),
+  author_signature TEXT,
+  specialties TEXT[] DEFAULT '{}',
+  twitter_url TEXT,
+  instagram_url TEXT,
+  linkedin_url TEXT,
+  role       TEXT NOT NULL DEFAULT 'author' CHECK (role IN ('reader', 'author', 'admin')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'reader';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'author';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS author_signature TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS specialties TEXT[] DEFAULT '{}';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS twitter_url TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS instagram_url TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS linkedin_url TEXT;
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
@@ -30,7 +40,7 @@ BEGIN
     SPLIT_PART(COALESCE(NEW.email, ''), '@', 1),
     'Tifoso'
   );
-  next_role := COALESCE(NULLIF(NEW.raw_user_meta_data->>'role', ''), 'reader');
+  next_role := COALESCE(NULLIF(NEW.raw_user_meta_data->>'role', ''), 'author');
 
   SELECT EXISTS (
     SELECT 1
