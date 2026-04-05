@@ -199,7 +199,7 @@ export default function Author() {
           className="relative overflow-hidden bg-juve-black text-white p-8 mb-10"
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,166,35,0.2),transparent_35%)]" />
-          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
               <div className="shrink-0 w-24 h-24 bg-juve-gold flex items-center justify-center overflow-hidden">
                 {author?.avatar_url ? (
@@ -454,10 +454,12 @@ export default function Author() {
 
 function StatBlock({ icon: Icon, label, value }) {
   return (
-    <div className="bg-white/5 p-5">
-      <div className="flex items-center gap-2 text-juve-gold">
-        <Icon className="h-4 w-4" />
-        <span className="text-[11px] font-black uppercase tracking-[0.22em] text-white/60">{label}</span>
+    <div className="bg-white/5 px-5 py-4">
+      <div className="flex items-start gap-2 text-juve-gold min-h-[2.25rem]">
+        <Icon className="h-4 w-4 shrink-0 mt-0.5" />
+        <span className="max-w-[9rem] text-[10px] font-black uppercase tracking-[0.16em] leading-4 text-white/60">
+          {label}
+        </span>
       </div>
       <p className="mt-3 font-display text-3xl font-black text-white">{value}</p>
     </div>
