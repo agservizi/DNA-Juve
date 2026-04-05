@@ -339,23 +339,40 @@ export const sendReaderEventNotification = ({
   })
 
 export const invokeAdminAuthors = async (payload = {}) => {
-  const { data: { session } } = await supabase.auth.getSession()
+  const call = async (accessToken) => {
+    const response = await fetch(`${supabaseUrl}/functions/v1/admin-authors`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    return { response, data }
+  }
+
+  let { data: { session } } = await supabase.auth.getSession()
 
   if (!session?.access_token) {
     return { data: null, error: new Error('Sessione admin non pronta.') }
   }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/admin-authors`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-      apikey: supabaseAnonKey,
-    },
-    body: JSON.stringify(payload),
-  })
+  let { response, data } = await call(session.access_token)
 
-  const data = await response.json().catch(() => ({}))
+  if (response.status === 401) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    const nextToken = refreshed?.session?.access_token
+
+    if (!refreshError && nextToken) {
+      const retry = await call(nextToken)
+      response = retry.response
+      data = retry.data
+    }
+  }
+
   if (!response.ok) {
     return { data: null, error: new Error(data?.error || 'Gestione redattori non disponibile.') }
   }
