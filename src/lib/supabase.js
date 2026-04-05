@@ -345,16 +345,19 @@ export const invokeAdminAuthors = async (payload = {}) => {
     return { data: null, error: new Error('Sessione admin non pronta.') }
   }
 
-  const { data, error } = await supabase.functions.invoke('admin-authors', {
-    body: payload,
+  const response = await fetch(`${supabaseUrl}/functions/v1/admin-authors`, {
+    method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
       apikey: supabaseAnonKey,
     },
+    body: JSON.stringify(payload),
   })
 
-  if (error) {
-    return { data: null, error: new Error(error.message || 'Gestione redattori non disponibile.') }
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    return { data: null, error: new Error(data?.error || 'Gestione redattori non disponibile.') }
   }
 
   return { data, error: null }
@@ -418,13 +421,18 @@ export const deleteAdminAuthor = async ({ userId }) => {
 }
 
 export const getReaderLeaderboard = async ({ limit = 10 } = {}) => {
+  const { data: { session } } = await supabase.auth.getSession()
   const response = await fetch(`${supabaseUrl}/functions/v1/reader-leaderboard?limit=${limit}`, {
     headers: {
       apikey: supabaseAnonKey,
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
   })
 
   const data = await response.json().catch(() => ({}))
+  if (response.status === 401) {
+    return { data: [], error: null }
+  }
   if (!response.ok) {
     return { data: null, error: new Error(data?.error || 'Classifica lettori non disponibile.') }
   }
