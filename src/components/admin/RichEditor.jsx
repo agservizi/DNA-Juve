@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { mergeAttributes, Node } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
@@ -11,9 +12,48 @@ import {
   Link as LinkIcon, Image as ImageIcon,
   List, ListOrdered, Quote, Code, Minus,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Heading1, Heading2, Heading3, Undo, Redo,
+  Heading1, Heading2, Heading3, Undo, Redo, Film, Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { uploadImage } from '@/lib/supabase'
+
+const VideoNode = Node.create({
+  name: 'video',
+  group: 'block',
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      src: { default: null },
+      controls: { default: true },
+      playsinline: { default: true },
+      preload: { default: 'metadata' },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'video[src]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['video', mergeAttributes(HTMLAttributes, {
+      controls: 'controls',
+      playsinline: 'playsinline',
+      preload: HTMLAttributes.preload || 'metadata',
+      class: 'w-full rounded-sm border border-gray-200 bg-black',
+    })]
+  },
+
+  addCommands() {
+    return {
+      setVideo: (attributes) => ({ commands }) => commands.insertContent({
+        type: this.name,
+        attrs: attributes,
+      }),
+    }
+  },
+})
 
 function ToolbarBtn({ onClick, active, disabled, title, children }) {
   return (
@@ -38,6 +78,9 @@ function Separator() {
 }
 
 export default function RichEditor({ content = '', onChange }) {
+  const videoInputRef = useRef(null)
+  const [uploadingVideo, setUploadingVideo] = useState(false)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -46,6 +89,7 @@ export default function RichEditor({ content = '', onChange }) {
       Underline,
       Link.configure({ openOnClick: false }),
       Image,
+      VideoNode,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Placeholder.configure({ placeholder: 'Inizia a scrivere il tuo articolo…' }),
     ],
@@ -77,6 +121,36 @@ export default function RichEditor({ content = '', onChange }) {
   const addImage = () => {
     const url = window.prompt('URL immagine')
     if (url) editor.chain().focus().setImage({ src: url }).run()
+  }
+
+  const addVideoFromUrl = () => {
+    const url = window.prompt('URL video')
+    if (!url) return
+    editor.chain().focus().setVideo({ src: url.trim() }).run()
+  }
+
+  const addVideo = async (file) => {
+    if (!file) return
+    if (!file.type.startsWith('video/')) {
+      window.alert('Seleziona un file video valido.')
+      return
+    }
+    if (file.size > 120 * 1024 * 1024) {
+      window.alert('Il video è troppo grande. Limite attuale: 120MB.')
+      return
+    }
+
+    setUploadingVideo(true)
+    try {
+      const path = `videos/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
+      const url = await uploadImage(file, path)
+      editor.chain().focus().setVideo({ src: url }).run()
+    } catch {
+      window.alert('Caricamento video non riuscito. Riprova.')
+    } finally {
+      if (videoInputRef.current) videoInputRef.current.value = ''
+      setUploadingVideo(false)
+    }
   }
 
   return (
@@ -227,12 +301,26 @@ export default function RichEditor({ content = '', onChange }) {
         <ToolbarBtn onClick={addImage} title="Immagine da URL">
           <ImageIcon className="h-4 w-4" />
         </ToolbarBtn>
+        <ToolbarBtn onClick={addVideoFromUrl} disabled={uploadingVideo} title="Video da URL">
+          <Film className="h-4 w-4" />
+        </ToolbarBtn>
+        <ToolbarBtn onClick={() => videoInputRef.current?.click()} disabled={uploadingVideo} title="Carica video">
+          {uploadingVideo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
+        </ToolbarBtn>
       </div>
 
       {/* Editor area */}
       <EditorContent
         editor={editor}
         className="p-6 min-h-[450px] prose prose-lg max-w-none focus:outline-none"
+      />
+
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+        className="hidden"
+        onChange={(e) => addVideo(e.target.files?.[0])}
       />
     </div>
   )
