@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="86" y1="42" x2="1186" y2="680" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#060606" />
+      <stop offset="1" stop-color="#1a1a1a" />
+    </linearGradient>
+    <radialGradient id="imageGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(220 126) rotate(48) scale(470 540)">
+      <stop stop-color="#f9cf7a" stop-opacity="0.95" />
+      <stop offset="0.45" stop-color="#f5a623" stop-opacity="0.75" />
+      <stop offset="1" stop-color="#1a1a1a" stop-opacity="0.96" />
+    </radialGradient>
+    <linearGradient id="sheen" x1="248" y1="152" x2="914" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="rgba(255,255,255,0.18)" />
+      <stop offset="1" stop-color="rgba(255,255,255,0)" />
+    </linearGradient>
+    <filter id="blurSoft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="34" />
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="#050505" />
+  <rect x="24" y="24" width="1232" height="672" rx="34" fill="url(#bg)" />
+  <rect x="24" y="24" width="1232" height="672" rx="34" stroke="rgba(255,255,255,0.08)" />
+  <circle cx="216" cy="112" r="126" fill="#f5a623" fill-opacity="0.10" filter="url(#blurSoft)" />
+  <circle cx="1148" cy="610" r="144" fill="#f9cf7a" fill-opacity="0.08" filter="url(#blurSoft)" />
+  <path d="M46 668C204 612 374 590 578 612C804 636 1016 644 1236 598" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+  <path d="M62 640C224 576 396 554 612 582C820 608 1020 612 1218 564" stroke="rgba(255,255,255,0.05)" stroke-width="2" />
+  
+    <g transform="translate(0, 0)">
+      <path d="M748 116C904 74 1098 116 1196 222V598C1090 652 924 676 760 618L748 116Z" fill="rgba(255,255,255,0.06)" />
+      <path d="M776 142C934 118 1088 142 1172 232V572C1068 628 922 636 784 592L776 142Z" fill="url(#imageGlow)" />
+      <circle cx="1058" cy="182" r="112" fill="#f5a623" fill-opacity="0.20" />
+      <circle cx="894" cy="268" r="160" fill="#f9cf7a" fill-opacity="0.16" />
+      <path d="M792 494C874 360 984 282 1158 196V586C1024 624 910 628 792 586V494Z" fill="rgba(0,0,0,0.36)" />
+      <path d="M920 596C968 424 1042 302 1172 230V586C1106 608 1020 614 920 596Z" fill="rgba(0,0,0,0.22)" />
+    </g>
+  
+  
+    <g>
+      <rect x="70" y="84" width="176" height="36" rx="18" fill="#f5a623" />
+      <text x="158" y="107" text-anchor="middle" fill="#121212" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="800" letter-spacing="2">CALCIO</text>
+      <text fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.4"><tspan x="70" y="212">La Women’s Cup nel mirino:</tspan><tspan x="70" y="276">perche il torneo estivo</tspan><tspan x="70" y="340">conta piu di quanto sembri</tspan></text>
+      <text fill="#d6d6d6" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="500"><tspan x="72" y="506">Juventus Women tornera a giocare la Women’s Cup e il</tspan><tspan x="72" y="536">torneo puo dire molto sulla preparazione del nuovo anno.</tspan></text>
+    </g>
+  
+  <text x="73" y="664" fill="rgba(255,255,255,0.38)" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" letter-spacing="1.6">BIANCONERIHUB</text>
+</svg>

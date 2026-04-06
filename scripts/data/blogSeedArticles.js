@@ -25,9 +25,8 @@ function slugify(value = '') {
     .replace(/^-+|-+$/g, '')
 }
 
-function buildCoverImage(category, label) {
-  const palette = CATEGORY_COLORS[category] || '111827/F5A623'
-  return `https://placehold.co/1280x720/${palette}?text=${encodeURIComponent(label)}`
+function buildCoverImage(slug) {
+  return `/mock-covers/${slug}.svg`
 }
 
 function buildContent(article) {
@@ -47,10 +46,6 @@ function buildContent(article) {
     <p>${escapeHtml(article.blogAngle)}</p>
     <h2>Cosa tenere d'occhio</h2>
     <ul>${takeaways}</ul>
-    <blockquote>
-      Contenuto originale riscritto in stile blog a partire da una fonte pubblica verificabile.
-      Fonte: <a href="${escapeHtml(article.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(article.sourceName)}</a>.
-    </blockquote>
   `.trim()
 }
 
@@ -61,7 +56,7 @@ function makeArticle(article) {
     slug,
     excerpt: article.excerpt.trim(),
     content: buildContent(article),
-    cover_image: article.cover_image || buildCoverImage(article.categorySlug, article.coverLabel || article.title.slice(0, 28)),
+    cover_image: article.cover_image || buildCoverImage(slug),
     status: 'published',
   }
 }
@@ -843,4 +838,3 @@ export const seedArticles = [
   updated_at: article.published_at,
   views: 600 + (index * 173),
 }))
-
