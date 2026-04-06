@@ -4,6 +4,8 @@ import { motion } from 'framer-motion'
 import { Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
+const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
+
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,7 +16,7 @@ export default function Login() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!authLoading && !profileLoading && user && profile?.role === 'admin') {
+    if (!authLoading && !profileLoading && user && (profile?.role === 'admin' || user?.email === PRIMARY_ADMIN_EMAIL)) {
       navigate('/admin', { replace: true })
     }
   }, [authLoading, profileLoading, user, profile, navigate])
@@ -51,7 +53,7 @@ export default function Login() {
     setLoading(true)
     try {
       const result = await login(email, password)
-      if (result?.profile?.role === 'admin') {
+      if (result?.profile?.role === 'admin' || result?.user?.email === PRIMARY_ADMIN_EMAIL || email.trim().toLowerCase() === PRIMARY_ADMIN_EMAIL) {
         navigate('/admin', { replace: true })
         return
       }

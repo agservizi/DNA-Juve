@@ -67,8 +67,7 @@
   .breaking-ticker-mobile {
     display: inline-block;
     white-space: nowrap;
-    padding-left: 100%;
-    animation: ticker-mobile 22s linear infinite;
+    animation: ticker-mobile 60s linear infinite;
     will-change: transform;
   }
 
@@ -87,7 +86,7 @@
 
   @keyframes ticker-mobile {
     0%   { transform: translateX(0); }
-    100% { transform: translateX(-100%); }
+    100% { transform: translateX(-50%); }
   }
 
   .article-card {

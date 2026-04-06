@@ -44,6 +44,7 @@ const Authors       = lazy(() => import('@/pages/admin/Authors'))
 const CommentsAdmin = lazy(() => import('@/pages/admin/Comments'))
 const FeedManager   = lazy(() => import('@/pages/admin/FeedManager'))
 const FanArticleSubmissions = lazy(() => import('@/pages/admin/FanArticleSubmissions'))
+const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 function PageLoader() {
   return (
@@ -64,7 +65,7 @@ function AdminGuard({ children }) {
     </div>
   )
   if (!user) return <Navigate to="/admin/login" replace />
-  if (profile?.role !== 'admin') return <Navigate to="/" replace />
+  if (profile?.role !== 'admin' && user?.email !== PRIMARY_ADMIN_EMAIL) return <Navigate to="/" replace />
   return children
 }
 

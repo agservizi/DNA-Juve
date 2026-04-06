@@ -50,7 +50,7 @@ export default function Header() {
     return tickerItems.join('   •   ') + '   •   ' + tickerItems.join('   •   ') + '   •   '
   }, [tickerItems])
 
-  const mobileTickerText = tickerText || 'Le ultime notizie bianconere in aggiornamento • Le ultime notizie bianconere in aggiornamento • '
+  const mobileTickerText = tickerText || 'Le ultime notizie bianconere in aggiornamento   •   Le ultime notizie bianconere in aggiornamento   •   '
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 60)
@@ -70,18 +70,18 @@ export default function Header() {
   return (
     <>
       {/* Breaking news ticker */}
-      <div className="bg-juve-black text-white py-1.5 overflow-hidden">
+      <div className="bg-juve-black text-white overflow-hidden">
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="shrink-0 flex items-center gap-1.5 bg-juve-gold text-black px-2 sm:px-3 py-0.5 ml-2 sm:ml-4">
+          <div className="shrink-0 flex items-center gap-1.5 bg-juve-gold text-black px-2 sm:px-3 py-1 sm:py-0.5 ml-2 sm:ml-4">
             <Zap className="h-3.5 w-3.5" />
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Breaking</span>
           </div>
-          <div className="min-w-0 flex-1 overflow-hidden sm:hidden">
-            <div className="breaking-ticker-mobile pr-3 text-[11px] font-medium tracking-wide text-white/90">
+          <div className="min-w-0 flex-1 overflow-hidden py-2 sm:hidden">
+            <div className="breaking-ticker-mobile text-[11px] font-medium leading-none tracking-[0.02em] text-white/90">
               {mobileTickerText}
             </div>
           </div>
-          <div className="hidden overflow-hidden flex-1 sm:block">
+          <div className="hidden overflow-hidden flex-1 py-1.5 sm:block">
             <div className="breaking-ticker text-xs font-medium tracking-wide">
               {tickerText}
             </div>

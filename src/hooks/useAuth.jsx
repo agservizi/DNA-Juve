@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext } from 'react'
 import { supabase, signIn, signOut, onAuthStateChange, getProfileByUserId } from '@/lib/supabase'
 
 const AuthContext = createContext(null)
+const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -30,10 +31,13 @@ export function AuthProvider({ children }) {
       try {
         const { data } = await getProfileByUserId(nextUser.id)
         if (!mounted) return
-        setProfile(data || null)
+        const normalizedProfile = nextUser?.email === PRIMARY_ADMIN_EMAIL
+          ? { ...(data || {}), role: 'admin' }
+          : (data || null)
+        setProfile(normalizedProfile)
       } catch {
         if (!mounted) return
-        setProfile(null)
+        setProfile(nextUser?.email === PRIMARY_ADMIN_EMAIL ? { id: nextUser.id, role: 'admin' } : null)
       } finally {
         if (!mounted) return
         setProfileLoading(false)
@@ -77,11 +81,17 @@ export function AuthProvider({ children }) {
 
     try {
       const { data } = await getProfileByUserId(sessionUser.id)
-      setProfile(data || null)
-      return data || null
+      const normalizedProfile = sessionUser?.email === PRIMARY_ADMIN_EMAIL
+        ? { ...(data || {}), role: 'admin' }
+        : (data || null)
+      setProfile(normalizedProfile)
+      return normalizedProfile
     } catch {
-      setProfile(null)
-      return null
+      const fallbackProfile = sessionUser?.email === PRIMARY_ADMIN_EMAIL
+        ? { id: sessionUser.id, role: 'admin' }
+        : null
+      setProfile(fallbackProfile)
+      return fallbackProfile
     } finally {
       setProfileLoading(false)
     }
