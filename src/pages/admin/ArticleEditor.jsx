@@ -1,16 +1,19 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   getArticleById, createArticle, updateArticle,
-  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, sendArticlePushNotification, getArticlePoll, upsertArticlePoll,
+  getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, checkArticleExtraColumnsSupport,
+  sendArticlePushNotification, getArticlePoll, upsertArticlePoll,
+  duplicateArticle, searchArticlesForRelated, getProfiles,
+  getArticleRevisions, getArticleRevisionById, createArticleRevision,
 } from '@/lib/supabase'
-import { slugify, stripHtml } from '@/lib/utils'
+import { slugify, stripHtml, readingTime } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import RichEditor from '@/components/admin/RichEditor'
@@ -32,6 +35,8 @@ const schema = z.object({
   og_image: z.string().optional(),
   noindex: z.boolean(),
   scheduled_at: z.string().optional(),
+  source_url: z.string().optional(),
+  internal_notes: z.string().optional(),
 })
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
@@ -102,6 +107,18 @@ export default function ArticleEditor() {
   const draftHydratedRef = useRef(false)
   const draftStorageKey = getArticleDraftStorageKey(id)
 
+  // New feature states
+  const [gallery, setGallery] = useState([])
+  const [relatedArticleIds, setRelatedArticleIds] = useState([])
+  const [coAuthorIds, setCoAuthorIds] = useState([])
+  const [relatedSearch, setRelatedSearch] = useState('')
+  const [relatedResults, setRelatedResults] = useState([])
+  const [relatedSearching, setRelatedSearching] = useState(false)
+  const [galleryInput, setGalleryInput] = useState('')
+  const [showRevisions, setShowRevisions] = useState(false)
+  const [importUrl, setImportUrl] = useState('')
+  const [importLoading, setImportLoading] = useState(false)
+
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => { const { data } = await getCategories(); return data || [] },
@@ -132,6 +149,26 @@ export default function ArticleEditor() {
     queryFn: checkArticleSeoSupport,
     staleTime: 60 * 60 * 1000,
   })
+  const { data: extraColumnsSupported = false } = useQuery({
+    queryKey: ['article-extra-columns-support'],
+    queryFn: checkArticleExtraColumnsSupport,
+    staleTime: 60 * 60 * 1000,
+  })
+  const { data: revisions = [] } = useQuery({
+    queryKey: ['article-revisions', id],
+    queryFn: async () => {
+      const { data } = await getArticleRevisions(id)
+      return data || []
+    },
+    enabled: isEdit,
+  })
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['all-profiles'],
+    queryFn: async () => {
+      const { data } = await getProfiles()
+      return data || []
+    },
+  })
 
   const {
     register, control, handleSubmit, watch, setValue, reset,
@@ -152,9 +189,20 @@ export default function ArticleEditor() {
       og_image: '',
       noindex: false,
       scheduled_at: '',
+      source_url: '',
+      internal_notes: '',
     },
   })
   const formValues = watch()
+
+  // Word count and reading time (memoized)
+  const wordStats = useMemo(() => {
+    const plain = stripHtml(content || '').replace(/\s+/g, ' ').trim()
+    const words = plain ? plain.split(/\s+/).length : 0
+    const time = readingTime(content)
+    const chars = plain.length
+    return { words, time, chars }
+  }, [content])
 
   useEffect(() => {
     draftHydratedRef.current = false
@@ -175,6 +223,8 @@ export default function ArticleEditor() {
       og_image: '',
       noindex: false,
       scheduled_at: '',
+      source_url: '',
+      internal_notes: '',
     })
     setContent('')
     setTags([])
@@ -183,6 +233,9 @@ export default function ArticleEditor() {
     setPollOptions(['', ''])
     setPollEnabled(false)
     setLastDraftSavedAt(null)
+    setGallery([])
+    setRelatedArticleIds([])
+    setCoAuthorIds([])
   }, [id, isEdit, reset])
 
   useEffect(() => {
@@ -199,11 +252,16 @@ export default function ArticleEditor() {
       setValue('canonical_url', existing.canonical_url || '')
       setValue('og_image', existing.og_image || '')
       setValue('noindex', existing.noindex || false)
+      setValue('source_url', existing.source_url || '')
+      setValue('internal_notes', existing.internal_notes || '')
       if (existing.scheduled_at) {
         setValue('scheduled_at', existing.scheduled_at.slice(0, 16))
         setShowSchedule(true)
       }
       setContent(existing.content || '')
+      if (Array.isArray(existing.gallery)) setGallery(existing.gallery)
+      if (Array.isArray(existing.related_article_ids)) setRelatedArticleIds(existing.related_article_ids)
+      if (Array.isArray(existing.co_author_ids)) setCoAuthorIds(existing.co_author_ids)
     } else if (isEdit) {
       reset({
         title: '',
@@ -219,6 +277,8 @@ export default function ArticleEditor() {
         og_image: '',
         noindex: false,
         scheduled_at: '',
+        source_url: '',
+        internal_notes: '',
       })
       setContent('')
     }
@@ -269,6 +329,9 @@ export default function ArticleEditor() {
       if (typeof draft.pollQuestion === 'string') setPollQuestion(draft.pollQuestion)
       if (Array.isArray(draft.pollOptions) && draft.pollOptions.length) setPollOptions(draft.pollOptions)
       if (typeof draft.pollEnabled === 'boolean') setPollEnabled(draft.pollEnabled)
+      if (Array.isArray(draft.gallery)) setGallery(draft.gallery)
+      if (Array.isArray(draft.relatedArticleIds)) setRelatedArticleIds(draft.relatedArticleIds)
+      if (Array.isArray(draft.coAuthorIds)) setCoAuthorIds(draft.coAuthorIds)
       if (draft.savedAt) setLastDraftSavedAt(draft.savedAt)
 
       toast({
@@ -293,6 +356,9 @@ export default function ArticleEditor() {
       pollQuestion,
       pollOptions,
       pollEnabled,
+      gallery,
+      relatedArticleIds,
+      coAuthorIds,
     }
 
     const timeoutId = window.setTimeout(() => {
@@ -308,7 +374,7 @@ export default function ArticleEditor() {
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
-  }, [draftStorageKey, formValues, content, tags, showSchedule, pollQuestion, pollOptions, pollEnabled])
+  }, [draftStorageKey, formValues, content, tags, showSchedule, pollQuestion, pollOptions, pollEnabled, gallery, relatedArticleIds, coAuthorIds])
 
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return
@@ -326,6 +392,9 @@ export default function ArticleEditor() {
           pollQuestion,
           pollOptions,
           pollEnabled,
+          gallery,
+          relatedArticleIds,
+          coAuthorIds,
         }
         window.localStorage.setItem(draftStorageKey, JSON.stringify(draftPayload))
         setLastDraftSavedAt(draftPayload.savedAt)
@@ -336,7 +405,7 @@ export default function ArticleEditor() {
 
     document.addEventListener('visibilitychange', persistDraftNow)
     return () => document.removeEventListener('visibilitychange', persistDraftNow)
-  }, [draftStorageKey, formValues, content, tags, showSchedule, pollQuestion, pollOptions, pollEnabled])
+  }, [draftStorageKey, formValues, content, tags, showSchedule, pollQuestion, pollOptions, pollEnabled, gallery, relatedArticleIds, coAuthorIds])
 
   const titleValue = watch('title')
   const slugValue = watch('slug')
@@ -362,6 +431,25 @@ export default function ArticleEditor() {
         delete payload.og_image
         delete payload.noindex
       }
+      if (extraColumnsSupported) {
+        payload.gallery = gallery
+        payload.related_article_ids = relatedArticleIds
+        payload.co_author_ids = coAuthorIds
+      } else {
+        delete payload.source_url
+        delete payload.internal_notes
+      }
+
+      // Create revision before saving (only on edit)
+      if (isEdit && existing) {
+        createArticleRevision(id, {
+          title: existing.title,
+          content: existing.content,
+          excerpt: existing.excerpt,
+          savedBy: user?.id,
+        }).catch(() => {})
+      }
+
       let articleResult
       if (isEdit) {
         articleResult = await updateArticle(id, payload)
@@ -395,6 +483,7 @@ export default function ArticleEditor() {
       qc.invalidateQueries(['all-articles'])
       qc.invalidateQueries(['dashboard-stats'])
       qc.invalidateQueries(['article-tags-edit', id])
+      qc.invalidateQueries(['article-revisions', id])
 
       const shouldSendPush =
         status === 'published' &&
@@ -511,6 +600,130 @@ export default function ArticleEditor() {
     setPollOptions((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
   }
 
+  // ─── Duplicate article ────────────────────────────────────────
+  const duplicateMutation = useMutation({
+    mutationFn: () => duplicateArticle(id),
+    onSuccess: (result) => {
+      if (result.data?.id) {
+        toast({ title: 'Articolo duplicato', description: 'Apro la copia in bozza.', variant: 'success' })
+        navigate(`/admin/articoli/${result.data.id}/modifica`)
+      }
+    },
+    onError: (err) => toast({ title: 'Errore duplicazione', description: err.message, variant: 'destructive' }),
+  })
+
+  // ─── Copy URL ─────────────────────────────────────────────────
+  const copyArticleUrl = useCallback(() => {
+    const slug = existing?.slug || watch('slug')
+    if (!slug) return
+    const url = `${SITE_URL}/articolo/${slug}`
+    navigator.clipboard.writeText(url).then(
+      () => toast({ title: 'URL copiato', description: url, variant: 'success' }),
+      () => toast({ title: 'Errore', description: 'Impossibile copiare.', variant: 'destructive' })
+    )
+  }, [existing, watch, toast])
+
+  // ─── Related articles search ──────────────────────────────────
+  const searchRelated = useCallback(async (query) => {
+    if (!query || query.length < 2) { setRelatedResults([]); return }
+    setRelatedSearching(true)
+    try {
+      const { data } = await searchArticlesForRelated(query, id)
+      setRelatedResults(data || [])
+    } catch { setRelatedResults([]) }
+    finally { setRelatedSearching(false) }
+  }, [id])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => searchRelated(relatedSearch), 300)
+    return () => clearTimeout(timeout)
+  }, [relatedSearch, searchRelated])
+
+  // ─── Gallery management ───────────────────────────────────────
+  const addGalleryImage = useCallback(() => {
+    const url = galleryInput.trim()
+    if (!url) return
+    setGallery(prev => [...prev, { url, caption: '' }])
+    setGalleryInput('')
+  }, [galleryInput])
+
+  const removeGalleryImage = useCallback((index) => {
+    setGallery(prev => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const updateGalleryCaption = useCallback((index, caption) => {
+    setGallery(prev => prev.map((item, i) => i === index ? { ...item, caption } : item))
+  }, [])
+
+  // ─── Restore revision ────────────────────────────────────────
+  const restoreRevision = useCallback(async (revisionId) => {
+    const { data: rev } = await getArticleRevisionById(revisionId)
+    if (!rev) return
+    if (rev.title) setValue('title', rev.title)
+    if (rev.content) setContent(rev.content)
+    if (rev.excerpt) setValue('excerpt', rev.excerpt)
+    setShowRevisions(false)
+    toast({ title: 'Revisione ripristinata', description: 'I campi sono stati aggiornati. Salva per confermare.', variant: 'success' })
+  }, [setValue, toast])
+
+  // ─── Import from URL ─────────────────────────────────────────
+  const handleImportFromUrl = useCallback(async () => {
+    const url = importUrl.trim()
+    if (!url) return
+    setImportLoading(true)
+    try {
+      const res = await fetch(url)
+      const html = await res.text()
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(html, 'text/html')
+      const importedTitle = doc.querySelector('h1')?.textContent?.trim() || doc.title || ''
+      const metaDesc = doc.querySelector('meta[name="description"]')?.content || ''
+      const ogImg = doc.querySelector('meta[property="og:image"]')?.content || ''
+      const bodyContent = doc.querySelector('article')?.innerHTML || doc.querySelector('.post-content, .article-content, .entry-content, main')?.innerHTML || ''
+
+      if (importedTitle) setValue('title', importedTitle)
+      if (!watch('slug') && importedTitle) setValue('slug', slugify(importedTitle))
+      if (metaDesc) setValue('excerpt', metaDesc.slice(0, 300))
+      if (ogImg) setValue('cover_image', ogImg)
+      if (bodyContent) setContent(bodyContent)
+      setValue('source_url', url)
+
+      toast({ title: 'Contenuto importato', description: 'Rivedi e modifica prima di salvare.', variant: 'success' })
+    } catch {
+      toast({ title: 'Importazione fallita', description: 'Non è stato possibile recuperare il contenuto.', variant: 'destructive' })
+    } finally {
+      setImportLoading(false)
+      setImportUrl('')
+    }
+  }, [importUrl, setValue, watch, toast])
+
+  // ─── AI SEO suggestions ──────────────────────────────────────
+  const generateSeoSuggestions = useCallback(() => {
+    const title = watch('title') || ''
+    const excerpt = watch('excerpt') || ''
+    const plain = stripHtml(content || '').replace(/\s+/g, ' ').trim()
+
+    if (!title) {
+      toast({ title: 'Titolo mancante', description: 'Inserisci un titolo prima di generare i suggerimenti SEO.', variant: 'destructive' })
+      return
+    }
+
+    // Generate meta title: optimize for 50-60 chars
+    const suggestedMeta = title.length > 55
+      ? title.slice(0, 55).trim() + '...'
+      : title
+    setValue('meta_title', suggestedMeta)
+
+    // Generate meta description from excerpt or content
+    const descSource = excerpt || plain
+    const suggestedDesc = descSource.length > 155
+      ? descSource.slice(0, 155).trim() + '...'
+      : descSource
+    setValue('meta_description', suggestedDesc)
+
+    toast({ title: 'SEO aggiornato', description: 'Meta title e description generati dal contenuto.', variant: 'success' })
+  }, [watch, content, setValue, toast])
+
   return (
     <div>
       {/* Header */}
@@ -534,6 +747,22 @@ export default function ArticleEditor() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Import from URL */}
+          <div className="flex items-center gap-1">
+            <input
+              type="url"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              placeholder="Importa da URL..."
+              className="w-40 border border-gray-300 px-2 py-2 text-xs focus:outline-none focus:border-juve-black"
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleImportFromUrl())}
+            />
+            <button type="button" onClick={handleImportFromUrl} disabled={importLoading || !importUrl.trim()}
+              className="flex items-center gap-1 px-2 py-2 border border-gray-300 text-xs font-medium hover:border-juve-black transition-colors disabled:opacity-50">
+              {importLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
@@ -542,6 +771,25 @@ export default function ArticleEditor() {
             <Eye className="h-4 w-4" />
             Anteprima
           </button>
+
+          {/* Copy URL */}
+          {isEdit && (
+            <button type="button" onClick={copyArticleUrl}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-sm font-medium hover:border-juve-black transition-colors"
+              title="Copia URL articolo">
+              <Copy className="h-4 w-4" />
+            </button>
+          )}
+
+          {/* Duplicate */}
+          {isEdit && (
+            <button type="button" onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-sm font-medium hover:border-juve-black transition-colors disabled:opacity-50"
+              title="Duplica articolo">
+              {duplicateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            </button>
+          )}
+
           {isEdit && existing?.status === 'published' && (
             <a href={`/articolo/${existing.slug}`} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-sm font-medium hover:border-juve-black transition-colors">
@@ -584,6 +832,36 @@ export default function ArticleEditor() {
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Contenuto</label>
             <RichEditor content={content} onChange={setContent} />
+            {/* Word counter bar */}
+            <div className="flex items-center gap-4 mt-2 px-1 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                {wordStats.words} parole
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {wordStats.time} min lettura
+              </span>
+              <span>{wordStats.chars} caratteri</span>
+            </div>
+          </div>
+
+          {/* Source URL */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              <span className="flex items-center gap-1"><Link2 className="h-3 w-3" /> Fonte / Crediti</span>
+            </label>
+            <input {...register('source_url')} placeholder="URL della fonte originale..."
+              className="w-full border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-juve-black" />
+          </div>
+
+          {/* Internal notes */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              <span className="flex items-center gap-1"><StickyNote className="h-3 w-3" /> Note interne</span>
+            </label>
+            <textarea {...register('internal_notes')} rows={2} placeholder="Note per la redazione (non visibili ai lettori)..."
+              className="w-full border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2 text-sm focus:outline-none focus:border-amber-500 resize-none" />
           </div>
         </div>
 
@@ -828,6 +1106,12 @@ export default function ArticleEditor() {
                 )}
               </div>
             </div>
+
+            <button type="button" onClick={generateSeoSuggestions}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-xs font-bold uppercase tracking-wider hover:border-juve-gold hover:text-juve-gold transition-colors">
+              <Sparkles className="h-3.5 w-3.5" />
+              Genera meta SEO dal contenuto
+            </button>
           </div>
 
           {/* Tags */}
@@ -836,6 +1120,174 @@ export default function ArticleEditor() {
             <TagInput tags={tags} onChange={setTags} />
             <p className="text-xs text-gray-400 mt-2">Premi Invio o virgola per aggiungere un tag</p>
           </div>
+
+          {/* Gallery */}
+          <div className="bg-white border border-gray-200 p-5 space-y-3">
+            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+              <ImageIcon className="h-3.5 w-3.5" /> Galleria immagini
+            </h3>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={galleryInput}
+                onChange={(e) => setGalleryInput(e.target.value)}
+                placeholder="URL immagine..."
+                className="flex-1 border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:border-juve-black"
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGalleryImage())}
+              />
+              <button type="button" onClick={addGalleryImage} disabled={!galleryInput.trim()}
+                className="px-2 py-1.5 border border-gray-300 text-xs font-bold hover:border-juve-black disabled:opacity-50">
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {gallery.length > 0 && (
+              <div className="space-y-2">
+                {gallery.map((img, idx) => (
+                  <div key={idx} className="flex items-start gap-2 border border-gray-100 p-2">
+                    <img src={img.url} alt="" className="w-16 h-12 object-cover flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-gray-400 truncate">{img.url}</p>
+                      <input
+                        value={img.caption || ''}
+                        onChange={(e) => updateGalleryCaption(idx, e.target.value)}
+                        placeholder="Didascalia..."
+                        className="w-full border-b border-gray-200 px-0 py-0.5 text-xs focus:outline-none focus:border-juve-black bg-transparent mt-1"
+                      />
+                    </div>
+                    <button type="button" onClick={() => removeGalleryImage(idx)}
+                      className="p-1 text-gray-400 hover:text-red-500">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-400">{gallery.length} immagini in galleria</p>
+          </div>
+
+          {/* Related articles */}
+          <div className="bg-white border border-gray-200 p-5 space-y-3">
+            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+              <Link2 className="h-3.5 w-3.5" /> Articoli correlati
+            </h3>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                value={relatedSearch}
+                onChange={(e) => setRelatedSearch(e.target.value)}
+                placeholder="Cerca articoli..."
+                className="w-full border border-gray-300 pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:border-juve-black"
+              />
+              {relatedSearching && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-gray-400" />}
+            </div>
+            {relatedResults.length > 0 && relatedSearch && (
+              <div className="border border-gray-200 max-h-32 overflow-y-auto">
+                {relatedResults
+                  .filter(a => !relatedArticleIds.includes(a.id))
+                  .map(a => (
+                    <button key={a.id} type="button"
+                      onClick={() => { setRelatedArticleIds(prev => [...prev, a.id]); setRelatedSearch(''); setRelatedResults([]) }}
+                      className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                      {a.title}
+                    </button>
+                  ))}
+              </div>
+            )}
+            {relatedArticleIds.length > 0 && (
+              <div className="space-y-1">
+                {relatedArticleIds.map((relId, idx) => (
+                  <div key={relId} className="flex items-center justify-between gap-2 bg-gray-50 px-2 py-1">
+                    <span className="text-xs text-gray-600 truncate">{relId.slice(0, 8)}...</span>
+                    <button type="button" onClick={() => setRelatedArticleIds(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-gray-400 hover:text-red-500">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-400">{relatedArticleIds.length} articoli selezionati</p>
+          </div>
+
+          {/* Co-authors */}
+          <div className="bg-white border border-gray-200 p-5 space-y-3">
+            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Co-autori
+            </h3>
+            <select
+              onChange={(e) => {
+                const val = e.target.value
+                if (val && !coAuthorIds.includes(val)) setCoAuthorIds(prev => [...prev, val])
+                e.target.value = ''
+              }}
+              className="w-full border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:border-juve-black appearance-none"
+            >
+              <option value="">— Aggiungi co-autore —</option>
+              {allProfiles.filter(p => p.id !== user?.id && !coAuthorIds.includes(p.id)).map(p => (
+                <option key={p.id} value={p.id}>{p.username}</option>
+              ))}
+            </select>
+            {coAuthorIds.length > 0 && (
+              <div className="space-y-1">
+                {coAuthorIds.map((coId) => {
+                  const coProfile = allProfiles.find(p => p.id === coId)
+                  return (
+                    <div key={coId} className="flex items-center justify-between gap-2 bg-gray-50 px-2 py-1">
+                      <span className="text-xs text-gray-600">{coProfile?.username || coId.slice(0, 8)}</span>
+                      <button type="button" onClick={() => setCoAuthorIds(prev => prev.filter(x => x !== coId))}
+                        className="text-gray-400 hover:text-red-500">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Revision history */}
+          {isEdit && (
+            <div className="bg-white border border-gray-200 p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                  <History className="h-3.5 w-3.5" /> Cronologia revisioni
+                </h3>
+                <button type="button" onClick={() => setShowRevisions(!showRevisions)}
+                  className="text-xs font-bold text-juve-gold hover:underline">
+                  {showRevisions ? 'Chiudi' : `Mostra (${revisions.length})`}
+                </button>
+              </div>
+              <AnimatePresence>
+                {showRevisions && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-1.5 overflow-hidden"
+                  >
+                    {revisions.length === 0 && (
+                      <p className="text-xs text-gray-400">Nessuna revisione salvata.</p>
+                    )}
+                    {revisions.map((rev) => (
+                      <div key={rev.id} className="flex items-center justify-between gap-2 bg-gray-50 px-2 py-1.5 text-xs">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-700 truncate">{rev.title || 'Senza titolo'}</p>
+                          <p className="text-[10px] text-gray-400">
+                            {new Date(rev.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            {rev.profiles?.username ? ` — ${rev.profiles.username}` : ''}
+                          </p>
+                        </div>
+                        <button type="button" onClick={() => restoreRevision(rev.id)}
+                          className="text-xs font-bold text-juve-gold hover:underline flex-shrink-0">
+                          Ripristina
+                        </button>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           {/* Card preview */}
           {coverImage && (

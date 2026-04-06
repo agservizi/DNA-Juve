@@ -941,6 +941,7 @@ export const deleteArticle = (id) =>
   supabase.from('articles').delete().eq('id', id)
 
 let articleSeoSupportPromise
+let articleExtraSupportPromise
 
 export const checkArticleSeoSupport = async () => {
   if (!articleSeoSupportPromise) {
@@ -960,6 +961,128 @@ export const checkArticleSeoSupport = async () => {
   }
 
   return articleSeoSupportPromise
+}
+
+export const checkArticleExtraColumnsSupport = async () => {
+  if (!articleExtraSupportPromise) {
+    articleExtraSupportPromise = supabase
+      .from('articles')
+      .select('source_url')
+      .limit(1)
+      .then(({ error }) => {
+        if (!error) return true
+        const message = String(error.message || '').toLowerCase()
+        if (error.code === '42703' || message.includes('source_url') || message.includes('column')) {
+          return false
+        }
+        return false
+      })
+      .catch(() => false)
+  }
+  return articleExtraSupportPromise
+}
+
+// ─── ARTICLE REVISIONS ──────────────────────────────────────────────────────
+export const getArticleRevisions = async (articleId) => {
+  const { data, error } = await supabase
+    .from('article_revisions')
+    .select('id, title, excerpt, created_at, saved_by, profiles:saved_by(username)')
+    .eq('article_id', articleId)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (error && isMissingColumnOrRelation(error, 'article_revisions')) {
+    return { data: [], error: null }
+  }
+
+  return { data: data || [], error }
+}
+
+export const getArticleRevisionById = async (revisionId) => {
+  const { data, error } = await supabase
+    .from('article_revisions')
+    .select('*')
+    .eq('id', revisionId)
+    .single()
+
+  if (error && isMissingColumnOrRelation(error, 'article_revisions')) {
+    return { data: null, error: null }
+  }
+
+  return { data, error }
+}
+
+export const createArticleRevision = async (articleId, { title, content, excerpt, savedBy }) => {
+  const { data, error } = await supabase
+    .from('article_revisions')
+    .insert([{
+      article_id: articleId,
+      title: title || null,
+      content: content || null,
+      excerpt: excerpt || null,
+      saved_by: savedBy || null,
+    }])
+    .select()
+    .single()
+
+  if (error && isMissingColumnOrRelation(error, 'article_revisions')) {
+    return { data: null, error: null }
+  }
+
+  return { data, error }
+}
+
+// ─── DUPLICATE ARTICLE ──────────────────────────────────────────────────────
+export const duplicateArticle = async (articleId) => {
+  const { data: original, error: fetchError } = await getArticleById(articleId)
+  if (fetchError) return { data: null, error: fetchError }
+  if (!original) return { data: null, error: new Error('Articolo non trovato') }
+
+  const baseSlug = `${original.slug}-copia`
+  const uniqueSlug = await ensureUniqueArticleSlug(baseSlug)
+
+  const payload = {
+    title: `${original.title} (copia)`,
+    slug: uniqueSlug,
+    excerpt: original.excerpt || '',
+    content: original.content || '',
+    cover_image: original.cover_image || '',
+    category_id: original.category_id || null,
+    author_id: original.author_id || null,
+    status: 'draft',
+    featured: false,
+    meta_title: original.meta_title || '',
+    meta_description: original.meta_description || '',
+    canonical_url: '',
+    og_image: original.og_image || '',
+    noindex: false,
+  }
+
+  return createArticle(payload)
+}
+
+// ─── SEARCH ARTICLES FOR RELATED PICKER ─────────────────────────────────────
+export const searchArticlesForRelated = async (query, excludeId = null) => {
+  let q = supabase
+    .from('articles')
+    .select('id, title, slug, cover_image, published_at, status, categories(name, slug, color)')
+    .or(`title.ilike.%${query}%,excerpt.ilike.%${query}%`)
+    .order('published_at', { ascending: false })
+    .limit(10)
+
+  if (excludeId) q = q.neq('id', excludeId)
+
+  return q
+}
+
+// ─── PROFILES LIST (co-authors picker) ──────────────────────────────────────
+export const getProfiles = async () => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url')
+    .order('username')
+
+  return { data: data || [], error }
 }
 
 // ─── CATEGORIES ──────────────────────────────────────────────────────────────

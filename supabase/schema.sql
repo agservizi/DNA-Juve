@@ -121,6 +121,11 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_description TEXT;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS canonical_url TEXT;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS og_image TEXT;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS noindex BOOLEAN DEFAULT FALSE;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS internal_notes TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS co_author_ids UUID[] DEFAULT '{}';
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS related_article_ids UUID[] DEFAULT '{}';
 
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -368,6 +373,19 @@ CREATE TRIGGER fan_article_submissions_updated_at
   BEFORE UPDATE ON fan_article_submissions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- ─── ARTICLE REVISIONS ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS article_revisions (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  article_id  UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  title       TEXT,
+  content     TEXT,
+  excerpt     TEXT,
+  saved_by    UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS article_revisions_article_idx ON article_revisions(article_id, created_at DESC);
+
 -- ─── ROW LEVEL SECURITY ──────────────────────────────────────
 ALTER TABLE profiles   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -383,6 +401,7 @@ ALTER TABLE author_follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_poll_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_poll_votes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE article_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_poll_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_poll_votes ENABLE ROW LEVEL SECURITY;
@@ -583,6 +602,17 @@ CREATE POLICY "Match poll votes: owner update"
   ON match_poll_votes FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+-- Article revisions
+DROP POLICY IF EXISTS "Article revisions: auth read" ON article_revisions;
+DROP POLICY IF EXISTS "Article revisions: auth write" ON article_revisions;
+CREATE POLICY "Article revisions: auth read"
+  ON article_revisions FOR SELECT
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "Article revisions: auth write"
+  ON article_revisions FOR ALL
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
 
 -- ─── STORAGE ─────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
