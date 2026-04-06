@@ -6,6 +6,7 @@ const corsHeaders = {
 }
 
 const allowedRoles = new Set(['admin'])
+const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -183,6 +184,37 @@ Deno.serve(async (req) => {
       const userId = String(body.userId || '')
       const role = normalizeRole(body.role)
       if (!userId) throw new Error('userId is required')
+
+      const { data: targetProfile, error: targetProfileError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, role')
+        .eq('id', userId)
+        .single()
+
+      if (targetProfileError) throw targetProfileError
+
+      const { data: targetUser, error: targetUserError } = await supabaseAdmin.auth.admin.getUserById(userId)
+      if (targetUserError) throw targetUserError
+
+      const targetEmail = String(targetUser?.user?.email || '').toLowerCase()
+      const isPrimaryAdmin = targetEmail === PRIMARY_ADMIN_EMAIL
+
+      if (isPrimaryAdmin && role !== 'admin') {
+        return json({ error: 'Primary admin role cannot be downgraded' }, 400)
+      }
+
+      if (targetProfile?.role === 'admin' && role !== 'admin') {
+        const { data: adminProfiles, error: adminProfilesError } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin')
+
+        if (adminProfilesError) throw adminProfilesError
+
+        if ((adminProfiles || []).length <= 1) {
+          return json({ error: 'At least one admin account must remain active' }, 400)
+        }
+      }
 
       const { error } = await supabaseAdmin
         .from('profiles')

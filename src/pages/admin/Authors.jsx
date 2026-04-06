@@ -42,6 +42,7 @@ const FILTERS = [
 ]
 
 const PAGE_SIZE = 10
+const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 function formatDate(value) {
   if (!value) return '—'
@@ -84,6 +85,10 @@ function roleBadge(role) {
 
 function roleLabel(role) {
   return role === 'admin' ? 'Admin' : 'Author'
+}
+
+function isProtectedAdmin(author) {
+  return author?.role === 'admin' && String(author?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL
 }
 
 function accountAccessMeta(author) {
@@ -562,9 +567,12 @@ export default function Authors() {
                           <div>
                             <RoleSelect
                               value={author.role}
-                              disabled={roleMutation.isPending}
+                              disabled={roleMutation.isPending || isProtectedAdmin(author)}
                               onChange={(role) => roleMutation.mutate({ userId: author.id, role })}
                             />
+                            {isProtectedAdmin(author) && (
+                              <p className="mt-2 text-[11px] text-gray-400">Ruolo protetto per l’account admin principale.</p>
+                            )}
                           </div>
 
                           <div>
@@ -612,6 +620,7 @@ export default function Authors() {
                             </button>
                             <button
                               onClick={() => setDeleteTarget(author)}
+                              disabled={isProtectedAdmin(author)}
                               className="inline-flex items-center gap-2 border border-red-200 px-3 py-2 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-50"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
