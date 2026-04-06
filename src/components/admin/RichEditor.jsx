@@ -81,6 +81,10 @@ function Separator() {
 export default function RichEditor({ content = '', onChange }) {
   const videoInputRef = useRef(null)
   const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [linkValue, setLinkValue] = useState('')
+  const [imageOpen, setImageOpen] = useState(false)
+  const [imageValue, setImageValue] = useState('')
   const [videoUrlOpen, setVideoUrlOpen] = useState(false)
   const [videoUrlValue, setVideoUrlValue] = useState('')
 
@@ -112,18 +116,13 @@ export default function RichEditor({ content = '', onChange }) {
 
   const setLink = () => {
     const prev = editor.getAttributes('link').href
-    const url = window.prompt('URL del link', prev || '')
-    if (url === null) return
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run()
-    } else {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-    }
+    setLinkValue(prev || '')
+    setLinkOpen(true)
   }
 
   const addImage = () => {
-    const url = window.prompt('URL immagine')
-    if (url) editor.chain().focus().setImage({ src: url }).run()
+    setImageValue('')
+    setImageOpen(true)
   }
 
   const addVideoFromUrl = () => {
@@ -161,6 +160,27 @@ export default function RichEditor({ content = '', onChange }) {
     editor.chain().focus().setVideo({ src: url }).run()
     setVideoUrlOpen(false)
     setVideoUrlValue('')
+  }
+
+  const confirmLink = () => {
+    const url = linkValue.trim()
+    if (!url) {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      setLinkOpen(false)
+      setLinkValue('')
+      return
+    }
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    setLinkOpen(false)
+    setLinkValue('')
+  }
+
+  const confirmImage = () => {
+    const url = imageValue.trim()
+    if (!url) return
+    editor.chain().focus().setImage({ src: url }).run()
+    setImageOpen(false)
+    setImageValue('')
   }
 
   return (
@@ -373,6 +393,89 @@ export default function RichEditor({ content = '', onChange }) {
             className="bg-juve-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-juve-gold hover:text-black disabled:opacity-50"
           >
             Inserisci video
+          </button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog open={imageOpen} onClose={() => setImageOpen(false)}>
+        <DialogHeader onClose={() => setImageOpen(false)}>
+          <DialogTitle>Inserisci immagine da URL</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Incolla il link diretto dell’immagine che vuoi inserire nell’articolo.
+          </p>
+          <input
+            autoFocus
+            type="url"
+            value={imageValue}
+            onChange={(event) => setImageValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                confirmImage()
+              }
+            }}
+            placeholder="https://..."
+            className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+          />
+        </DialogContent>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={() => setImageOpen(false)}
+            className="border border-gray-300 px-4 py-2 text-sm font-medium hover:border-juve-black transition-colors"
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            onClick={confirmImage}
+            disabled={!imageValue.trim()}
+            className="bg-juve-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-juve-gold hover:text-black disabled:opacity-50"
+          >
+            Inserisci immagine
+          </button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)}>
+        <DialogHeader onClose={() => setLinkOpen(false)}>
+          <DialogTitle>Inserisci link</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Incolla l’URL del collegamento. Lascia il campo vuoto se vuoi rimuovere il link selezionato.
+          </p>
+          <input
+            autoFocus
+            type="url"
+            value={linkValue}
+            onChange={(event) => setLinkValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                confirmLink()
+              }
+            }}
+            placeholder="https://..."
+            className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+          />
+        </DialogContent>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={() => setLinkOpen(false)}
+            className="border border-gray-300 px-4 py-2 text-sm font-medium hover:border-juve-black transition-colors"
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            onClick={confirmLink}
+            className="bg-juve-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-juve-gold hover:text-black"
+          >
+            Salva link
           </button>
         </DialogFooter>
       </Dialog>
