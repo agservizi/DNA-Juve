@@ -134,7 +134,7 @@ export default function ArticleEditor() {
   })
 
   const {
-    register, control, handleSubmit, watch, setValue,
+    register, control, handleSubmit, watch, setValue, reset,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema),
@@ -157,6 +157,35 @@ export default function ArticleEditor() {
   const formValues = watch()
 
   useEffect(() => {
+    draftHydratedRef.current = false
+
+    if (isEdit) return
+
+    reset({
+      title: '',
+      slug: '',
+      excerpt: '',
+      category_id: '',
+      status: 'draft',
+      featured: false,
+      cover_image: '',
+      meta_title: '',
+      meta_description: '',
+      canonical_url: '',
+      og_image: '',
+      noindex: false,
+      scheduled_at: '',
+    })
+    setContent('')
+    setTags([])
+    setShowSchedule(false)
+    setPollQuestion('')
+    setPollOptions(['', ''])
+    setPollEnabled(false)
+    setLastDraftSavedAt(null)
+  }, [id, isEdit, reset])
+
+  useEffect(() => {
     if (existing) {
       setValue('title', existing.title)
       setValue('slug', existing.slug)
@@ -175,19 +204,44 @@ export default function ArticleEditor() {
         setShowSchedule(true)
       }
       setContent(existing.content || '')
+    } else if (isEdit) {
+      reset({
+        title: '',
+        slug: '',
+        excerpt: '',
+        category_id: '',
+        status: 'draft',
+        featured: false,
+        cover_image: '',
+        meta_title: '',
+        meta_description: '',
+        canonical_url: '',
+        og_image: '',
+        noindex: false,
+        scheduled_at: '',
+      })
+      setContent('')
     }
-  }, [existing, setValue])
+  }, [existing, isEdit, reset, setValue])
 
   useEffect(() => {
     if (existingTags.length) setTags(existingTags)
-  }, [existingTags])
+    else if (isEdit) setTags([])
+  }, [existingTags, isEdit])
 
   useEffect(() => {
-    if (!existingPoll) return
+    if (!existingPoll) {
+      if (isEdit) {
+        setPollQuestion('')
+        setPollOptions(['', ''])
+        setPollEnabled(false)
+      }
+      return
+    }
     setPollQuestion(existingPoll.question || '')
     setPollOptions(existingPoll.options?.map((option) => option.label) || ['', ''])
     setPollEnabled(Boolean(existingPoll.is_active))
-  }, [existingPoll])
+  }, [existingPoll, isEdit])
 
   useEffect(() => {
     if (draftHydratedRef.current) return
