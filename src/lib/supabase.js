@@ -1293,6 +1293,30 @@ export const getAllComments = async ({ status = 'pending' } = {}) => {
   return query
 }
 
+export const getArticleComments = async (articleId) => {
+  const query = supabase
+    .from('comments')
+    .select('*')
+    .eq('article_id', articleId)
+    .eq('approved', true)
+    .order('created_at', { ascending: true })
+
+  return query
+}
+
+export const createArticleComment = ({ articleId, authorName, authorEmail, content }) =>
+  supabase
+    .from('comments')
+    .insert([{
+      article_id: articleId,
+      author_name: authorName,
+      author_email: authorEmail,
+      content,
+      approved: false,
+    }])
+    .select()
+    .single()
+
 export const updateComment = (id, data) =>
   supabase
     .from('comments')

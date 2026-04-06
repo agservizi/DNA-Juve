@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageCircle, Send, User, Loader2, ThumbsUp } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { formatDate, timeAgo } from '@/lib/utils'
+import { createArticleComment, getArticleComments } from '@/lib/supabase'
+import { timeAgo } from '@/lib/utils'
+import { useReader } from '@/hooks/useReader'
 
 function isMissingCommentsTable(error) {
   if (!error) return false
@@ -12,12 +13,7 @@ function isMissingCommentsTable(error) {
 }
 
 async function getComments(articleId) {
-  const { data, error } = await supabase
-    .from('comments')
-    .select('*')
-    .eq('article_id', articleId)
-    .eq('approved', true)
-    .order('created_at', { ascending: true })
+  const { data, error } = await getArticleComments(articleId)
   if (isMissingCommentsTable(error)) {
     return { comments: [], available: false }
   }
@@ -26,13 +22,12 @@ async function getComments(articleId) {
 }
 
 async function postComment({ articleId, authorName, authorEmail, content }) {
-  const { data, error } = await supabase.from('comments').insert([{
-    article_id: articleId,
-    author_name: authorName,
-    author_email: authorEmail,
+  const { data, error } = await createArticleComment({
+    articleId,
+    authorName,
+    authorEmail,
     content,
-    approved: false, // moderation required
-  }]).select().single()
+  })
   if (isMissingCommentsTable(error)) {
     throw new Error('COMMENTS_UNAVAILABLE')
   }
@@ -64,8 +59,18 @@ function CommentItem({ comment, index }) {
 
 export default function Comments({ articleId }) {
   const qc = useQueryClient()
+  const { reader } = useReader()
   const [form, setForm] = useState({ name: '', email: '', content: '' })
   const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    if (!reader?.email) return
+    setForm((prev) => (
+      prev.email === reader.email
+        ? prev
+        : { ...prev, email: reader.email }
+    ))
+  }, [reader?.email])
 
   const { data: commentsData = { comments: [], available: true }, isLoading } = useQuery({
     queryKey: ['comments', articleId],
@@ -85,7 +90,7 @@ export default function Comments({ articleId }) {
     }),
     onSuccess: () => {
       setSubmitted(true)
-      setForm({ name: '', email: '', content: '' })
+      setForm((prev) => ({ name: '', email: reader?.email || prev.email || '', content: '' }))
       qc.invalidateQueries(['comments', articleId])
     },
   })
@@ -187,8 +192,14 @@ export default function Comments({ articleId }) {
                     value={form.email}
                     onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                     placeholder="tua@email.it"
+                    readOnly={Boolean(reader?.email)}
                     className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
                   />
+                  {reader?.email && (
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      Email compilata automaticamente dal tuo account.
+                    </p>
+                  )}
                 </div>
               </div>
 
