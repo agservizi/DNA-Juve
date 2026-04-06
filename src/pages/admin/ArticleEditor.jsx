@@ -596,12 +596,6 @@ export default function ArticleEditor() {
     saveMutation.mutate({ formData, status })
   }
 
-  if (loadingArticle) return (
-    <div className="flex items-center justify-center py-24">
-      <Loader2 className="h-8 w-8 animate-spin text-juve-gold" />
-    </div>
-  )
-
   const coverImage = watch('cover_image')
   const currentStatus = watch('status')
   const selectedCategoryId = watch('category_id')
@@ -766,6 +760,12 @@ export default function ArticleEditor() {
 
     toast({ title: 'SEO aggiornato', description: 'Meta title e description generati dal contenuto.', variant: 'success' })
   }, [watch, content, setValue, toast])
+
+  if (loadingArticle) return (
+    <div className="flex items-center justify-center py-24">
+      <Loader2 className="h-8 w-8 animate-spin text-juve-gold" />
+    </div>
+  )
 
   return (
     <div>
