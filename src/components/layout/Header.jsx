@@ -5,8 +5,48 @@ import { Search, Menu, X, Zap, UserCircle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getCategories, getPublishedArticles } from '@/lib/supabase'
 import { getTransferNews } from '@/lib/newsApi'
+import { getLiveMatch, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { formatDate } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
+
+const FINAL_BADGE_WINDOW_MS = 3 * 60 * 60 * 1000
+
+function getLiveMatchLabel(match) {
+  if (!match) return ''
+  const home = match.homeTeam?.shortName || match.homeTeam?.name || 'Casa'
+  const away = match.awayTeam?.shortName || match.awayTeam?.name || 'Ospite'
+  const homeScore = match.score?.fullTime?.home
+  const awayScore = match.score?.fullTime?.away
+  const hasScore = homeScore != null && awayScore != null
+  return hasScore ? `${home} ${homeScore}-${awayScore} ${away}` : `${home} vs ${away}`
+}
+
+function getLiveMinute(match) {
+  const minute = match?.minute
+  if (typeof minute === 'number' && Number.isFinite(minute)) return `${minute}'`
+  if (match?.status === 'PAUSED') return 'INT'
+  if (match?.status === 'LIVE' || match?.status === 'IN_PLAY') return 'LIVE'
+  return ''
+}
+
+function getFinishedAt(match) {
+  const updatedAt = new Date(match?.lastUpdated || '').getTime()
+  if (Number.isFinite(updatedAt) && updatedAt > 0) return updatedAt
+
+  const kickoff = new Date(match?.utcDate || '').getTime()
+  if (Number.isFinite(kickoff) && kickoff > 0) {
+    return kickoff + 2 * 60 * 60 * 1000
+  }
+
+  return null
+}
+
+function shouldShowFinalBadge(match) {
+  if (!match || match.status !== 'FINISHED') return false
+  const finishedAt = getFinishedAt(match)
+  if (!finishedAt) return false
+  return Date.now() - finishedAt <= FINAL_BADGE_WINDOW_MS
+}
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -38,6 +78,33 @@ export default function Header() {
     staleTime: 15 * 60 * 1000,
     retry: 1,
   })
+
+  const { data: matchHeaderState } = useQuery({
+    queryKey: ['header-match-state'],
+    queryFn: async () => {
+      const [live, latestFinishedMatches] = await Promise.all([
+        getLiveMatch(),
+        getRecentFinishedMatches(JUVE_ID, 1),
+      ])
+
+      const latestFinished = (latestFinishedMatches || [])
+        .filter((match) => match?.status === 'FINISHED')
+        .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
+
+      return {
+        liveMatch: live || null,
+        finalMatch: shouldShowFinalBadge(latestFinished) ? latestFinished : null,
+      }
+    },
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    retry: shouldRetryFootballQuery,
+  })
+
+  const liveMatch = matchHeaderState?.liveMatch || null
+  const finalMatch = !liveMatch ? matchHeaderState?.finalMatch || null : null
 
   const tickerItems = useMemo(() => {
     const articleTitles = (latestArticles || []).map(a => a.title)
@@ -93,13 +160,46 @@ export default function Header() {
       <header className={`bg-white border-b-2 border-juve-black sticky top-0 z-40 transition-shadow duration-300 ${scrolled ? 'shadow-xl' : ''}`}>
         {/* Top bar: date + logo + search/menu */}
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-100">
-            <span className="text-xs text-gray-500 font-medium hidden md:block">
-              {formatDate(new Date().toISOString())}
-            </span>
+          <div className="flex items-center justify-between py-3 border-b border-gray-100 md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] md:items-center md:gap-4">
+            <div className="hidden min-w-0 md:flex md:flex-col md:items-start md:gap-1">
+              <span className="text-xs text-gray-500 font-medium">
+                {formatDate(new Date().toISOString())}
+              </span>
+              {liveMatch && (
+                <Link
+                  to="/calendario-partite"
+                  className="inline-flex max-w-full items-center gap-2 border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-700 transition-colors hover:border-red-300 hover:bg-red-100"
+                >
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600" />
+                  </span>
+                  <span className="shrink-0">{getLiveMinute(liveMatch)}</span>
+                  <span className="truncate normal-case tracking-normal text-[11px] font-bold text-red-800">
+                    {getLiveMatchLabel(liveMatch)}
+                  </span>
+                  {(liveMatch.homeTeam?.id === JUVE_ID || liveMatch.awayTeam?.id === JUVE_ID) && (
+                    <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.2em] text-red-600">
+                      In corso
+                    </span>
+                  )}
+                </Link>
+              )}
+              {!liveMatch && finalMatch && (
+                <Link
+                  to="/calendario-partite"
+                  className="inline-flex max-w-full items-center gap-2 border border-juve-gold/40 bg-juve-gold/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-juve-black transition-colors hover:bg-juve-gold/20"
+                >
+                  <span className="shrink-0 text-[9px] text-juve-gold">Finale</span>
+                  <span className="truncate normal-case tracking-normal text-[11px] font-bold text-juve-black">
+                    {getLiveMatchLabel(finalMatch)}
+                  </span>
+                </Link>
+              )}
+            </div>
 
             {/* Logo */}
-            <Link to="/" className="flex flex-col items-center group min-w-0 flex-1 md:flex-none">
+            <Link to="/" className="flex flex-col items-center group min-w-0 flex-1 md:flex-none md:justify-self-center">
               <div className="flex items-baseline gap-1">
                 <span className="font-display text-[1.85rem] sm:text-4xl md:text-5xl font-black text-juve-black leading-none tracking-tight">BIANCONERI</span>
                 <span className="font-display text-[1.85rem] sm:text-4xl md:text-5xl font-black text-juve-gold leading-none tracking-tight">HUB</span>
@@ -109,7 +209,7 @@ export default function Header() {
               </span>
             </Link>
 
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0 md:justify-self-end">
               <button
                 onClick={() => setSearchOpen(true)}
                 className="p-2 hover:bg-gray-100 transition-colors"

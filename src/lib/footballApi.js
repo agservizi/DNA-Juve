@@ -28,6 +28,7 @@ const STADIUM_BY_TEAM_ID = {
 }
 
 function getCacheTtl(endpoint) {
+  if (endpoint.includes('status=LIVE')) return 15 * 1000
   if (endpoint.includes('status=SCHEDULED')) return 60 * 1000
   return 5 * 60 * 1000
 }
@@ -123,6 +124,20 @@ export async function getNextMatch() {
   const matches = data.matches || []
   // Return the earliest scheduled match
   return matches.sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))[0] || null
+}
+
+/**
+ * Current live Juventus match, if any.
+ * Returns null when there is no ongoing match.
+ */
+export async function getLiveMatch() {
+  const data = await fetchApi(`/teams/${JUVE_ID}/matches?status=LIVE&limit=5`)
+  const matches = data.matches || []
+  const liveStatuses = new Set(['LIVE', 'IN_PLAY', 'PAUSED'])
+
+  return matches
+    .filter((match) => liveStatuses.has(match?.status))
+    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
 }
 
 /**

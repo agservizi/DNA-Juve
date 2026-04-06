@@ -89,6 +89,7 @@ function AppRoutes() {
           <Route path="termini" element={<Terms />} />
           <Route path="area-bianconera" element={<MyDnaJuve />} />
           <Route path="calendario" element={<MatchCalendar />} />
+          <Route path="calendario-partite" element={<MatchCalendar />} />
           <Route path="calciomercato" element={<Calciomercato />} />
           <Route path="notizie-live" element={<NotizeLive />} />
           <Route path="feed.xml" element={<RssFeed />} />
