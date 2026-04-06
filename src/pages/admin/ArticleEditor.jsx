@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock } from 'lucide-react'
+import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock, ChevronDown } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -44,6 +44,41 @@ const ARTICLE_DRAFT_STORAGE_PREFIX = 'admin-article-draft'
 
 function getArticleDraftStorageKey(articleId) {
   return `${ARTICLE_DRAFT_STORAGE_PREFIX}:${articleId || 'new'}`
+}
+
+function SidebarAccordion({ id, title, icon, badge, openSections, toggleSection, children }) {
+  const isOpen = openSections.has(id)
+  return (
+    <div className="bg-white border border-gray-200">
+      <button
+        type="button"
+        onClick={() => toggleSection(id)}
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors"
+      >
+        <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+          {icon}
+          {title}
+          {badge != null && <span className="ml-1 text-[10px] font-bold text-gray-400">({badge})</span>}
+        </h3>
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5 pt-0 space-y-4">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }
 
 function buildSeoHints({ title, excerpt, content, categoryName, coverImage, metaTitle, metaDescription, canonicalUrl, ogImage, noindex }) {
@@ -118,6 +153,14 @@ export default function ArticleEditor() {
   const [showRevisions, setShowRevisions] = useState(false)
   const [importUrl, setImportUrl] = useState('')
   const [importLoading, setImportLoading] = useState(false)
+  const [openSections, setOpenSections] = useState(() => new Set(['cover', 'settings']))
+  const toggleSection = useCallback((key) => {
+    setOpenSections(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }, [])
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -866,18 +909,15 @@ export default function ArticleEditor() {
         </div>
 
         {/* Sidebar settings */}
-        <div className="xl:col-span-4 space-y-5">
+        <div className="xl:col-span-4 space-y-3">
           {/* Cover image */}
-          <div className="bg-white border border-gray-200 p-5">
-            <h3 className="text-xs font-black uppercase tracking-wider mb-3">Copertina</h3>
+          <SidebarAccordion id="cover" title="Copertina" openSections={openSections} toggleSection={toggleSection}>
             <Controller name="cover_image" control={control}
               render={({ field }) => <ImageUpload value={field.value} onChange={field.onChange} />} />
-          </div>
+          </SidebarAccordion>
 
           {/* Settings */}
-          <div className="bg-white border border-gray-200 p-5 space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-wider">Impostazioni</h3>
-
+          <SidebarAccordion id="settings" title="Impostazioni" openSections={openSections} toggleSection={toggleSection}>
             {/* Slug */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Slug URL</label>
@@ -935,18 +975,16 @@ export default function ArticleEditor() {
                 </motion.div>
               )}
             </div>
-          </div>
+          </SidebarAccordion>
 
-          <div className="bg-white border border-gray-200 p-5 space-y-4">
+          {/* Poll */}
+          <SidebarAccordion id="poll" title="Sondaggio" icon={<Star className="h-3.5 w-3.5" />} openSections={openSections} toggleSection={toggleSection}>
             <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xs font-black uppercase tracking-wider">Sondaggio articolo</h3>
-                <p className="mt-1 text-xs text-gray-500">Coinvolgi i lettori con una domanda editoriale legata al pezzo.</p>
-              </div>
+              <p className="text-xs text-gray-500">Coinvolgi i lettori con una domanda editoriale.</p>
               <button
                 type="button"
                 onClick={() => setPollEnabled(!pollEnabled)}
-                className={`relative w-10 h-5 transition-colors ${pollEnabled ? 'bg-juve-gold' : 'bg-gray-300'}`}
+                className={`relative w-10 h-5 transition-colors flex-shrink-0 ${pollEnabled ? 'bg-juve-gold' : 'bg-gray-300'}`}
               >
                 <span className={`absolute top-0.5 w-4 h-4 bg-white transition-transform ${pollEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
@@ -997,20 +1035,10 @@ export default function ArticleEditor() {
             <p className="text-[11px] text-gray-400">
               Il sondaggio viene pubblicato se inserisci una domanda e almeno 2 opzioni valide. Se lasci vuoto, verrà rimosso.
             </p>
-          </div>
+          </SidebarAccordion>
 
-          <div className="bg-white border border-gray-200 p-5 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-xs font-black uppercase tracking-wider">SEO</h3>
-                <p className="mt-1 text-xs text-gray-500">Titolo, descrizione e segnali social del singolo articolo.</p>
-              </div>
-              <div className="text-right">
-                <p className="font-display text-2xl font-black text-juve-black">{seoHints.score}/100</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{seoHints.label}</p>
-              </div>
-            </div>
-
+          {/* SEO */}
+          <SidebarAccordion id="seo" title="SEO" badge={`${seoHints.score}/100`} icon={<Sparkles className="h-3.5 w-3.5" />} openSections={openSections} toggleSection={toggleSection}>
             {!seoColumnsSupported && (
               <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-xs text-amber-800">
@@ -1112,20 +1140,16 @@ export default function ArticleEditor() {
               <Sparkles className="h-3.5 w-3.5" />
               Genera meta SEO dal contenuto
             </button>
-          </div>
+          </SidebarAccordion>
 
           {/* Tags */}
-          <div className="bg-white border border-gray-200 p-5">
-            <h3 className="text-xs font-black uppercase tracking-wider mb-3">Tag</h3>
+          <SidebarAccordion id="tags" title="Tag" badge={tags.length || null} openSections={openSections} toggleSection={toggleSection}>
             <TagInput tags={tags} onChange={setTags} />
-            <p className="text-xs text-gray-400 mt-2">Premi Invio o virgola per aggiungere un tag</p>
-          </div>
+            <p className="text-xs text-gray-400">Premi Invio o virgola per aggiungere un tag</p>
+          </SidebarAccordion>
 
           {/* Gallery */}
-          <div className="bg-white border border-gray-200 p-5 space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-              <ImageIcon className="h-3.5 w-3.5" /> Galleria immagini
-            </h3>
+          <SidebarAccordion id="gallery" title="Galleria" icon={<ImageIcon className="h-3.5 w-3.5" />} badge={gallery.length || null} openSections={openSections} toggleSection={toggleSection}>
             <div className="flex gap-2">
               <input
                 type="url"
@@ -1162,14 +1186,10 @@ export default function ArticleEditor() {
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-gray-400">{gallery.length} immagini in galleria</p>
-          </div>
+          </SidebarAccordion>
 
           {/* Related articles */}
-          <div className="bg-white border border-gray-200 p-5 space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5" /> Articoli correlati
-            </h3>
+          <SidebarAccordion id="related" title="Correlati" icon={<Link2 className="h-3.5 w-3.5" />} badge={relatedArticleIds.length || null} openSections={openSections} toggleSection={toggleSection}>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input
@@ -1206,14 +1226,10 @@ export default function ArticleEditor() {
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-gray-400">{relatedArticleIds.length} articoli selezionati</p>
-          </div>
+          </SidebarAccordion>
 
           {/* Co-authors */}
-          <div className="bg-white border border-gray-200 p-5 space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5" /> Co-autori
-            </h3>
+          <SidebarAccordion id="coauthors" title="Co-autori" icon={<Users className="h-3.5 w-3.5" />} badge={coAuthorIds.length || null} openSections={openSections} toggleSection={toggleSection}>
             <select
               onChange={(e) => {
                 const val = e.target.value
@@ -1243,56 +1259,35 @@ export default function ArticleEditor() {
                 })}
               </div>
             )}
-          </div>
+          </SidebarAccordion>
 
           {/* Revision history */}
           {isEdit && (
-            <div className="bg-white border border-gray-200 p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                  <History className="h-3.5 w-3.5" /> Cronologia revisioni
-                </h3>
-                <button type="button" onClick={() => setShowRevisions(!showRevisions)}
-                  className="text-xs font-bold text-juve-gold hover:underline">
-                  {showRevisions ? 'Chiudi' : `Mostra (${revisions.length})`}
-                </button>
-              </div>
-              <AnimatePresence>
-                {showRevisions && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-1.5 overflow-hidden"
-                  >
-                    {revisions.length === 0 && (
-                      <p className="text-xs text-gray-400">Nessuna revisione salvata.</p>
-                    )}
-                    {revisions.map((rev) => (
-                      <div key={rev.id} className="flex items-center justify-between gap-2 bg-gray-50 px-2 py-1.5 text-xs">
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-700 truncate">{rev.title || 'Senza titolo'}</p>
-                          <p className="text-[10px] text-gray-400">
-                            {new Date(rev.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                            {rev.profiles?.username ? ` — ${rev.profiles.username}` : ''}
-                          </p>
-                        </div>
-                        <button type="button" onClick={() => restoreRevision(rev.id)}
-                          className="text-xs font-bold text-juve-gold hover:underline flex-shrink-0">
-                          Ripristina
-                        </button>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <SidebarAccordion id="revisions" title="Revisioni" icon={<History className="h-3.5 w-3.5" />} badge={revisions.length || null} openSections={openSections} toggleSection={toggleSection}>
+              {revisions.length === 0 && (
+                <p className="text-xs text-gray-400">Nessuna revisione salvata.</p>
+              )}
+              {revisions.map((rev) => (
+                <div key={rev.id} className="flex items-center justify-between gap-2 bg-gray-50 px-2 py-1.5 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-700 truncate">{rev.title || 'Senza titolo'}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {new Date(rev.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {rev.profiles?.username ? ` — ${rev.profiles.username}` : ''}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => restoreRevision(rev.id)}
+                    className="text-xs font-bold text-juve-gold hover:underline flex-shrink-0">
+                    Ripristina
+                  </button>
+                </div>
+              ))}
+            </SidebarAccordion>
           )}
 
           {/* Card preview */}
           {coverImage && (
-            <div className="bg-white border border-gray-200 p-5">
-              <h3 className="text-xs font-black uppercase tracking-wider mb-3">Anteprima card</h3>
+            <SidebarAccordion id="preview" title="Anteprima card" openSections={openSections} toggleSection={toggleSection}>
               <div className="border border-gray-100">
                 <div className="aspect-[16/9] overflow-hidden">
                   <img src={coverImage} alt="" className="w-full h-full object-cover" />
@@ -1308,7 +1303,7 @@ export default function ArticleEditor() {
                   </p>
                 </div>
               </div>
-            </div>
+            </SidebarAccordion>
           )}
         </div>
       </form>
