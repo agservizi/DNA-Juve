@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { uploadImage } from '@/lib/supabase'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 
 const VideoNode = Node.create({
   name: 'video',
@@ -80,6 +81,8 @@ function Separator() {
 export default function RichEditor({ content = '', onChange }) {
   const videoInputRef = useRef(null)
   const [uploadingVideo, setUploadingVideo] = useState(false)
+  const [videoUrlOpen, setVideoUrlOpen] = useState(false)
+  const [videoUrlValue, setVideoUrlValue] = useState('')
 
   const editor = useEditor({
     extensions: [
@@ -124,9 +127,8 @@ export default function RichEditor({ content = '', onChange }) {
   }
 
   const addVideoFromUrl = () => {
-    const url = window.prompt('URL video')
-    if (!url) return
-    editor.chain().focus().setVideo({ src: url.trim() }).run()
+    setVideoUrlValue('')
+    setVideoUrlOpen(true)
   }
 
   const addVideo = async (file) => {
@@ -153,10 +155,19 @@ export default function RichEditor({ content = '', onChange }) {
     }
   }
 
+  const confirmVideoUrl = () => {
+    const url = videoUrlValue.trim()
+    if (!url) return
+    editor.chain().focus().setVideo({ src: url }).run()
+    setVideoUrlOpen(false)
+    setVideoUrlValue('')
+  }
+
   return (
-    <div className="border border-gray-300 bg-white">
-      {/* Toolbar */}
-      <div className="tiptap-toolbar sticky top-0 z-10">
+    <>
+      <div className="border border-gray-300 bg-white">
+        {/* Toolbar */}
+        <div className="tiptap-toolbar sticky top-0 z-10">
         {/* History */}
         <ToolbarBtn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Annulla">
           <Undo className="h-4 w-4" />
@@ -307,21 +318,64 @@ export default function RichEditor({ content = '', onChange }) {
         <ToolbarBtn onClick={() => videoInputRef.current?.click()} disabled={uploadingVideo} title="Carica video">
           {uploadingVideo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
         </ToolbarBtn>
+        </div>
+
+        {/* Editor area */}
+        <EditorContent
+          editor={editor}
+          className="p-6 min-h-[450px] prose prose-lg max-w-none focus:outline-none"
+        />
+
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/ogg,video/quicktime"
+          className="hidden"
+          onChange={(e) => addVideo(e.target.files?.[0])}
+        />
       </div>
 
-      {/* Editor area */}
-      <EditorContent
-        editor={editor}
-        className="p-6 min-h-[450px] prose prose-lg max-w-none focus:outline-none"
-      />
-
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/mp4,video/webm,video/ogg,video/quicktime"
-        className="hidden"
-        onChange={(e) => addVideo(e.target.files?.[0])}
-      />
-    </div>
+      <Dialog open={videoUrlOpen} onClose={() => setVideoUrlOpen(false)}>
+        <DialogHeader onClose={() => setVideoUrlOpen(false)}>
+          <DialogTitle>Inserisci video da URL</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Incolla un link diretto a un file video pubblico, ad esempio `mp4` o `webm`.
+          </p>
+          <input
+            autoFocus
+            type="url"
+            value={videoUrlValue}
+            onChange={(event) => setVideoUrlValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                confirmVideoUrl()
+              }
+            }}
+            placeholder="https://..."
+            className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black"
+          />
+        </DialogContent>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={() => setVideoUrlOpen(false)}
+            className="border border-gray-300 px-4 py-2 text-sm font-medium hover:border-juve-black transition-colors"
+          >
+            Annulla
+          </button>
+          <button
+            type="button"
+            onClick={confirmVideoUrl}
+            disabled={!videoUrlValue.trim()}
+            className="bg-juve-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-juve-gold hover:text-black disabled:opacity-50"
+          >
+            Inserisci video
+          </button>
+        </DialogFooter>
+      </Dialog>
+    </>
   )
 }
