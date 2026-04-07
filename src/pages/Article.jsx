@@ -24,6 +24,20 @@ import { useReader } from '@/hooks/useReader'
 import { useEffect, useState, useRef } from 'react'
 import ArticleVideoPlayer from '@/components/blog/ArticleVideoPlayer'
 
+const ARTICLE_VIEW_DELAY_MS = 12000
+const ARTICLE_VIEW_SCROLL_THRESHOLD = 0.35
+
+function getArticleScrollProgress(element) {
+  if (!element || typeof window === 'undefined') return 0
+
+  const rect = element.getBoundingClientRect()
+  const totalHeight = Math.max(element.offsetHeight, 1)
+  const viewportHeight = window.innerHeight || 0
+  const viewedHeight = Math.min(totalHeight, Math.max(0, viewportHeight - rect.top))
+
+  return viewedHeight / totalHeight
+}
+
 export default function Article() {
   const { slug } = useParams()
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
@@ -62,10 +76,20 @@ export default function Article() {
 
   useEffect(() => {
     if (!article?.id) return
+    if (typeof window === 'undefined') return
 
     let cancelled = false
+    let triggered = false
+    const storageKey = `article-view:${article.id}`
 
-    ;(async () => {
+    if (window.sessionStorage.getItem(storageKey) === 'sent') return
+
+    const commitView = async () => {
+      if (cancelled || triggered) return
+
+      triggered = true
+      window.sessionStorage.setItem(storageKey, 'sent')
+
       try {
         const { data: counted } = await incrementViews(article.id)
         if (!cancelled && counted) {
@@ -73,11 +97,29 @@ export default function Article() {
         }
       } catch {
         if (cancelled) return
+        triggered = false
+        window.sessionStorage.removeItem(storageKey)
       }
-    })()
+    }
+
+    const handleScroll = () => {
+      if (getArticleScrollProgress(contentRef.current) >= ARTICLE_VIEW_SCROLL_THRESHOLD) {
+        window.removeEventListener('scroll', handleScroll)
+        commitView()
+      }
+    }
+
+    const timerId = window.setTimeout(commitView, ARTICLE_VIEW_DELAY_MS)
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+    handleScroll()
 
     return () => {
       cancelled = true
+      window.clearTimeout(timerId)
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
     }
   }, [article?.id])
 

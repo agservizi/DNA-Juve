@@ -145,8 +145,10 @@ export default function ForumThread() {
         threadId: id,
         content: replyContent,
         authorId: reader?.id,
-        authorName: reader?.username || reader?.email?.split('@')[0] || 'Tifoso',
+        authorName: reader?.name || reader?.email?.split('@')[0] || 'Tifoso',
       })
+
+      if (result?.error) throw result.error
 
       if (reader?.id) {
         await followForumThread(id, reader.id).catch(() => null)
@@ -161,6 +163,13 @@ export default function ForumThread() {
       queryClient.invalidateQueries({ queryKey: ['forum-threads'] })
       queryClient.invalidateQueries({ queryKey: ['forum-threads-overview'] })
       setReplyContent('')
+    },
+    onError: (error) => {
+      toast({
+        title: 'Risposta non inviata',
+        description: error?.message || 'Non sono riuscito a pubblicare la risposta nel thread.',
+        variant: 'destructive',
+      })
     },
   })
 

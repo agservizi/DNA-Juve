@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useInView } from 'react-intersection-observer'
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { createForumThread, followForumThread, getForumCategories, getForumThreads } from '@/lib/supabase'
 import { useReader } from '@/hooks/useReader'
+import { useToast } from '@/hooks/useToast'
 import SEO from '@/components/blog/SEO'
 
 const PAGE_SIZE = 12
@@ -125,25 +126,29 @@ export default function Forum() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('active')
   const [viewMode, setViewMode] = useState('all')
+  const navigate = useNavigate()
   const { reader, openLogin, isAuthenticated, authReady } = useReader()
+  const { toast } = useToast()
   const queryClient = useQueryClient()
   const hasForumAccess = Boolean(isAuthenticated)
   const canParticipate = Boolean(hasForumAccess && reader?.id)
   const { ref: loadMoreRef, inView } = useInView({ rootMargin: '320px 0px' })
 
-  const { data: categories } = useQuery({
+  const { data: categories, error: categoriesError } = useQuery({
     queryKey: ['forum-categories'],
     queryFn: async () => {
-      const { data } = await getForumCategories()
+      const { data, error } = await getForumCategories()
+      if (error) throw error
       return data || []
     },
     enabled: hasForumAccess,
   })
 
-  const { data: overviewData } = useQuery({
+  const { data: overviewData, error: overviewError } = useQuery({
     queryKey: ['forum-threads-overview'],
     queryFn: async () => {
-      const { data, count } = await getForumThreads({ limit: 60, sortBy: 'active' })
+      const { data, count, error } = await getForumThreads({ limit: 60, sortBy: 'active' })
+      if (error) throw error
       return { threads: data || [], count: count || 0 }
     },
     enabled: hasForumAccess,
@@ -152,6 +157,7 @@ export default function Forum() {
   const {
     data: threadsPages,
     isLoading,
+    error: threadsError,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -166,6 +172,8 @@ export default function Forum() {
         page: pageParam,
         limit: PAGE_SIZE,
       })
+
+      if (result.error) throw result.error
 
       return {
         threads: result.data || [],
@@ -198,6 +206,7 @@ export default function Forum() {
   const totalCount = threadsPages?.pages?.[0]?.count || 0
   const loadedCount = visibleThreads.length
   const activeCategoryObj = categoriesList.find((category) => category.id === activeCat)
+  const forumError = threadsError || overviewError || categoriesError || null
 
   useEffect(() => {
     if (!inView || !hasNextPage || isFetchingNextPage) return
@@ -249,8 +258,10 @@ export default function Forum() {
         title: newTitle,
         content: newContent,
         authorId: reader?.id,
-        authorName: reader?.username || reader?.email?.split('@')[0] || 'Tifoso',
+        authorName: reader?.name || reader?.email?.split('@')[0] || 'Tifoso',
       })
+
+      if (result?.error) throw result.error
 
       if (result?.data?.id && reader?.id) {
         await followForumThread(result.data.id, reader.id).catch(() => null)
@@ -258,13 +269,24 @@ export default function Forum() {
 
       return result
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['forum-threads'] })
       queryClient.invalidateQueries({ queryKey: ['forum-threads-overview'] })
       setShowNewThread(false)
       setNewTitle('')
       setNewContent('')
       setNewCat('')
+
+      if (result?.data?.id) {
+        navigate(`/community/forum/${result.data.id}`)
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: 'Pubblicazione non riuscita',
+        description: error?.message || 'Non sono riuscito a creare la discussione. Controlla categoria e permessi, poi riprova.',
+        variant: 'destructive',
+      })
     },
   })
 
@@ -486,12 +508,15 @@ export default function Forum() {
               />
               <button
                 onClick={() => createMutation.mutate()}
-                disabled={!newTitle.trim() || !newContent.trim() || createMutation.isPending}
+                disabled={!newTitle.trim() || !newContent.trim() || !categoriesList.length || createMutation.isPending}
                 className="flex items-center gap-2 bg-juve-black px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-juve-gold hover:text-juve-black disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />
                 {createMutation.isPending ? 'Invio...' : 'Pubblica'}
               </button>
+              {!categoriesList.length && (
+                <p className="mt-3 text-xs text-red-500">Le categorie del forum non sono disponibili, quindi la discussione non puo essere pubblicata.</p>
+              )}
             </motion.div>
           )}
 
@@ -516,7 +541,13 @@ export default function Forum() {
             </div>
           </div>
 
-          {isLoading ? (
+          {forumError ? (
+            <div className="py-16 text-center">
+              <MessageSquare className="mx-auto mb-4 h-10 w-10 text-red-300" />
+              <p className="mb-1 text-sm text-gray-700">Il forum non sta restituendo i dati correttamente.</p>
+              <p className="text-[11px] text-gray-500">{forumError.message || 'Errore di caricamento delle discussioni.'}</p>
+            </div>
+          ) : isLoading ? (
             <div className="py-16 text-center">
               <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-juve-gold" />
               <p className="text-sm text-gray-500">Caricamento discussioni...</p>

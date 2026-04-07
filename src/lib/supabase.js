@@ -2012,21 +2012,16 @@ export const getForumThreadViewerState = async (threadId, userId = null) => {
       .select('thread_id')
       .eq('thread_id', threadId)
       .eq('user_id', userId)
-      .limit(1)
-      .single(),
+      .maybeSingle(),
     supabase
       .from('forum_thread_follows')
       .select('thread_id')
       .eq('thread_id', threadId)
       .eq('user_id', userId)
-      .limit(1)
-      .single(),
+      .maybeSingle(),
   ])
 
-  const likeMissing = likeResult?.error?.code === 'PGRST116'
-  const followMissing = followResult?.error?.code === 'PGRST116'
-
-  if ((likeResult.error && !likeMissing && isMissingColumnOrRelation(likeResult.error, 'forum_thread_likes')) || (followResult.error && !followMissing && isMissingColumnOrRelation(followResult.error, 'forum_thread_follows'))) {
+  if ((likeResult.error && isMissingColumnOrRelation(likeResult.error, 'forum_thread_likes')) || (followResult.error && isMissingColumnOrRelation(followResult.error, 'forum_thread_follows'))) {
     forumEngagementSupported = false
     return { data: { isLiked: false, isFollowing: false }, error: null }
   }
@@ -2036,7 +2031,7 @@ export const getForumThreadViewerState = async (threadId, userId = null) => {
       isLiked: Boolean(likeResult.data),
       isFollowing: Boolean(followResult.data),
     },
-    error: likeResult.error && !likeMissing ? likeResult.error : (followResult.error && !followMissing ? followResult.error : null),
+    error: likeResult.error || followResult.error || null,
   }
 }
 

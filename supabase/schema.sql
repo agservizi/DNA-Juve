@@ -191,8 +191,17 @@ RETURNS BOOLEAN AS $$
 DECLARE
   forwarded_for TEXT;
   client_ip TEXT;
-  inserted_rows INTEGER;
+  touched_rows INTEGER;
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM articles
+    WHERE id = target_article_id
+      AND status = 'published'
+  ) THEN
+    RETURN FALSE;
+  END IF;
+
   forwarded_for := COALESCE(
     current_setting('request.headers', true)::json ->> 'x-forwarded-for',
     current_setting('request.headers', true)::json ->> 'cf-connecting-ip',
@@ -205,15 +214,17 @@ BEGIN
     client_ip := COALESCE(inet_client_addr()::TEXT, 'unknown');
   END IF;
 
-  INSERT INTO article_view_events (article_id, ip_hash)
-  VALUES (target_article_id, ENCODE(DIGEST(client_ip, 'sha256'), 'hex'))
-  ON CONFLICT (article_id, ip_hash) DO NOTHING;
+  INSERT INTO article_view_events (article_id, ip_hash, viewed_at)
+  VALUES (target_article_id, ENCODE(DIGEST(client_ip, 'sha256'), 'hex'), NOW())
+  ON CONFLICT (article_id, ip_hash) DO UPDATE
+  SET viewed_at = EXCLUDED.viewed_at
+  WHERE article_view_events.viewed_at <= NOW() - INTERVAL '6 hours';
 
-  GET DIAGNOSTICS inserted_rows = ROW_COUNT;
+  GET DIAGNOSTICS touched_rows = ROW_COUNT;
 
-  IF inserted_rows > 0 THEN
+  IF touched_rows > 0 THEN
     UPDATE articles
-    SET views = views + 1
+    SET views = COALESCE(views, 0) + 1
     WHERE id = target_article_id;
 
     RETURN TRUE;
@@ -221,7 +232,10 @@ BEGIN
 
   RETURN FALSE;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION increment_article_views(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION increment_article_views(UUID) TO anon, authenticated, service_role;
 
 -- ─── TAGS ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tags (
