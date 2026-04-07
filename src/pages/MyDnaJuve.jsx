@@ -11,10 +11,13 @@ import {
   createReaderNotification,
   createFanArticleSubmission,
   getCategories,
+  getCommunityPolls,
+  getForumThreads,
   getPublishedArticles,
   getReaderNotifications,
   markAllReaderNotificationsRead,
   markReaderNotificationRead,
+  sendReaderEventNotification,
   sendFanSubmissionAdminNotification,
 } from '@/lib/supabase'
 import { getSquadPlayers, getTeamMatches, getVenueLabel, shouldRetryFootballQuery } from '@/lib/footballApi'
@@ -114,6 +117,16 @@ function getCountdownParts(utcDate, referenceNow = Date.now()) {
   return { days, hours, minutes }
 }
 
+function buildDailyReminderSummary({ hasReadToday, hasPredictionToday, hasBookmarkToday }) {
+  const missing = []
+
+  if (!hasReadToday) missing.push('leggere un articolo')
+  if (!hasPredictionToday) missing.push('lasciare un pronostico')
+  if (!hasBookmarkToday) missing.push('salvare un segnalibro')
+
+  return missing
+}
+
 function MatchTeamBadge({ team, align = 'left' }) {
   return (
     <div className={cn(
@@ -181,10 +194,11 @@ function MatchQuickCard({ match, countdown }) {
 
 export default function MyDnaJuve() {
   const {
-    reader, bookmarks, history, preferences, stats,
+    reader, bookmarks, history, preferences, stats, notifications,
     logout, loginDemo, deleteAccount, clearBookmarks, clearHistory,
-    setFavoriteCategories, openLogin, updateProfile,
+    setFavoriteCategories, openLogin, updateProfile, enableNotifications,
   } = useReader()
+  const queryClient = useQueryClient()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -217,6 +231,56 @@ export default function MyDnaJuve() {
     () => (readerNotifications || []).filter((item) => !item.is_read).length,
     [readerNotifications],
   )
+
+  useEffect(() => {
+    if (!reader?.id) return
+    if (!readerNotifications) return
+
+    const today = new Date().toISOString().slice(0, 10)
+    const hasReadToday = history.some((entry) => String(entry?.readAt || '').slice(0, 10) === today)
+    const hasPredictionToday = getPredictions().some((entry) => String(entry?.createdAt || '').slice(0, 10) === today)
+    const hasBookmarkToday = bookmarks.some((entry) => String(entry?.savedAt || '').slice(0, 10) === today)
+    const missingActions = buildDailyReminderSummary({ hasReadToday, hasPredictionToday, hasBookmarkToday })
+
+    if (missingActions.length === 0) return
+
+    const alreadySentToday = readerNotifications.some((notification) => (
+      notification.type === 'daily-focus' && notification.metadata?.date === today
+    ))
+
+    if (alreadySentToday) return
+
+    const body = missingActions.length === 1
+      ? `Oggi ti manca ancora ${missingActions[0]}. Rientra in Area Bianconera e chiudi la missione.`
+      : `Oggi ti mancano ancora ${missingActions.slice(0, -1).join(', ')} e ${missingActions.at(-1)}. Rientra in Area Bianconera e chiudi le missioni.`
+
+    sendReaderEventNotification({
+      userId: reader.id,
+      type: 'daily-focus',
+      title: 'Le tue missioni di oggi ti aspettano',
+      body,
+      url: '/area-bianconera',
+      metadata: {
+        date: today,
+        missingActions,
+      },
+    }).then(async ({ error }) => {
+      if (error) {
+        await createReaderNotification(reader.id, {
+          type: 'daily-focus',
+          title: 'Le tue missioni di oggi ti aspettano',
+          body,
+          url: '/area-bianconera',
+          metadata: {
+            date: today,
+            missingActions,
+          },
+        }).catch(() => {})
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['reader-notifications', reader.id] })
+    }).catch(() => {})
+  }, [bookmarks, history, queryClient, reader?.id, readerNotifications])
 
   // Check badges on change
   useEffect(() => {
@@ -390,7 +454,27 @@ export default function MyDnaJuve() {
             transition={{ duration: 0.2 }}
             className="mx-auto w-full max-w-7xl px-1 sm:px-2 lg:px-4"
           >
-            {activeTab === 'dashboard' && <DashboardTab stats={stats} level={level} gamification={gamification} history={history} bookmarks={bookmarks} />}
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                stats={stats}
+                level={level}
+                gamification={gamification}
+                history={history}
+                bookmarks={bookmarks}
+                onSelectTab={setActiveTab}
+                notificationsEnabled={notifications?.enabled}
+                onEnableNotifications={async () => {
+                  try {
+                    const result = await enableNotifications({ prompt: true })
+                    if (result?.enabled) {
+                      toast({ title: 'Notifiche attivate', description: 'Ti avviseremo quando c’e qualcosa che merita il tuo ritorno.', variant: 'success' })
+                    }
+                  } catch (error) {
+                    toast({ title: 'Attivazione non riuscita', description: error?.message || 'Non sono riuscito ad attivare le notifiche push.', variant: 'destructive' })
+                  }
+                }}
+              />
+            )}
             {activeTab === 'bookmarks' && <BookmarksTab bookmarks={bookmarks} clearBookmarks={clearBookmarks} />}
             {activeTab === 'history' && <HistoryTab history={history} clearHistory={clearHistory} />}
             {activeTab === 'badges' && <BadgesTab gamification={gamification} />}
@@ -445,13 +529,29 @@ export default function MyDnaJuve() {
 // TAB: DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DashboardTab({ stats, level, gamification, history, bookmarks }) {
+function DashboardTab({ stats, level, gamification, history, bookmarks, onSelectTab, notificationsEnabled, onEnableNotifications }) {
   const { data: recommended } = useQuery({
     queryKey: ['recommended-articles'],
     queryFn: async () => {
       const { data } = await getPublishedArticles({ page: 1, limit: 6 })
       return data || []
     },
+  })
+  const { data: activePolls = [] } = useQuery({
+    queryKey: ['dashboard-community-polls'],
+    queryFn: async () => {
+      const { data } = await getCommunityPolls({ active: true, limit: 1 })
+      return data || []
+    },
+    staleTime: 60 * 1000,
+  })
+  const { data: hotForumThreads = [] } = useQuery({
+    queryKey: ['dashboard-forum-hot-thread'],
+    queryFn: async () => {
+      const { data } = await getForumThreads({ limit: 1, sortBy: 'popular' })
+      return data || []
+    },
+    staleTime: 60 * 1000,
   })
 
   const recentBadges = gamification.unlockedBadges
@@ -462,6 +562,21 @@ function DashboardTab({ stats, level, gamification, history, bookmarks }) {
   const weeklyProgress = getWeeklyProgress()
   const challenges = getWeeklyChallenges()
   const collectedCount = getCollectedCards().length
+  const today = new Date().toISOString().slice(0, 10)
+  const hasReadToday = history.some((entry) => String(entry?.readAt || '').slice(0, 10) === today)
+  const hasPredictionToday = getPredictions().some((entry) => String(entry?.createdAt || '').slice(0, 10) === today)
+  const hasBookmarkToday = bookmarks.some((entry) => String(entry?.savedAt || '').slice(0, 10) === today)
+  const nextChallenge = challenges.find((challenge) => (weeklyProgress[challenge.key] || 0) < challenge.target) || null
+  const topPoll = activePolls[0] || null
+  const hotThread = hotForumThreads[0] || null
+  const dailyActions = [
+    { id: 'read', label: 'Leggi un articolo', reward: XP_ACTIONS.readArticle, done: hasReadToday },
+    { id: 'prediction', label: 'Lascia un pronostico', reward: XP_ACTIONS.prediction, done: hasPredictionToday },
+    { id: 'bookmark', label: 'Salva un segnalibro', reward: XP_ACTIONS.bookmark, done: hasBookmarkToday },
+    { id: 'forum', label: 'Partecipa al forum', reward: XP_ACTIONS.reaction, done: false },
+  ]
+  const availableDailyXP = dailyActions.reduce((total, action) => total + (action.done ? 0 : action.reward), 0)
+  const latestRead = history[0] || null
   const latestDiaryEntry = getDiary()[0] || null
   const latestPrediction = getPredictions()[0] || null
   const diaryWidgetMatch = latestDiaryEntry?.homeTeamName && latestDiaryEntry?.awayTeamName
@@ -491,22 +606,242 @@ function DashboardTab({ stats, level, gamification, history, bookmarks }) {
 
   return (
     <div className="space-y-8">
-      {/* Level card */}
-      <div className="bg-juve-black p-6 text-white">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-juve-gold mb-1">Il tuo livello</p>
-            <p className="font-display text-3xl font-black">{level.icon} {level.name}</p>
-          </div>
-          <div className="text-left sm:text-right">
-            <p className="font-display text-3xl font-black text-juve-gold">{gamification.xp}</p>
-            <p className="text-[10px] uppercase tracking-widest text-gray-400">XP totali</p>
+      <div>
+        <SectionHeader icon={Sparkles} title="Da fare oggi" />
+        <div className="mb-4 border border-juve-gold/30 bg-juve-black p-4 text-white">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-juve-gold">Missioni giornaliere</p>
+              <h3 className="mt-1 font-display text-2xl font-black">{availableDailyXP} XP ancora disponibili oggi</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {dailyActions.map((action) => (
+                <div
+                  key={action.id}
+                  className={`min-w-[140px] border px-3 py-2 ${action.done ? 'border-green-500/40 bg-green-500/10 text-white' : 'border-white/10 bg-white/5 text-white'}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-300">{action.done ? 'Completata' : 'Da fare'}</p>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-juve-gold">+{action.reward} XP</span>
+                  </div>
+                  <p className="mt-1 text-sm font-semibold">{action.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="h-2 bg-gray-800">
-          <motion.div initial={{ width: 0 }} animate={{ width: `${level.progress * 100}%` }} transition={{ duration: 1 }} className="h-full bg-juve-gold" />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="border border-juve-gold/30 bg-juve-gold/10 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-juve-gold">Abitudine</p>
+                <h3 className="mt-2 font-display text-2xl font-black text-juve-black">Streak attivo: {gamification.streak || 0} giorni</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {hasReadToday
+                    ? 'Hai gia acceso la tua giornata bianconera. Fai un altro passo e spingi la settimana.'
+                    : 'Ti manca ancora la lettura di oggi. Un articolo letto ora tiene viva l’abitudine.'}
+                </p>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-juve-gold shadow-sm">
+                <Timer className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link to="/">
+                <Button variant={hasReadToday ? 'outline' : 'gold'} size="sm">
+                  <BookOpen className="h-4 w-4" />
+                  {hasReadToday ? 'Leggi ancora' : 'Leggi ora'}
+                </Button>
+              </Link>
+              {nextChallenge && (
+                <Button variant="ghost" size="sm" onClick={() => onSelectTab('challenges')}>
+                  <Target className="h-4 w-4" />
+                  Sfida: {nextChallenge.label}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-gray-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Coinvolgimento</p>
+                <h3 className="mt-2 font-display text-2xl font-black text-juve-black">Cose da sbloccare oggi</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {hasPredictionToday
+                    ? 'Hai gia lasciato il tuo pronostico oggi. Forum e sondaggi possono tenerti dentro piu a lungo.'
+                    : 'Pronostico, forum e sondaggi sono le tre azioni che ti fanno tornare con piu continuita.'}
+                </p>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-juve-black text-white shadow-sm">
+                <Zap className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => onSelectTab('predictions')}
+                className={`border px-3 py-3 text-left transition-colors ${hasPredictionToday ? 'border-green-200 bg-green-50' : 'border-gray-200 hover:border-juve-gold hover:bg-juve-gold/5'}`}
+              >
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Pronostico</p>
+                <p className="mt-1 text-sm font-bold text-juve-black">{hasPredictionToday ? 'Fatto oggi' : 'Da fare'}</p>
+              </button>
+              <Link to="/community/forum" className="border border-gray-200 px-3 py-3 transition-colors hover:border-juve-gold hover:bg-juve-gold/5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Forum</p>
+                <p className="mt-1 text-sm font-bold text-juve-black">Partecipa</p>
+              </Link>
+              <Link to="/community/sondaggi" className="border border-gray-200 px-3 py-3 transition-colors hover:border-juve-gold hover:bg-juve-gold/5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Sondaggio</p>
+                <p className="mt-1 text-sm font-bold text-juve-black">Vota live</p>
+              </Link>
+            </div>
+          </div>
+
+          <div className="border border-gray-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Forum caldo</p>
+                <h3 className="mt-2 font-display text-xl font-black text-juve-black">
+                  {hotThread?.title || 'Entra nel forum oggi'}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {hotThread
+                    ? `${hotThread.reply_count || 0} risposte, ${hotThread.views || 0} view. Questo e il thread con piu trazione adesso.`
+                    : 'Quando il forum si muove, qui troverai subito la discussione piu attiva del momento.'}
+                </p>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-juve-black">
+                <Share2 className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to={hotThread ? `/community/forum/${hotThread.id}` : '/community/forum'}>
+                <Button variant="outline" size="sm">
+                  Vai al thread
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="border border-gray-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Sondaggio live</p>
+                <h3 className="mt-2 font-display text-xl font-black text-juve-black">
+                  {topPoll?.question || 'Apri i sondaggi della community'}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {topPoll
+                    ? 'Un voto rapido crea un motivo in piu per tornare e rivedere come si muove la community.'
+                    : 'Se non c e un sondaggio attivo, questa card torna utile appena ne pubblichi uno nuovo.'}
+                </p>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-juve-black">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link to="/community/sondaggi">
+                <Button variant="outline" size="sm">
+                  Apri sondaggi
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className={`border p-5 ${notificationsEnabled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Ritorno automatico</p>
+                <h3 className="mt-2 font-display text-xl font-black text-juve-black">
+                  {notificationsEnabled ? 'Notifiche gia attive' : 'Attiva le notifiche push'}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {notificationsEnabled
+                    ? 'Perfetto: possiamo richiamarti quando hai missioni aperte, risposte nel forum o contenuti che contano davvero.'
+                    : 'Se vuoi riportare davvero gli utenti dentro, qui devi togliere attrito: un clic e il browser puo richiamarti nel momento giusto.'}
+                </p>
+              </div>
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${notificationsEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-juve-black'}`}>
+                <Bell className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4">
+              {notificationsEnabled ? (
+                <Button variant="outline" size="sm" onClick={() => onSelectTab('notifications')}>
+                  Apri notifiche
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button variant="gold" size="sm" onClick={onEnableNotifications}>
+                  <Bell className="h-4 w-4" />
+                  Attiva push
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-gray-200 bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Riprendi</p>
+                <h3 className="mt-2 font-display text-xl font-black text-juve-black">
+                  {latestRead?.title || latestPrediction?.match || latestDiaryEntry?.match || 'Riparti da Area Bianconera'}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {latestRead
+                    ? `Il tuo ultimo contenuto letto e in ${latestRead.categoryName || 'magazine'}. Ti basta un clic per ripartire da li.`
+                    : latestPrediction
+                    ? 'Hai gia lasciato un pronostico: rientra e controlla la tua giocata o aggiorna il prossimo match.'
+                    : latestDiaryEntry
+                    ? 'Hai una voce diario recente: rientra e continua a costruire il tuo percorso da tifoso attivo.'
+                    : 'Apri il magazine, entra nel forum o lascia il tuo primo pronostico per creare la tua abitudine.'}
+                </p>
+              </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-juve-black">
+                <History className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {latestRead?.slug ? (
+                <Link to={`/articolo/${latestRead.slug}`}>
+                  <Button variant="outline" size="sm">
+                    <BookOpen className="h-4 w-4" />
+                    Riprendi lettura
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/">
+                  <Button variant="outline" size="sm">
+                    <BookOpen className="h-4 w-4" />
+                    Apri magazine
+                  </Button>
+                </Link>
+              )}
+
+              {latestPrediction ? (
+                <Button variant="ghost" size="sm" onClick={() => onSelectTab('predictions')}>
+                  <Zap className="h-4 w-4" />
+                  I tuoi pronostici
+                </Button>
+              ) : latestDiaryEntry ? (
+                <Button variant="ghost" size="sm" onClick={() => onSelectTab('diary')}>
+                  <PenLine className="h-4 w-4" />
+                  Apri diario
+                </Button>
+              ) : (
+                <Link to="/community/forum">
+                  <Button variant="ghost" size="sm">
+                    <Share2 className="h-4 w-4" />
+                    Entra nel forum
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
         </div>
-        {level.next && <p className="text-xs text-gray-400 mt-2">{level.next.minXP - gamification.xp} XP per raggiungere <strong>{level.next.name}</strong></p>}
       </div>
 
       {/* Quick stats row */}

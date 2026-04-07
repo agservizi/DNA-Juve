@@ -522,6 +522,36 @@ Deno.serve(async (req) => {
       return jsonResponse(summary)
     }
 
+    if (action === 'send-reader-event') {
+      const targetUserId = body.userId || ''
+      const targetUserEmail = body.userEmail || ''
+      const isSelfTarget = (targetUserId && targetUserId === user.id) || (targetUserEmail && targetUserEmail === user.email)
+
+      if (!isSelfTarget) {
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (profileError) throw profileError
+        if (profile?.role !== 'admin') {
+          return jsonResponse({ error: 'Forbidden' }, 403)
+        }
+      }
+
+      const summary = await sendReaderEventNotification(supabaseAdmin, {
+        userId: targetUserId,
+        userEmail: targetUserEmail,
+        type: body.type || 'system',
+        title: body.title || '',
+        body: body.body || '',
+        url: body.url || '/area-bianconera',
+        metadata: body.metadata || {},
+      })
+      return jsonResponse(summary)
+    }
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
@@ -541,19 +571,6 @@ Deno.serve(async (req) => {
     if (action === 'send-fan-submission') {
       const summary = await sendFanSubmissionNotification(supabaseAdmin, user, body.submissionId || '')
       if ('error' in summary) return jsonResponse({ error: summary.error }, 403)
-      return jsonResponse(summary)
-    }
-
-    if (action === 'send-reader-event') {
-      const summary = await sendReaderEventNotification(supabaseAdmin, {
-        userId: body.userId || '',
-        userEmail: body.userEmail || '',
-        type: body.type || 'system',
-        title: body.title || '',
-        body: body.body || '',
-        url: body.url || '/area-bianconera',
-        metadata: body.metadata || {},
-      })
       return jsonResponse(summary)
     }
 

@@ -538,6 +538,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION sync_forum_author_name()
+RETURNS TRIGGER AS $$
+DECLARE
+  profile_username TEXT;
+BEGIN
+  IF NEW.author_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT username
+  INTO profile_username
+  FROM profiles
+  WHERE id = NEW.author_id;
+
+  IF NULLIF(BTRIM(COALESCE(profile_username, '')), '') IS NOT NULL THEN
+    NEW.author_name := profile_username;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION sync_forum_thread_like_count()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -628,6 +650,16 @@ DROP TRIGGER IF EXISTS forum_replies_sync_thread_meta ON forum_replies;
 CREATE TRIGGER forum_replies_sync_thread_meta
   AFTER INSERT OR DELETE ON forum_replies
   FOR EACH ROW EXECUTE FUNCTION sync_forum_thread_reply_meta();
+
+DROP TRIGGER IF EXISTS forum_threads_sync_author_name ON forum_threads;
+CREATE TRIGGER forum_threads_sync_author_name
+  BEFORE INSERT OR UPDATE OF author_id, author_name ON forum_threads
+  FOR EACH ROW EXECUTE FUNCTION sync_forum_author_name();
+
+DROP TRIGGER IF EXISTS forum_replies_sync_author_name ON forum_replies;
+CREATE TRIGGER forum_replies_sync_author_name
+  BEFORE INSERT OR UPDATE OF author_id, author_name ON forum_replies
+  FOR EACH ROW EXECUTE FUNCTION sync_forum_author_name();
 
 DROP TRIGGER IF EXISTS forum_thread_likes_sync_count ON forum_thread_likes;
 CREATE TRIGGER forum_thread_likes_sync_count
