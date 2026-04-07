@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Menu, X, Zap, UserCircle } from 'lucide-react'
+import { Search, Menu, X, Zap, UserCircle, Moon, Sun } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getCategories, getPublishedArticles } from '@/lib/supabase'
 import { getTransferNews } from '@/lib/newsApi'
 import { getLiveMatch, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { formatDate } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
+import { useTheme } from '@/hooks/useTheme'
 
 const FINAL_BADGE_WINDOW_MS = 3 * 60 * 60 * 1000
 
@@ -55,6 +56,7 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false)
   const navigate = useNavigate()
   const { reader } = useReader()
+  const { theme, toggleTheme } = useTheme()
 
   const { data: cats } = useQuery({
     queryKey: ['categories'],
@@ -217,6 +219,16 @@ export default function Header() {
               >
                 <Search className="h-5 w-5" />
               </button>
+              <button
+                onClick={toggleTheme}
+                className="p-2 hover:bg-gray-100 transition-colors"
+                aria-label={theme === 'dark' ? 'Modalità chiara' : 'Modalità scura'}
+              >
+                {theme === 'dark'
+                  ? <Sun className="h-5 w-5 text-juve-gold" />
+                  : <Moon className="h-5 w-5" />
+                }
+              </button>
               <Link
                 to="/area-bianconera"
                 className="p-2 hover:bg-gray-100 transition-colors relative"
@@ -300,7 +312,7 @@ export default function Header() {
               <Link
                 to="/"
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50"
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Home
               </Link>
@@ -309,7 +321,7 @@ export default function Header() {
                   key={cat.id}
                   to={`/categoria/${cat.slug}`}
                   onClick={() => setMenuOpen(false)}
-                  className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50"
+                  className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   {cat.name}
                 </Link>
@@ -356,7 +368,7 @@ export default function Header() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="fixed top-0 left-0 right-0 z-50 bg-white shadow-2xl p-4 sm:p-6"
+              className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-[#121212] shadow-2xl p-4 sm:p-6"
             >
               <div className="max-w-2xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
@@ -371,7 +383,7 @@ export default function Header() {
                     value={searchQ}
                     onChange={e => setSearchQ(e.target.value)}
                     placeholder="Cerca articoli, notizie, analisi..."
-                    className="flex-1 border-2 border-juve-black px-4 py-3 text-base font-medium focus:outline-none focus:border-juve-gold"
+                    className="flex-1 border-2 border-juve-black dark:border-gray-600 px-4 py-3 text-base font-medium focus:outline-none focus:border-juve-gold bg-transparent"
                   />
                   <button
                     type="submit"

@@ -28,6 +28,28 @@
     --radius: 0.375rem;
   }
 
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 90%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 90%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 90%;
+    --primary: 38 91% 55%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 38 91% 55%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 38 91% 55%;
+  }
+
   * {
     @apply border-border;
   }
@@ -55,6 +77,10 @@
     grid-template-columns: repeat(12, 1fr);
     gap: 1px;
     background-color: #e5e5e5;
+  }
+
+  .dark .magazine-grid {
+    background-color: #2a2a2a;
   }
 
   .breaking-ticker {
@@ -196,3 +222,100 @@
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   DARK MODE — Global overrides
+   Catches all hardcoded Tailwind colors so every component goes dark
+   without needing dark: on each class.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Backgrounds ────────────────────────────────────────────────── */
+.dark .bg-white           { background-color: #121212 !important; }
+.dark .bg-gray-50         { background-color: #1a1a1a !important; }
+.dark .bg-gray-100        { background-color: #1e1e1e !important; }
+.dark .bg-gray-200        { background-color: #2a2a2a !important; }
+.dark .bg-gray-300        { background-color: #333    !important; }
+.dark .bg-amber-50        { background-color: #1a1700 !important; }
+.dark .bg-green-100       { background-color: #0a2e14 !important; }
+.dark .bg-red-50          { background-color: #2e0a0a !important; }
+
+/* ── Text colors ────────────────────────────────────────────────── */
+.dark .text-juve-black    { color: #e5e5e5 !important; }
+.dark .text-juve-gray     { color: #d4d4d4 !important; }
+.dark .text-black         { color: #e5e5e5 !important; }
+.dark .text-gray-900      { color: #e5e5e5 !important; }
+.dark .text-gray-800      { color: #d4d4d4 !important; }
+.dark .text-gray-700      { color: #b0b0b0 !important; }
+.dark .text-gray-600      { color: #a0a0a0 !important; }
+.dark .text-gray-500      { color: #888    !important; }
+.dark .text-gray-400      { color: #777    !important; }
+
+/* ── Borders ────────────────────────────────────────────────────── */
+.dark .border-gray-100    { border-color: #2a2a2a !important; }
+.dark .border-gray-200    { border-color: #333    !important; }
+.dark .border-gray-300    { border-color: #444    !important; }
+.dark .border-juve-black  { border-color: #444    !important; }
+.dark .border-white       { border-color: #333    !important; }
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: #333 !important; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #2a2a2a !important; }
+.dark .border-y.border-gray-200 { border-color: #333 !important; }
+.dark .border-t.border-gray-200 { border-color: #333 !important; }
+.dark .border-b.border-gray-200 { border-color: #333 !important; }
+
+/* ── Hover states ───────────────────────────────────────────────── */
+.dark .hover\:bg-gray-50:hover  { background-color: #1e1e1e !important; }
+.dark .hover\:bg-gray-100:hover { background-color: #252525 !important; }
+.dark .hover\:bg-gray-200:hover { background-color: #333    !important; }
+
+/* ── Focus / Inputs ─────────────────────────────────────────────── */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1a1a1a !important;
+  color: #e5e5e5 !important;
+  border-color: #444 !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #666 !important;
+}
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: #F5A623 !important;
+}
+
+/* ── Shadows ────────────────────────────────────────────────────── */
+.dark .shadow-xl  { box-shadow: 0 20px 25px -5px rgba(0,0,0,.5), 0 8px 10px -6px rgba(0,0,0,.5) !important; }
+.dark .shadow-lg  { box-shadow: 0 10px 15px -3px rgba(0,0,0,.5), 0 4px 6px -4px rgba(0,0,0,.5) !important; }
+.dark .shadow-md  { box-shadow: 0 4px 6px -1px rgba(0,0,0,.4), 0 2px 4px -2px rgba(0,0,0,.4) !important; }
+
+/* ── Specific component patterns ────────────────────────────────── */
+.dark .bg-juve-gold       { background-color: #F5A623 !important; color: #000 !important; }
+.dark .bg-juve-black      { background-color: #1e1e1e !important; }
+.dark .bg-black\/40       { background-color: rgba(0,0,0,.6) !important; }
+.dark .bg-black\/70       { background-color: rgba(0,0,0,.8) !important; }
+
+/* Prose (article content) */
+.dark .prose              { color: #d4d4d4; }
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4           { color: #e5e5e5; }
+.dark .prose p            { color: #c8c8c8; }
+.dark .prose strong       { color: #e5e5e5; }
+.dark .prose a            { color: #F5A623; }
+.dark .prose blockquote   { background-color: #1a1a1a; border-color: #F5A623; color: #b0b0b0; }
+.dark .prose code         { background-color: #1e1e1e; color: #e5e5e5; }
+.dark .prose pre          { background-color: #0d0d0d; }
+.dark .prose li::marker   { color: #888; }
+.dark .prose hr           { border-color: #333; }
+.dark .prose thead th     { color: #e5e5e5; border-color: #444; }
+.dark .prose tbody td     { border-color: #333; }
+
+/* Skeleton loaders */
+.dark .animate-pulse .bg-gray-200 { background-color: #2a2a2a !important; }
+.dark .animate-pulse .bg-gray-100 { background-color: #1e1e1e !important; }
+
+/* color-scheme lets browser handle scrollbar, form controls */
+.dark { color-scheme: dark; }

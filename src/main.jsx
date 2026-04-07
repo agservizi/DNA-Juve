@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HelmetProvider } from 'react-helmet-async'
 import App from './App.jsx'
 import AppErrorBoundary from '@/components/app/AppErrorBoundary'
+import { ThemeProvider } from '@/hooks/useTheme'
 import './index.css'
 
 function shouldRetryQuery(failureCount, error) {
@@ -25,16 +26,18 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HelmetProvider>
       <AppErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
-            <App />
-          </BrowserRouter>
-        </QueryClientProvider>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
+              <App />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </ThemeProvider>
       </AppErrorBoundary>
     </HelmetProvider>
   </React.StrictMode>,
