@@ -13,8 +13,43 @@ function extractYouTubeId(value) {
   if (!value) return ''
 
   const source = String(value)
-  const match = source.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/i)
-  return match?.[1] || source
+
+  try {
+    const parsed = new URL(source)
+    const hostname = parsed.hostname.replace(/^www\./i, '').toLowerCase()
+
+    if (hostname === 'youtu.be') return parsed.pathname.replace(/^\//, '').split('/')[0] || ''
+    if (hostname.endsWith('youtube.com')) {
+      if (parsed.searchParams.get('v')) return parsed.searchParams.get('v') || ''
+      return parsed.pathname.match(/\/embed\/([a-zA-Z0-9_-]{11})(?:\/|$)/i)?.[1]
+        || parsed.pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})(?:\/|$)/i)?.[1]
+        || ''
+    }
+  } catch {
+    const match = source.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/i)
+    return match?.[1] || ''
+  }
+
+  return ''
+}
+
+function extractYouTubePlaylistId(value) {
+  if (!value) return ''
+
+  const source = String(value)
+
+  try {
+    const parsed = new URL(source)
+    const hostname = parsed.hostname.replace(/^www\./i, '').toLowerCase()
+
+    if (hostname === 'youtu.be' || hostname.endsWith('youtube.com')) {
+      return parsed.searchParams.get('list') || ''
+    }
+  } catch {
+    return source.match(/[?&]list=([^&]+)/i)?.[1] || ''
+  }
+
+  return ''
 }
 
 function extractVimeoId(value) {
@@ -30,6 +65,23 @@ export function isNativeVideo(video) {
 }
 
 function getEmbedUrl(video) {
+  const youTubeId = extractYouTubeId(video.video_id || video.video_url)
+  const playlistId = extractYouTubePlaylistId(video.video_url)
+
+  if (video.platform === 'youtube') {
+    if (playlistId && youTubeId) {
+      return `https://www.youtube.com/embed/${youTubeId}?list=${playlistId}&autoplay=1&rel=0&modestbranding=1&playsinline=1`
+    }
+
+    if (playlistId) {
+      return `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1&rel=0&modestbranding=1&playsinline=1`
+    }
+
+    if (youTubeId) {
+      return `https://www.youtube.com/embed/${youTubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+    }
+  }
+
   if (video.platform === 'dailymotion' && video.video_id) return `https://www.dailymotion.com/embed/video/${video.video_id}?autoplay=1`
 
   if (video.platform === 'vimeo') {
@@ -247,7 +299,10 @@ function EmbedPlayer({ video }) {
   const [ready, setReady] = useState(false)
   const hideTimer = useRef(null)
   const youTubeId = extractYouTubeId(video.video_id || video.video_url)
+  const playlistId = extractYouTubePlaylistId(video.video_url)
   const isYouTube = video.platform === 'youtube' && !!youTubeId
+  const isYouTubePlaylist = video.platform === 'youtube' && !!playlistId
+  const useYouTubeApiPlayer = isYouTube && !isYouTubePlaylist
   const thumbnail = video.thumbnail || (isYouTube ? `https://img.youtube.com/vi/${youTubeId}/maxresdefault.jpg` : null)
 
   const fmt = (seconds) => {
@@ -264,7 +319,7 @@ function EmbedPlayer({ video }) {
   }, [playing])
 
   useEffect(() => {
-    if (!started || !isYouTube) return undefined
+    if (!started || !useYouTubeApiPlayer) return undefined
 
     let cancelled = false
 
@@ -294,10 +349,10 @@ function EmbedPlayer({ video }) {
     return () => {
       cancelled = true
     }
-  }, [started, isYouTube, youTubeId])
+  }, [started, useYouTubeApiPlayer, youTubeId])
 
   useEffect(() => {
-    if (!ready || !isYouTube) return undefined
+    if (!ready || !useYouTubeApiPlayer) return undefined
 
     pollRef.current = setInterval(() => {
       const player = ytPlayerRef.current
@@ -308,7 +363,7 @@ function EmbedPlayer({ video }) {
     }, 250)
 
     return () => clearInterval(pollRef.current)
-  }, [ready, isYouTube, duration])
+  }, [ready, useYouTubeApiPlayer, duration])
 
   useEffect(() => {
     scheduleHide()
@@ -410,7 +465,7 @@ function EmbedPlayer({ video }) {
     )
   }
 
-  if (isYouTube) {
+  if (useYouTubeApiPlayer) {
     const progress = duration ? (currentTime / duration) * 100 : 0
 
     return (

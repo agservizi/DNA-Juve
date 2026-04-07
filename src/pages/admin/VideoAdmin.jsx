@@ -18,16 +18,46 @@ const PLATFORM_OPTIONS = [
   { value: 'custom', label: 'Upload / URL diretto' },
 ]
 
-function extractVideoId(url) {
-  if (!url) return { platform: 'custom', videoId: null }
-  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  if (yt) return { platform: 'youtube', videoId: yt[1] }
-  const dm = url.match(/dailymotion\.com\/(?:video|embed\/video)\/([a-zA-Z0-9]+)/)
-  if (dm) return { platform: 'dailymotion', videoId: dm[1] }
-  const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
-  if (vm) return { platform: 'vimeo', videoId: vm[1] }
-  // Sky Sport / generic — treat as custom embed
-  return { platform: 'custom', videoId: null }
+function extractVideoSource(url) {
+  if (!url) return { platform: 'custom', videoId: null, isPlaylist: false }
+
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.replace(/^www\./i, '').toLowerCase()
+
+    if (hostname === 'youtu.be' || hostname.endsWith('youtube.com')) {
+      const videoId = parsed.searchParams.get('v')
+        || parsed.pathname.match(/\/(?:embed\/|shorts\/)?([a-zA-Z0-9_-]{11})(?:\/|$)/)?.[1]
+        || ''
+      const playlistId = parsed.searchParams.get('list') || ''
+      return {
+        platform: 'youtube',
+        videoId,
+        isPlaylist: !!playlistId,
+      }
+    }
+
+    if (hostname.endsWith('dailymotion.com') || hostname === 'dai.ly') {
+      const videoId = parsed.pathname.match(/\/(?:video|embed\/video)\/([a-zA-Z0-9]+)/)?.[1]
+        || parsed.pathname.match(/^\/([a-zA-Z0-9]+)$/)?.[1]
+        || ''
+      return { platform: 'dailymotion', videoId, isPlaylist: false }
+    }
+
+    if (hostname.endsWith('vimeo.com')) {
+      const videoId = parsed.pathname.match(/\/(?:video\/)?(\d+)(?:\/|$)/)?.[1] || ''
+      return { platform: 'vimeo', videoId, isPlaylist: false }
+    }
+  } catch {
+    const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+    if (yt) return { platform: 'youtube', videoId: yt[1], isPlaylist: /[?&]list=/.test(url) }
+    const dm = url.match(/dailymotion\.com\/(?:video|embed\/video)\/([a-zA-Z0-9]+)/)
+    if (dm) return { platform: 'dailymotion', videoId: dm[1], isPlaylist: false }
+    const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
+    if (vm) return { platform: 'vimeo', videoId: vm[1], isPlaylist: false }
+  }
+
+  return { platform: 'custom', videoId: null, isPlaylist: false }
 }
 
 function slugify(text) {
@@ -120,7 +150,7 @@ export default function VideoAdmin() {
   }
 
   const handleUrlChange = (url) => {
-    const { platform, videoId } = extractVideoId(url)
+    const { platform, videoId } = extractVideoSource(url)
     const thumbnail = platform === 'youtube' && videoId
       ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
       : formData.thumbnail
@@ -195,7 +225,7 @@ export default function VideoAdmin() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-colors ${
                       uploadMode === 'url' ? 'bg-juve-black text-white border-juve-black' : 'border-gray-300 text-gray-600 hover:border-juve-gold'
                     }`}>
-                    <Link2 className="h-3.5 w-3.5" /> URL (YouTube, Sky, Vimeo)
+                    <Link2 className="h-3.5 w-3.5" /> URL (YouTube, playlist, Vimeo, embed)
                   </button>
                   <button type="button" onClick={() => setUploadMode('upload')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border transition-colors ${
@@ -208,7 +238,7 @@ export default function VideoAdmin() {
                 {uploadMode === 'url' ? (
                   <div>
                     <input value={formData.video_url} onChange={e => handleUrlChange(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=... oppure URL Sky Sport video"
+                      placeholder="https://www.youtube.com/watch?v=...&list=... oppure URL Vimeo / embed"
                       className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-gold focus:outline-none" />
                     {formData.platform && formData.platform !== 'custom' && (
                       <p className="text-[10px] text-green-600 font-bold mt-1 uppercase">
