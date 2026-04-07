@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
-  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield,
+  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield, Sun, Moon,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/hooks/useTheme'
 import { useToast } from '@/hooks/useToast'
 import { Toaster } from '@/components/ui/Toast'
 import { getFanArticleSubmissionCount } from '@/lib/supabase'
@@ -46,6 +47,7 @@ export default function AdminLayout() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, profile, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const { toasts, toast, dismiss } = useToast()
   const location = useLocation()
   const navigate = useNavigate()
@@ -98,7 +100,7 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-neutral-950 dark:text-gray-100 flex">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-juve-black text-white transition-[width,transform] duration-200 ease-in-out lg:sticky ${
@@ -195,13 +197,24 @@ export default function AdminLayout() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ease-in-out">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-gray-100 transition-colors">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-4 transition-colors dark:border-white/10 dark:bg-neutral-900 sm:px-6">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <div className="h-5 w-px bg-gray-200" />
+          <div className="h-5 w-px bg-gray-200 dark:bg-white/10" />
+          <button
+            onClick={toggleTheme}
+            className="inline-flex items-center rounded-full border border-gray-200 p-2 text-gray-600 transition-colors hover:border-juve-gold hover:text-juve-gold dark:border-white/10 dark:text-gray-300 dark:hover:border-juve-gold dark:hover:text-juve-gold"
+            aria-label={theme === 'dark' ? 'Passa alla modalità chiara' : 'Passa alla modalità scura'}
+            title={theme === 'dark' ? 'Modalità chiara' : 'Modalità scura'}
+          >
+            {theme === 'dark'
+              ? <Sun className="h-4 w-4 text-juve-gold" />
+              : <Moon className="h-4 w-4" />
+            }
+          </button>
           <a href="/" target="_blank" rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1.5 text-right text-xs text-gray-500 transition-colors hover:text-juve-gold">
+            className="ml-auto flex items-center gap-1.5 text-right text-xs text-gray-500 transition-colors hover:text-juve-gold dark:text-gray-400">
             Visualizza sito <ChevronRight className="h-3.5 w-3.5" />
           </a>
         </header>
