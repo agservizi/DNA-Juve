@@ -1,26 +1,48 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Dialog({ open, onClose, children, className }) {
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [open])
+  const canUseDOM = typeof window !== 'undefined' && typeof document !== 'undefined'
 
-  return (
+  useEffect(() => {
+    if (!canUseDOM) return undefined
+
+    const { body, documentElement } = document
+    const previousBodyOverflow = body.style.overflow
+    const previousBodyPaddingRight = body.style.paddingRight
+    const previousHtmlOverflow = documentElement.style.overflow
+
+    if (open) {
+      const scrollbarWidth = window.innerWidth - documentElement.clientWidth
+
+      body.style.overflow = 'hidden'
+      documentElement.style.overflow = 'hidden'
+
+      if (scrollbarWidth > 0) {
+        body.style.paddingRight = `${scrollbarWidth}px`
+      }
+    }
+
+    return () => {
+      body.style.overflow = previousBodyOverflow
+      body.style.paddingRight = previousBodyPaddingRight
+      documentElement.style.overflow = previousHtmlOverflow
+    }
+  }, [canUseDOM, open])
+
+  if (!canUseDOM) return null
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
           onClick={onClose}
         >
           <motion.div
@@ -30,7 +52,7 @@ export function Dialog({ open, onClose, children, className }) {
             onClick={e => e.stopPropagation()}
             className={cn(
               'bg-white shadow-2xl w-full max-h-[90vh] overflow-y-auto',
-              'max-w-lg mx-4',
+              'max-w-lg',
               className
             )}
           >
@@ -38,7 +60,8 @@ export function Dialog({ open, onClose, children, className }) {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }
 

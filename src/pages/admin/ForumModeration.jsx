@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Lock, MessageSquare, Pin, Search, Trash2 } from 'lucide-react'
 import { deleteForumThread, getForumThreads, updateForumThreadModeration } from '@/lib/supabase'
+import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { useToast } from '@/hooks/useToast'
 
 const PAGE_SIZE = 20
@@ -21,6 +23,7 @@ export default function ForumModeration() {
   const [page, setPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [threadToDelete, setThreadToDelete] = useState(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -72,6 +75,7 @@ export default function ForumModeration() {
     mutationFn: (threadId) => deleteForumThread(threadId),
     onSuccess: () => {
       refreshForum()
+      setThreadToDelete(null)
       toast({ title: 'Thread eliminato', description: 'La discussione è stata rimossa dal forum.', variant: 'success' })
     },
     onError: () => {
@@ -207,10 +211,7 @@ export default function ForumModeration() {
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => {
-                        if (!window.confirm(`Eliminare il thread "${thread.title}"?`)) return
-                        deleteMutation.mutate(thread.id)
-                      }}
+                      onClick={() => setThreadToDelete(thread)}
                       className="inline-flex items-center gap-2 border border-red-200 px-3 py-2 text-xs font-black uppercase tracking-widest text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" /> Elimina
@@ -246,6 +247,39 @@ export default function ForumModeration() {
           </div>
         </section>
       )}
+
+      <Dialog open={Boolean(threadToDelete)} onClose={() => !deleteMutation.isPending && setThreadToDelete(null)}>
+        <DialogHeader onClose={() => !deleteMutation.isPending && setThreadToDelete(null)}>
+          <DialogTitle>Eliminare il thread?</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <p className="text-sm leading-relaxed text-gray-600">
+            Stai per rimuovere definitivamente la discussione
+            {' '}
+            <span className="font-semibold text-juve-black">{threadToDelete?.title}</span>.
+            Questa azione non puo essere annullata.
+          </p>
+        </DialogContent>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setThreadToDelete(null)}
+            disabled={deleteMutation.isPending}
+          >
+            Annulla
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => threadToDelete?.id && deleteMutation.mutate(threadToDelete.id)}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Elimina thread
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }
