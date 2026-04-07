@@ -215,7 +215,7 @@ BEGIN
   END IF;
 
   INSERT INTO article_view_events (article_id, ip_hash, viewed_at)
-  VALUES (target_article_id, ENCODE(DIGEST(client_ip, 'sha256'), 'hex'), NOW())
+  VALUES (target_article_id, ENCODE(extensions.DIGEST(client_ip, 'sha256'), 'hex'), NOW())
   ON CONFLICT (article_id, ip_hash) DO UPDATE
   SET viewed_at = EXCLUDED.viewed_at
   WHERE article_view_events.viewed_at <= NOW() - INTERVAL '6 hours';
@@ -232,7 +232,7 @@ BEGIN
 
   RETURN FALSE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions;
 
 REVOKE ALL ON FUNCTION increment_article_views(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION increment_article_views(UUID) TO anon, authenticated, service_role;

@@ -564,26 +564,39 @@ export function ReaderProvider({ children }) {
   const isBookmarked = useCallback((articleId) => bookmarks.some((b) => b.articleId === articleId), [bookmarks])
 
   const toggleBookmark = useCallback((article) => {
-    setBookmarks((prev) => {
-      if (prev.some((b) => b.articleId === article.id)) {
-        return prev.filter((b) => b.articleId !== article.id)
-      }
+    const alreadySaved = bookmarks.some((bookmark) => bookmark.articleId === article.id)
 
+    const nextBookmarks = alreadySaved
+      ? bookmarks.filter((bookmark) => bookmark.articleId !== article.id)
+      : [{
+          articleId: article.id,
+          slug: article.slug,
+          title: article.title,
+          coverImage: article.cover_image,
+          categoryName: article.categories?.name || '',
+          savedAt: new Date().toISOString(),
+        }, ...bookmarks]
+
+    if (!alreadySaved) {
       addXP(XP_ACTIONS.bookmark, 'bookmark')
       updateWeeklyProgress('bookmarks')
+    }
 
-      return [{
-        articleId: article.id,
-        slug: article.slug,
-        title: article.title,
-        coverImage: article.cover_image,
-        categoryName: article.categories?.name || '',
-        savedAt: new Date().toISOString(),
-      }, ...prev]
-    })
-  }, [])
+    setBookmarks(nextBookmarks)
+    save(storageKeys.bookmarks, nextBookmarks)
 
-  const clearBookmarks = useCallback(() => setBookmarks([]), [])
+    if (authUser?.id && !IS_MOCK) {
+      syncRemoteState(authUser, { bookmarks: nextBookmarks }).catch(() => {})
+    }
+  }, [authUser, bookmarks, storageKeys.bookmarks, syncRemoteState])
+
+  const clearBookmarks = useCallback(() => {
+    setBookmarks([])
+    save(storageKeys.bookmarks, [])
+    if (authUser?.id && !IS_MOCK) {
+      syncRemoteState(authUser, { bookmarks: [] }).catch(() => {})
+    }
+  }, [authUser, storageKeys.bookmarks, syncRemoteState])
 
   const addToHistory = useCallback((entry) => {
     setHistory((prev) => {

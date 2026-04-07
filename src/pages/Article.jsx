@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Clock, Eye, Calendar, User, ArrowLeft } from 'lucide-react'
 import { getArticleBySlug, getRelatedArticles, getSmartRelatedArticles, incrementViews, getArticleTags } from '@/lib/supabase'
@@ -40,11 +40,12 @@ function getArticleScrollProgress(element) {
 
 export default function Article() {
   const { slug } = useParams()
+  const queryClient = useQueryClient()
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
   const [displayViews, setDisplayViews] = useState(0)
   const contentRef = useRef(null)
 
-  const { data: article, isLoading, error } = useQuery({
+  const { data: article, isLoading, error, refetch: refetchArticle } = useQuery({
     queryKey: ['article', slug],
     queryFn: async () => {
       const { data, error } = await getArticleBySlug(slug)
@@ -78,11 +79,23 @@ export default function Article() {
     if (!article?.id) return
     if (typeof window === 'undefined') return
 
+    const syncArticleViews = async () => {
+      const { data: latestArticle } = await refetchArticle()
+      const nextViews = Number(latestArticle?.views)
+
+      if (Number.isFinite(nextViews)) {
+        setDisplayViews(nextViews)
+      }
+    }
+
     let cancelled = false
     let triggered = false
     const storageKey = `article-view:${article.id}`
 
-    if (window.sessionStorage.getItem(storageKey) === 'sent') return
+    if (window.sessionStorage.getItem(storageKey) === 'sent') {
+      syncArticleViews()
+      return
+    }
 
     const commitView = async () => {
       if (cancelled || triggered) return
@@ -94,6 +107,11 @@ export default function Article() {
         const { data: counted } = await incrementViews(article.id)
         if (!cancelled && counted) {
           setDisplayViews((prev) => (Number.isFinite(prev) ? prev + 1 : 1))
+        }
+
+        if (!cancelled) {
+          await syncArticleViews()
+          queryClient.invalidateQueries({ queryKey: ['article', slug] })
         }
       } catch {
         if (cancelled) return
@@ -121,7 +139,7 @@ export default function Article() {
       window.removeEventListener('scroll', handleScroll)
       window.removeEventListener('resize', handleScroll)
     }
-  }, [article?.id])
+  }, [article?.id, queryClient, refetchArticle, slug])
 
   const { reader, addToHistory } = useReader()
 
