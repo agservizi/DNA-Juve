@@ -13,7 +13,7 @@ import {
 } from '@/lib/pushNotifications'
 
 export default function NotificationAlert() {
-  const { reader, preferences, notifications, enableNotifications, disableNotifications } = useReader()
+  const { reader, preferences, notifications, enableNotifications, disableNotifications, isAuthenticated } = useReader()
   const [permission, setPermission] = useState('default')
   const [loading, setLoading] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
@@ -45,6 +45,10 @@ export default function NotificationAlert() {
 
   const toggleNotifications = async () => {
     if (!reader?.id || loading) return
+    if (!isAuthenticated) {
+      setErrorMessage('Devi accedere con il tuo account per attivare o testare le notifiche push.')
+      return
+    }
     setLoading(true)
     setErrorMessage('')
 
@@ -68,6 +72,10 @@ export default function NotificationAlert() {
 
   const handleSendTest = async () => {
     if (!enabled || sendingTest) return
+    if (!isAuthenticated) {
+      setErrorMessage('Sessione non valida. Accedi di nuovo prima di inviare un test push.')
+      return
+    }
     setSendingTest(true)
     setErrorMessage('')
     try {
@@ -84,7 +92,7 @@ export default function NotificationAlert() {
 
   const favCats = preferences?.favoriteCategories || []
   const hasFavs = favCats.length > 0
-  const disabled = loading || !pushSupported || !pushNotificationsConfigured || permission === 'denied'
+  const disabled = loading || !pushSupported || !pushNotificationsConfigured || permission === 'denied' || !isAuthenticated
 
   return (
     <motion.div
@@ -160,6 +168,12 @@ export default function NotificationAlert() {
       {pushSupported && !pushNotificationsConfigured && (
         <p className="mt-2 text-xs text-red-500">
           Configurazione push mancante: imposta la chiave pubblica VAPID nel frontend.
+        </p>
+      )}
+
+      {!isAuthenticated && (
+        <p className="mt-2 text-xs text-red-500">
+          Per usare le notifiche push serve una sessione attiva di Area Bianconera.
         </p>
       )}
 

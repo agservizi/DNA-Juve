@@ -671,6 +671,8 @@ export function ReaderProvider({ children }) {
       showLoginDialog,
       loginDialogMode,
       stats,
+      authUser,
+      isAuthenticated: Boolean(authUser?.id),
       authReady,
       isPasswordRecovery,
       register,

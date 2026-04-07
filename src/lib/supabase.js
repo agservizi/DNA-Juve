@@ -629,6 +629,11 @@ export const invokePushNotifications = async (payload) => {
     return { data: null, error: new Error('Sessione non valida per l’invio notifiche.') }
   }
 
+  const { data: validatedUser, error: userError } = await supabase.auth.getUser(accessToken)
+  if (userError || !validatedUser?.user?.id) {
+    return { data: null, error: new Error('Sessione scaduta. Effettua di nuovo l’accesso per inviare notifiche.') }
+  }
+
   let { data, error } = await supabase.functions.invoke('push-notifications', {
     body: payload,
   })
