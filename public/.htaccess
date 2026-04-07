@@ -10,3 +10,5 @@
   # Fallback to the SPA only for app routes.
   RewriteRule . /index.html [L]
 </IfModule>
+
+ErrorDocument 404 /index.html

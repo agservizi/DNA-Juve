@@ -10,6 +10,8 @@ export default function LazyImage({
   fallback,
   aspectRatio = 'aspect-[16/9]',
   objectFit = 'object-cover',
+  width,
+  height,
 }) {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
@@ -44,6 +46,8 @@ export default function LazyImage({
           alt={alt}
           loading="lazy"
           decoding="async"
+          {...(width ? { width } : {})}
+          {...(height ? { height } : {})}
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
           className={cn(

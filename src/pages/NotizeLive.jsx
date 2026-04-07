@@ -31,7 +31,7 @@ function NewsCard({ article, index }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
           {article.image && (
             <div className="h-40 w-full shrink-0 bg-gray-100 overflow-hidden sm:h-20 sm:w-20">
-              <img src={article.image} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+              <img src={article.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
             </div>
           )}
           <div className="flex-1 min-w-0">

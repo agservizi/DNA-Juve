@@ -18,10 +18,48 @@
     <meta property="og:locale" content="it_IT" />
     <link rel="alternate" hreflang="it" href="https://bianconerihub.com" />
     <link rel="alternate" hreflang="x-default" href="https://bianconerihub.com" />
+    <!-- OG defaults (overridden per-page da react-helmet) -->
+    <meta property="og:image" content="https://bianconerihub.com/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BianconeriHub" />
     <title>BianconeriHub - Il Magazine della Juventus</title>
+    <!-- Preload critical fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap" as="style" />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Schema.org Organization — Knowledge Panel + Sitelinks -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "BianconeriHub",
+      "alternateName": "DNA Juve",
+      "url": "https://bianconerihub.com",
+      "logo": "https://bianconerihub.com/favicon.svg",
+      "description": "Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato e tanto altro dalla redazione bianconera.",
+      "foundingDate": "2025",
+      "areaServed": {
+        "@type": "Country",
+        "name": "Italy"
+      },
+      "sameAs": [
+        "https://twitter.com/BianconeriHub"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "availableLanguage": "Italian"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://bianconerihub.com/cerca?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

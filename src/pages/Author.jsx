@@ -301,6 +301,8 @@ export default function Author() {
                     <img
                       src={highlightedArticle.cover_image}
                       alt={highlightedArticle.title}
+                      loading="lazy"
+                      decoding="async"
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   ) : (

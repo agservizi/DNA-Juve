@@ -14,7 +14,7 @@ const articleBaseDir = path.join(distDir, 'articolo')
 
 const SITE_NAME = 'BianconeriHub'
 const SITE_URL = (process.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
-const DEFAULT_IMAGE = `${SITE_URL}/og-default.svg`
+const DEFAULT_IMAGE = `${SITE_URL}/og-default.png`
 const DEFAULT_DESCRIPTION =
   'Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato e tanto altro dalla redazione bianconera.'
 
@@ -62,7 +62,7 @@ function buildHeadMeta(article) {
   )
   const imageUrl = normalizeAbsoluteUrl(
     article.og_image || article.cover_image || DEFAULT_IMAGE,
-    '/og-default.svg',
+    '/og-default.png',
   )
   const fullTitle = `${title} | ${SITE_NAME}`
   const categoryName = article.categories?.name || ''
@@ -194,11 +194,127 @@ async function fetchPublishedArticles() {
   return data || []
 }
 
+async function fetchCategories(supabase) {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('id, name, slug')
+    .order('name')
+  if (error) throw error
+  return data || []
+}
+
+function buildPageMeta({ title, description, url, type = 'website' }) {
+  const fullTitle = `${title} | ${SITE_NAME}`
+  const canonicalUrl = `${SITE_URL}${url}`
+  const imageUrl = DEFAULT_IMAGE
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: title,
+    description,
+    url: canonicalUrl,
+    inLanguage: 'it-IT',
+    isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: SITE_URL },
+  }
+
+  return `<!-- page-prerender-meta:start -->
+<link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+<link rel="alternate" hreflang="it" href="${escapeHtml(canonicalUrl)}" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta name="geo.region" content="IT-21" />
+<meta name="geo.placename" content="Torino" />
+<meta name="geo.position" content="45.109;7.641" />
+<meta name="ICBM" content="45.109, 7.641" />
+<meta property="og:site_name" content="${SITE_NAME}" />
+<meta property="og:title" content="${escapeHtml(fullTitle)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:image" content="${escapeHtml(imageUrl)}" />
+<meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+<meta property="og:type" content="${type}" />
+<meta property="og:locale" content="it_IT" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@BianconeriHub" />
+<meta name="twitter:title" content="${escapeHtml(fullTitle)}" />
+<meta name="twitter:description" content="${escapeHtml(description)}" />
+<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
+<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
+<!-- page-prerender-meta:end -->`
+}
+
+function rewritePageHtml(templateHtml, { title, description, url, type }) {
+  const fullTitle = `${title} | ${SITE_NAME}`
+  const metaBlock = buildPageMeta({ title, description, url, type })
+  let html = templateHtml
+
+  html = replaceTag(html, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(fullTitle)}</title>`)
+  html = replaceTag(
+    html,
+    /<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i,
+    `<meta name="description" content="${escapeHtml(description)}" />`,
+  )
+  html = html.replace(/<!-- page-prerender-meta:start -->[\s\S]*?<!-- page-prerender-meta:end -->\s*/i, '')
+  html = html.replace('</head>', `  ${metaBlock}\n  </head>`)
+
+  return html
+}
+
 async function main() {
   const templatePath = path.join(distDir, 'index.html')
   const templateHtml = await fs.readFile(templatePath, 'utf8')
-  const articles = await fetchPublishedArticles()
 
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('[fetch-and-rewrite] Missing Supabase env vars, skipping prerender.')
+    return
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+
+  const [articles, categories] = await Promise.all([
+    fetchPublishedArticles(),
+    fetchCategories(supabase),
+  ])
+
+  // ─── Prerender homepage ────────────────────────────────────────
+  const homepageHtml = rewritePageHtml(templateHtml, {
+    title: 'BianconeriHub - Il Magazine della Juventus',
+    description: DEFAULT_DESCRIPTION,
+    url: '/',
+    type: 'website',
+  })
+  await fs.writeFile(path.join(distDir, 'index.html'), homepageHtml, 'utf8')
+  console.log('[fetch-and-rewrite] prerendered homepage.')
+
+  // ─── Prerender category pages ──────────────────────────────────
+  for (const cat of categories) {
+    if (!cat.slug) continue
+    const catDir = path.join(distDir, 'categoria', cat.slug)
+    const catHtml = rewritePageHtml(templateHtml, {
+      title: `${cat.name} — Juventus`,
+      description: `Tutti gli articoli su ${cat.name}: notizie, analisi e approfondimenti dalla redazione BianconeriHub.`,
+      url: `/categoria/${cat.slug}`,
+      type: 'website',
+    })
+    await fs.mkdir(catDir, { recursive: true })
+    await fs.writeFile(path.join(catDir, 'index.html'), catHtml, 'utf8')
+  }
+  if (categories.length) {
+    console.log(`[fetch-and-rewrite] prerendered ${categories.length} category pages.`)
+  }
+
+  // ─── Prerender 404 page ────────────────────────────────────────
+  const notFoundHtml = rewritePageHtml(templateHtml, {
+    title: 'Pagina non trovata',
+    description: 'La pagina che cerchi non esiste. Torna alla homepage di BianconeriHub per le ultime notizie sulla Juventus.',
+    url: '/404',
+    type: 'website',
+  })
+  await fs.writeFile(path.join(distDir, '404.html'), notFoundHtml, 'utf8')
+  console.log('[fetch-and-rewrite] prerendered 404 page.')
+
+  // ─── Prerender article pages ───────────────────────────────────
   if (!articles.length) {
     console.warn('[fetch-and-rewrite] No published articles found, skipping article prerender.')
     return
