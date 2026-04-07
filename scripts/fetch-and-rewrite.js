@@ -95,6 +95,16 @@ function buildHeadMeta(article) {
     },
     articleSection: categoryName || undefined,
     url: canonicalUrl,
+    inLanguage: 'it-IT',
+    contentLocation: {
+      '@type': 'Place',
+      name: 'Torino, Italia',
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: 45.109,
+        longitude: 7.641,
+      },
+    },
   }
 
   return {
@@ -103,7 +113,15 @@ function buildHeadMeta(article) {
     canonicalUrl,
     metaBlock: `<!-- article-prerender-meta:start -->
 <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+<link rel="alternate" hreflang="it" href="${escapeHtml(canonicalUrl)}" />
+<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonicalUrl)}" />
 <meta name="robots" content="${escapeHtml(robots)}" />
+<meta name="geo.region" content="IT-21" />
+<meta name="geo.placename" content="Torino" />
+<meta name="geo.position" content="45.109;7.641" />
+<meta name="ICBM" content="45.109, 7.641" />
+<meta name="language" content="it" />
+<meta name="content-language" content="it-IT" />
 <meta property="og:site_name" content="${SITE_NAME}" />
 <meta property="og:title" content="${escapeHtml(fullTitle)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
