@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Play, Pause, Eye, Loader2, Film, X, Share2, Check, Link2, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react'
 import { getVideos, incrementVideoViews } from '@/lib/supabase'
 import SEO from '@/components/blog/SEO'
+import VideoPlayer from '@/components/blog/VideoPlayer'
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 
@@ -598,15 +599,7 @@ export default function Video() {
         {/* Active video player */}
         {activeVideo && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-            {isNativeVideo(activeVideo) ? (
-              <CustomPlayer
-                src={activeVideo.video_url}
-                poster={activeVideo.thumbnail}
-                title={activeVideo.title}
-              />
-            ) : (
-              <EmbedPlayer video={activeVideo} />
-            )}
+            <VideoPlayer video={activeVideo} />
 
             <div className="flex items-start justify-between gap-4 mt-3">
               <div>

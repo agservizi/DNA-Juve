@@ -42,6 +42,48 @@ const schema = z.object({
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 const ARTICLE_DRAFT_STORAGE_PREFIX = 'admin-article-draft'
+const EMPTY_ARRAY = []
+
+function getTimestamp(value) {
+  if (!value) return 0
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function normalizeDraftValue(value) {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value)
+  return value == null ? '' : JSON.stringify(value)
+}
+
+function hasMeaningfulDraftChanges(draft, existing) {
+  if (!draft || !existing) return false
+
+  const draftContent = typeof draft.content === 'string' ? draft.content.trim() : ''
+  const existingContent = typeof existing.content === 'string' ? existing.content.trim() : ''
+  if (draftContent && draftContent !== existingContent) return true
+
+  const draftValues = draft.values || {}
+  const comparableFields = [
+    'title',
+    'slug',
+    'excerpt',
+    'category_id',
+    'status',
+    'featured',
+    'cover_image',
+    'meta_title',
+    'meta_description',
+    'canonical_url',
+    'og_image',
+    'noindex',
+    'scheduled_at',
+    'source_url',
+    'internal_notes',
+  ]
+
+  return comparableFields.some((field) => normalizeDraftValue(draftValues[field]) !== normalizeDraftValue(existing[field]))
+}
 
 function getArticleDraftStorageKey(articleId) {
   return `${ARTICLE_DRAFT_STORAGE_PREFIX}:${articleId || 'new'}`
@@ -140,6 +182,7 @@ export default function ArticleEditor() {
   const [pollEnabled, setPollEnabled] = useState(false)
   const [draftSaving, setDraftSaving] = useState(false)
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState(null)
+  const [editorBootstrapped, setEditorBootstrapped] = useState(false)
   const draftHydratedRef = useRef(false)
   const draftStorageKey = getArticleDraftStorageKey(id)
 
@@ -176,7 +219,7 @@ export default function ArticleEditor() {
     enabled: isEdit,
   })
 
-  const { data: existingTags = [] } = useQuery({
+  const { data: existingTags = EMPTY_ARRAY } = useQuery({
     queryKey: ['article-tags-edit', id],
     queryFn: () => getArticleTags(id),
     enabled: isEdit,
@@ -276,6 +319,7 @@ export default function ArticleEditor() {
 
   useEffect(() => {
     draftHydratedRef.current = false
+    setEditorBootstrapped(false)
 
     if (isEdit) return
 
@@ -306,6 +350,7 @@ export default function ArticleEditor() {
     setGallery([])
     setRelatedArticleIds([])
     setCoAuthorIds([])
+    setEditorBootstrapped(true)
   }, [id, isEdit, reset])
 
   useEffect(() => {
@@ -332,7 +377,8 @@ export default function ArticleEditor() {
       if (Array.isArray(existing.gallery)) setGallery(existing.gallery)
       if (Array.isArray(existing.related_article_ids)) setRelatedArticleIds(existing.related_article_ids)
       if (Array.isArray(existing.co_author_ids)) setCoAuthorIds(existing.co_author_ids)
-    } else if (isEdit) {
+      setEditorBootstrapped(true)
+    } else if (isEdit && !loadingArticle) {
       reset({
         title: '',
         slug: '',
@@ -351,12 +397,19 @@ export default function ArticleEditor() {
         internal_notes: '',
       })
       setContent('')
+      setEditorBootstrapped(true)
     }
-  }, [existing, isEdit, reset, setValue])
+  }, [existing, isEdit, loadingArticle, reset, setValue])
 
   useEffect(() => {
-    if (existingTags.length) setTags(existingTags)
-    else if (isEdit) setTags([])
+    if (existingTags.length) {
+      setTags((prev) => (prev === existingTags ? prev : existingTags))
+      return
+    }
+
+    if (isEdit) {
+      setTags((prev) => (prev.length === 0 ? prev : EMPTY_ARRAY))
+    }
   }, [existingTags, isEdit])
 
   useEffect(() => {
@@ -388,6 +441,21 @@ export default function ArticleEditor() {
       const draft = JSON.parse(raw)
       if (!draft || typeof draft !== 'object') return
 
+      if (isEdit && existing) {
+        const draftSavedAt = getTimestamp(draft.savedAt)
+        const articleUpdatedAt = Math.max(getTimestamp(existing.updated_at), getTimestamp(existing.created_at))
+        const shouldRestoreDraft = hasMeaningfulDraftChanges(draft, existing)
+
+        if (!shouldRestoreDraft || draftSavedAt <= articleUpdatedAt) {
+          try {
+            window.localStorage.removeItem(draftStorageKey)
+          } catch {
+            // Ignore storage cleanup failures.
+          }
+          return
+        }
+      }
+
       const values = draft.values || {}
       Object.entries(values).forEach(([field, value]) => {
         setValue(field, value)
@@ -403,6 +471,7 @@ export default function ArticleEditor() {
       if (Array.isArray(draft.relatedArticleIds)) setRelatedArticleIds(draft.relatedArticleIds)
       if (Array.isArray(draft.coAuthorIds)) setCoAuthorIds(draft.coAuthorIds)
       if (draft.savedAt) setLastDraftSavedAt(draft.savedAt)
+      setEditorBootstrapped(true)
 
       toast({
         title: 'Bozza recuperata',
@@ -411,8 +480,10 @@ export default function ArticleEditor() {
       })
     } catch {
       // Ignore malformed local drafts and continue with server data/defaults.
+    } finally {
+      setEditorBootstrapped(true)
     }
-  }, [draftStorageKey, isEdit, loadingArticle, setValue, toast])
+  }, [draftStorageKey, existing, isEdit, loadingArticle, setValue, toast])
 
   useEffect(() => {
     if (!draftHydratedRef.current || typeof window === 'undefined') return
@@ -901,7 +972,13 @@ export default function ArticleEditor() {
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Contenuto</label>
-            <RichEditor content={content} onChange={setContent} />
+            {editorBootstrapped ? (
+              <RichEditor key={isEdit ? `${id}:${existing?.updated_at || 'loading'}` : 'new-article'} content={content} onChange={setContent} />
+            ) : (
+              <div className="flex min-h-[450px] items-center justify-center border border-gray-300 bg-white">
+                <Loader2 className="h-6 w-6 animate-spin text-juve-gold" />
+              </div>
+            )}
             {/* Word counter bar */}
             <div className="flex items-center gap-4 mt-2 px-1 text-[11px] text-gray-500">
               <span className="flex items-center gap-1">

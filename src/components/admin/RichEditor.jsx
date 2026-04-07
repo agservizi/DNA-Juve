@@ -18,6 +18,11 @@ import { cn } from '@/lib/utils'
 import { uploadImage } from '@/lib/supabase'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 
+function normalizeEditorHtml(value) {
+  const normalized = (value || '').trim()
+  return normalized === '<p></p>' ? '' : normalized
+}
+
 const VideoNode = Node.create({
   name: 'video',
   group: 'block',
@@ -80,6 +85,7 @@ function Separator() {
 
 export default function RichEditor({ content = '', onChange }) {
   const videoInputRef = useRef(null)
+  const syncingFromPropsRef = useRef(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkValue, setLinkValue] = useState('')
@@ -101,15 +107,24 @@ export default function RichEditor({ content = '', onChange }) {
       Placeholder.configure({ placeholder: 'Inizia a scrivere il tuo articolo…' }),
     ],
     content,
-    onUpdate: ({ editor }) => onChange?.(editor.getHTML()),
+    onUpdate: ({ editor }) => {
+      if (syncingFromPropsRef.current) return
+      onChange?.(editor.getHTML())
+    },
   })
 
   useEffect(() => {
     if (!editor) return
-    const incoming = content || ''
-    const current = editor.getHTML()
+    const incoming = normalizeEditorHtml(content)
+    const current = normalizeEditorHtml(editor.getHTML())
     if (current === incoming) return
-    editor.commands.setContent(incoming, { emitUpdate: false })
+
+    syncingFromPropsRef.current = true
+    editor.commands.setContent(incoming || '', false)
+
+    queueMicrotask(() => {
+      syncingFromPropsRef.current = false
+    })
   }, [editor, content])
 
   if (!editor) return null
