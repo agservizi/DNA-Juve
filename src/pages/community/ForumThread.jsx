@@ -64,19 +64,30 @@ export default function ForumThread() {
   const hasForumAccess = Boolean(isAuthenticated)
   const canParticipate = Boolean(hasForumAccess && reader?.id)
 
-  const { data: thread, isLoading } = useQuery({
+  const { data: thread, isLoading, error: threadError } = useQuery({
     queryKey: ['forum-thread', id],
     queryFn: async () => {
-      const { data } = await getForumThread(id)
-      if (data) incrementThreadViews(id).catch(() => {})
+      const { data, error } = await getForumThread(id)
+      if (error) throw error
+      if (data) {
+        try {
+          await incrementThreadViews(id)
+        } catch {
+          // Non bloccare il rendering del thread se l'incremento view fallisce.
+        }
+      }
       return data
     },
     enabled: Boolean(id && hasForumAccess),
   })
 
-  const { data: replies } = useQuery({
+  const { data: replies, error: repliesError } = useQuery({
     queryKey: ['forum-replies', id],
-    queryFn: async () => { const { data } = await getForumReplies(id); return data || [] },
+    queryFn: async () => {
+      const { data, error } = await getForumReplies(id)
+      if (error) throw error
+      return data || []
+    },
     enabled: Boolean(id && hasForumAccess),
   })
 
@@ -207,6 +218,7 @@ export default function ForumThread() {
 
   const isLiked = Boolean(viewerState?.isLiked)
   const isFollowing = Boolean(viewerState?.isFollowing)
+  const loadError = threadError || repliesError || null
 
   if (!authReady || isLoading) {
     return (
@@ -250,6 +262,17 @@ export default function ForumThread() {
           </div>
         </div>
       </>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
+        <MessageSquare className="h-10 w-10 text-red-300 mx-auto mb-4" />
+        <p className="text-sm text-gray-700">Non sono riuscito a caricare la discussione.</p>
+        <p className="mt-2 text-xs text-gray-500">{loadError.message || 'Errore di caricamento del thread.'}</p>
+        <Link to="/community/forum" className="text-xs font-bold text-juve-gold mt-4 inline-block">← Torna al forum</Link>
+      </div>
     )
   }
 

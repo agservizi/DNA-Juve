@@ -1831,7 +1831,7 @@ export const submitPagellaRating = async ({ playerId, userId, guestId, rating })
 // ─── FORUM ──────────────────────────────────────────────────────────────────
 let forumSupported = true
 let forumEngagementSupported = true
-const FORUM_THREAD_BASE_SELECT = 'id, category_id, title, content, author_id, author_name, is_pinned, is_locked, views, reply_count, last_reply_at, created_at, updated_at, forum_categories(name, slug, color)'
+const FORUM_THREAD_BASE_SELECT = 'id, category_id, title, content, author_id, author_name, is_pinned, is_locked, views, reply_count, last_reply_at, created_at, updated_at, forum_categories:forum_categories!forum_threads_category_id_fkey(name, slug, color)'
 const FORUM_THREAD_ENGAGEMENT_SELECT = 'like_count, follower_count'
 
 function getForumThreadSelect() {
