@@ -28,8 +28,12 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    // Path format: /proxy-api/{route}/{rest}
-    const pathParts = url.pathname.replace(/^\/proxy-api\/?/, '').split('/')
+    // Path format on Supabase Edge Functions: /functions/v1/proxy-api/{route}/{rest}
+    // Local invocations may still hit /proxy-api/{route}/{rest}.
+    const normalizedPath = url.pathname
+      .replace(/^\/functions\/v1\/proxy-api\/?/, '')
+      .replace(/^\/proxy-api\/?/, '')
+    const pathParts = normalizedPath.split('/').filter(Boolean)
 
     // Match route (handle rss/xxx compound routes)
     let route = ''

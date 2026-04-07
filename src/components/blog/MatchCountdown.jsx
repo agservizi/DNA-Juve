@@ -4,6 +4,32 @@ import { Calendar, MapPin, Trophy, Loader2, Activity, History } from 'lucide-rea
 import { useQuery } from '@tanstack/react-query'
 import { getNextMatch, getRecentFinishedMatches, getTeamMatches, getVenueLabel, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 
+const NEXT_MATCH_SNAPSHOT_KEY = 'match-countdown:last-successful-bundle'
+const NEXT_MATCH_REFETCH_MS = 60 * 1000
+
+function readStoredBundle() {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.localStorage.getItem(NEXT_MATCH_SNAPSHOT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredBundle(bundle) {
+  if (typeof window === 'undefined' || !bundle?.match?.utcDate) return
+
+  try {
+    window.localStorage.setItem(NEXT_MATCH_SNAPSHOT_KEY, JSON.stringify(bundle))
+  } catch {
+    // Ignore storage issues and keep the in-memory result only.
+  }
+}
+
 function getDemoMatch() {
   const now = new Date()
   const matchDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -75,34 +101,43 @@ function summarizeForm(values = []) {
   const draws = values.filter((value) => value === 'N').length
   const losses = values.filter((value) => value === 'P').length
 
-  if (wins >= 4) return 'è in grande fiducia'
-  if (wins >= 3 && losses === 0) return 'arriva in buona serie utile'
-  if (losses >= 3) return 'vive un momento complicato'
-  if (draws >= 3) return 'sta trovando continuità ma con diversi pareggi'
-  if (wins > losses) return 'ha rendimento leggermente positivo'
-  if (losses > wins) return 'ha alternato troppo nelle ultime uscite'
-  return 'arriva con andamento equilibrato'
+  if (wins >= 4) return 'arriva in grande fiducia'
+  if (wins >= 3 && losses === 0) return 'arriva da una buona serie utile'
+  if (losses >= 3) return 'attraversa un momento complicato'
+  if (draws >= 3) return 'sta trovando continuita, ma con diversi pareggi'
+  if (wins > losses) return 'ha un rendimento leggermente positivo'
+  if (losses > wins) return 'ha avuto un andamento troppo altalenante nelle ultime uscite'
+  return 'arriva con un rendimento abbastanza equilibrato'
+}
+
+function getItalianVenuePrefix(teamName = '') {
+  const normalized = String(teamName || '').trim()
+  if (!normalized) return 'in trasferta'
+
+  const firstLetter = normalized.charAt(0).toLowerCase()
+  const startsWithVowel = ['a', 'e', 'i', 'o', 'u'].includes(firstLetter)
+  return startsWithVowel ? `in trasferta sul campo dell'${normalized}` : `in trasferta sul campo del ${normalized}`
 }
 
 function buildMatchFocus({ match, juveForm, opponentForm, headToHead }) {
   const isJuveHome = match.homeTeam?.id === JUVE_ID
   const opponent = isJuveHome ? getTeamDisplay(match.awayTeam, 'Avversaria') : getTeamDisplay(match.homeTeam, 'Avversaria')
-  const venueText = isJuveHome ? 'all’Allianz Stadium' : `in trasferta sul campo del ${opponent.name}`
+  const venueText = isJuveHome ? "all'Allianz Stadium" : getItalianVenuePrefix(opponent.name)
   const juveSummary = summarizeForm(juveForm)
   const opponentSummary = summarizeForm(opponentForm)
 
   if (!headToHead) {
-    return `La Juve gioca ${venueText} contro ${opponent.name}: i bianconeri ${juveSummary}, mentre ${opponent.name} ${opponentSummary}.`
+    return `La Juve gioca ${venueText} contro il ${opponent.name}: i bianconeri ${juveSummary}, mentre il ${opponent.name} ${opponentSummary}.`
   }
 
   const result = getResultLetter(headToHead, JUVE_ID)
   const headToHeadSummary = result === 'V'
     ? 'L’ultimo precedente sorride alla Juve'
     : result === 'P'
-      ? `L’ultimo confronto ha premiato ${opponent.name}`
-      : 'L’ultimo confronto si era chiuso in parità'
+      ? `L’ultimo confronto ha premiato il ${opponent.name}`
+      : 'L’ultimo confronto si è chiuso in parità'
 
-  return `La Juve gioca ${venueText} contro ${opponent.name}: i bianconeri ${juveSummary}, mentre ${opponent.name} ${opponentSummary}. ${headToHeadSummary}.`
+  return `La Juve gioca ${venueText} contro il ${opponent.name}: i bianconeri ${juveSummary}, mentre il ${opponent.name} ${opponentSummary}. ${headToHeadSummary}.`
 }
 
 function TeamBadge({ team }) {
@@ -151,28 +186,60 @@ export default function MatchCountdown() {
   const { data: bundle, isLoading } = useQuery({
     queryKey: ['nextMatchWidgetBundle'],
     queryFn: async () => {
-      const nextMatch = (await getNextMatch()) || getDemoMatch()
-      const opponent = nextMatch.homeTeam?.id === JUVE_ID ? nextMatch.awayTeam : nextMatch.homeTeam
+      try {
+        const nextMatch = await getNextMatch()
+        if (!nextMatch) {
+          const storedBundle = readStoredBundle()
+          if (storedBundle) return { ...storedBundle, fallbackSource: 'cached' }
 
-      const [juveMatches, opponentMatches] = await Promise.all([
-        getTeamMatches(),
-        opponent?.id ? getRecentFinishedMatches(opponent.id, 5) : Promise.resolve([]),
-      ])
+          return {
+            match: getDemoMatch(),
+            juveForm: [],
+            opponentForm: [],
+            headToHead: null,
+            fallbackSource: 'demo',
+          }
+        }
 
-      const headToHead = (juveMatches || [])
-        .filter(match => match.status === 'FINISHED')
-        .filter(match => match.homeTeam?.id === opponent?.id || match.awayTeam?.id === opponent?.id)
-        .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
+        const opponent = nextMatch.homeTeam?.id === JUVE_ID ? nextMatch.awayTeam : nextMatch.homeTeam
 
-      return {
-        match: nextMatch,
-        juveForm: getLastFiveForm(juveMatches, JUVE_ID),
-        opponentForm: getLastFiveForm(opponentMatches, opponent?.id),
-        headToHead,
+        const [juveMatches, opponentMatches] = await Promise.all([
+          getTeamMatches(),
+          opponent?.id ? getRecentFinishedMatches(opponent.id, 5) : Promise.resolve([]),
+        ])
+
+        const headToHead = (juveMatches || [])
+          .filter(match => match.status === 'FINISHED')
+          .filter(match => match.homeTeam?.id === opponent?.id || match.awayTeam?.id === opponent?.id)
+          .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
+
+        const nextBundle = {
+          match: nextMatch,
+          juveForm: getLastFiveForm(juveMatches, JUVE_ID),
+          opponentForm: getLastFiveForm(opponentMatches, opponent?.id),
+          headToHead,
+          fallbackSource: 'live',
+        }
+
+        writeStoredBundle(nextBundle)
+        return nextBundle
+      } catch {
+        const storedBundle = readStoredBundle()
+        if (storedBundle) return { ...storedBundle, fallbackSource: 'cached' }
+
+        return {
+          match: getDemoMatch(),
+          juveForm: [],
+          opponentForm: [],
+          headToHead: null,
+          fallbackSource: 'demo',
+        }
       }
     },
     staleTime: 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: NEXT_MATCH_REFETCH_MS,
+    refetchIntervalInBackground: false,
     retry: shouldRetryFootballQuery,
   })
 
@@ -235,6 +302,14 @@ export default function MatchCountdown() {
       ) : (
         <>
           <p className="mb-3 text-[10px] uppercase tracking-wider text-gray-400">{match.competition?.name || 'Competizione'}</p>
+
+          {bundle?.fallbackSource === 'cached' && (
+            <p className="mb-3 text-[10px] uppercase tracking-wider text-juve-gold/80">Ultimo dato disponibile salvato</p>
+          )}
+
+          {bundle?.fallbackSource === 'demo' && (
+            <p className="mb-3 text-[10px] uppercase tracking-wider text-amber-300/80">Demo temporaneo</p>
+          )}
 
           <div className="mb-4 flex items-start justify-center gap-3 sm:gap-4">
             <div className="flex-1 text-center">

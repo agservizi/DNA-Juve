@@ -21,8 +21,10 @@ export function apiUrl(route, path = '') {
  */
 export function apiHeaders(extra = {}) {
   if (IS_DEV) return extra
+  const authHeader = SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}
   return {
     ...extra,
     apikey: SUPABASE_ANON_KEY,
+    ...authHeader,
   }
 }
