@@ -18,6 +18,7 @@ import ArticleAnnotations from '@/components/blog/ArticleAnnotations'
 import TldrSummary from '@/components/blog/TldrSummary'
 import BookmarkButton from '@/components/blog/BookmarkButton'
 import ArticlePoll from '@/components/blog/ArticlePoll'
+import FaqSchema from '@/components/blog/FaqSchema'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { useReader } from '@/hooks/useReader'
 import { useEffect, useState } from 'react'
@@ -125,6 +126,7 @@ export default function Article() {
   return (
     <>
       <ReadingProgress />
+      <FaqSchema content={article.content} />
 
       <SEO
         title={article.title}

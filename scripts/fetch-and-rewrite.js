@@ -37,6 +37,33 @@ function stripHtml(value = '') {
     .trim()
 }
 
+function extractFaqFromHtml(html) {
+  if (!html) return []
+  // Parse headings ending with ? followed by <p> paragraphs
+  const faqs = []
+  const headingRegex = /<h[23][^>]*>(.*?)<\/h[23]>/gi
+  let match
+  while ((match = headingRegex.exec(html)) !== null) {
+    const questionText = stripHtml(match[1]).trim()
+    if (!questionText.endsWith('?')) continue
+    // Collect <p> content after this heading until next heading
+    const afterHeading = html.slice(match.index + match[0].length)
+    const nextHeadingMatch = afterHeading.match(/<h[123][^>]*>/i)
+    const section = nextHeadingMatch ? afterHeading.slice(0, nextHeadingMatch.index) : afterHeading
+    const paragraphs = []
+    const pRegex = /<p[^>]*>(.*?)<\/p>/gi
+    let pMatch
+    while ((pMatch = pRegex.exec(section)) !== null) {
+      const text = stripHtml(pMatch[1]).trim()
+      if (text) paragraphs.push(text)
+    }
+    if (paragraphs.length > 0) {
+      faqs.push({ question: questionText, answer: paragraphs.join(' ') })
+    }
+  }
+  return faqs
+}
+
 function escapeHtml(value = '') {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -141,6 +168,20 @@ ${categoryName ? `<meta property="article:section" content="${escapeHtml(categor
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
 <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
+${(() => {
+  const faqs = extractFaqFromHtml(article.content)
+  if (!faqs.length) return ''
+  const faqLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(f => ({
+      '@type': 'Question',
+      name: f.question,
+      acceptedAnswer: { '@type': 'Answer', text: f.answer },
+    })),
+  }
+  return `<script type="application/ld+json">${JSON.stringify(faqLd).replace(/</g, '\\u003c')}</script>`
+})()}
 <!-- article-prerender-meta:end -->`,
   }
 }

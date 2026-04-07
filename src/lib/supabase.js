@@ -1099,19 +1099,70 @@ export const deleteCategory = (id) =>
   supabase.from('categories').delete().eq('id', id)
 
 // ─── STORAGE ─────────────────────────────────────────────────────────────────
+
+// Convert image to WebP format using browser Canvas API
+async function convertToWebP(file, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0)
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url)
+          if (!blob) return reject(new Error('WebP conversion failed'))
+          const webpFile = new File(
+            [blob],
+            file.name.replace(/\.[^.]+$/, '.webp'),
+            { type: 'image/webp' }
+          )
+          resolve(webpFile)
+        },
+        'image/webp',
+        quality
+      )
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Image load failed'))
+    }
+    img.src = url
+  })
+}
+
 export const uploadImage = async (file, path, options = {}) => {
   const bucket = options.bucket || 'article-images'
-  const extensionFromName = file?.name?.split('.').pop()?.toLowerCase()
-  const extensionFromType = file?.type?.split('/').pop()?.toLowerCase()
+
+  // Convert to WebP for smaller size + better Core Web Vitals
+  let uploadFile = file
+  let uploadPath = path
+  if (file && file.type && file.type.startsWith('image/') && file.type !== 'image/webp' && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
+    try {
+      uploadFile = await convertToWebP(file)
+      // Replace extension in path
+      uploadPath = path.replace(/\.[a-z0-9]+$/i, '') + '.webp'
+    } catch {
+      // Fallback to original if conversion fails
+      uploadFile = file
+      uploadPath = path
+    }
+  }
+
+  const extensionFromName = uploadFile?.name?.split('.').pop()?.toLowerCase()
+  const extensionFromType = uploadFile?.type?.split('/').pop()?.toLowerCase()
   const extension = extensionFromName || extensionFromType || 'jpg'
-  const normalizedPath = /\.[a-z0-9]+$/i.test(path) ? path : `${path}.${extension}`
+  const normalizedPath = /\.[a-z0-9]+$/i.test(uploadPath) ? uploadPath : `${uploadPath}.${extension}`
 
   const { data, error } = await supabase.storage
     .from(bucket)
-    .upload(normalizedPath, file, {
+    .upload(normalizedPath, uploadFile, {
       upsert: true,
-      contentType: file?.type || undefined,
-      cacheControl: '3600',
+      contentType: uploadFile?.type || undefined,
+      cacheControl: '31536000',
     })
   if (error) throw error
   const { data: urlData } = supabase.storage
