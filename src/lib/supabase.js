@@ -629,6 +629,16 @@ export const invokePushNotifications = async (payload) => {
 
   let { data: { session } } = await supabase.auth.getSession()
   let accessToken = session?.access_token
+  const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0
+
+  if (accessToken && expiresAt && expiresAt <= Date.now() + 60 * 1000) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+
+    if (!refreshError && refreshed?.session?.access_token) {
+      session = refreshed.session
+      accessToken = refreshed.session.access_token
+    }
+  }
 
   if (!accessToken) {
     return { data: null, error: new Error('Sessione non valida per l’invio notifiche.') }
