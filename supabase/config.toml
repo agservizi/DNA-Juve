@@ -1,0 +1,4 @@
+project_id = "ncolenbfdiukkyfixovo"
+
+[functions.push-notifications]
+verify_jwt = false
