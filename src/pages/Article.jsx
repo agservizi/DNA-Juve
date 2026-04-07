@@ -144,6 +144,7 @@ export default function Article() {
         category={article.categories?.name}
         tags={tags.map(t => t.name)}
         noindex={article.noindex}
+        categorySlug={article.categories?.slug}
         breadcrumbs={[
           { name: 'Home', url: '/' },
           ...(article.categories ? [{ name: article.categories.name, url: `/categoria/${article.categories.slug}` }] : []),

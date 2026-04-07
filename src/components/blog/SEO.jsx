@@ -29,6 +29,7 @@ export default function SEO({
   tags = [],
   noindex = false,
   breadcrumbs = [],
+  categorySlug,
   // Article-specific for JSON-LD
   articleData,
 }) {
@@ -130,6 +131,7 @@ export default function SEO({
 
       {/* RSS Feed */}
       <link rel="alternate" type="application/rss+xml" title={`${SITE_NAME} RSS Feed`} href={`${SITE_URL}/feed.xml`} />
+      {categorySlug && <link rel="alternate" type="application/rss+xml" title={`${SITE_NAME} — ${category || categorySlug} RSS`} href={`${SITE_URL}/feed/${categorySlug}.xml`} />}
 
       {/* Theme */}
       <meta name="theme-color" content="#000000" />

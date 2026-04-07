@@ -42,7 +42,7 @@ async function main() {
       .limit(200),
     supabase
       .from('categories')
-      .select('slug')
+      .select('slug, name')
       .order('name'),
   ])
 
@@ -56,7 +56,20 @@ async function main() {
   await fs.writeFile(path.join(distDir, 'feed.xml'), generateRSS(articles), 'utf8')
   await fs.writeFile(path.join(distDir, 'sitemap.xml'), generateSitemap(articles, categories), 'utf8')
 
-  console.log(`[generate-feeds] feed.xml and sitemap.xml generated (${articles.length} articles, ${categories.length} categories).`)
+  // Generate per-category RSS feeds
+  const feedDir = path.join(distDir, 'feed')
+  await fs.mkdir(feedDir, { recursive: true })
+  let categoryFeedCount = 0
+  for (const cat of categories) {
+    if (!cat.slug || !cat.name) continue
+    const catArticles = articles.filter(a => a.categories?.slug === cat.slug)
+    if (!catArticles.length) continue
+    const catRss = generateRSS(catArticles, { name: cat.name, slug: cat.slug })
+    await fs.writeFile(path.join(feedDir, `${cat.slug}.xml`), catRss, 'utf8')
+    categoryFeedCount++
+  }
+
+  console.log(`[generate-feeds] feed.xml, sitemap.xml, and ${categoryFeedCount} category feeds generated (${articles.length} articles, ${categories.length} categories).`)
 }
 
 main().catch((error) => {

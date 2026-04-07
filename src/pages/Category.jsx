@@ -55,6 +55,8 @@ export default function Category() {
         title={category?.name}
         description={`Tutti gli articoli nella categoria ${category?.name || slug} di BianconeriHub`}
         url={`/categoria/${slug}`}
+        categorySlug={slug}
+        category={category?.name}
         breadcrumbs={[
           { name: 'Home', url: '/' },
           { name: category?.name || slug, url: `/categoria/${slug}` },
