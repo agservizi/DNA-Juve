@@ -21,12 +21,14 @@ import ArticlePoll from '@/components/blog/ArticlePoll'
 import FaqSchema from '@/components/blog/FaqSchema'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { useReader } from '@/hooks/useReader'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import ArticleVideoPlayer from '@/components/blog/ArticleVideoPlayer'
 
 export default function Article() {
   const { slug } = useParams()
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
   const [displayViews, setDisplayViews] = useState(0)
+  const contentRef = useRef(null)
 
   const { data: article, isLoading, error } = useQuery({
     queryKey: ['article', slug],
@@ -250,6 +252,7 @@ export default function Article() {
 
             {/* Content */}
             <div
+              ref={contentRef}
               className="prose prose-lg max-w-none
                 prose-headings:font-display prose-headings:font-bold prose-headings:text-juve-black
                 prose-a:text-juve-gold prose-a:no-underline hover:prose-a:underline
@@ -258,6 +261,7 @@ export default function Article() {
                 prose-strong:text-juve-black"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(contentWithIds) }}
             />
+            <ArticleVideoPlayer contentRef={contentRef} contentHtml={contentWithIds} />
 
             {/* Reactions */}
             <div className="mt-8 pt-6 border-t border-gray-200">

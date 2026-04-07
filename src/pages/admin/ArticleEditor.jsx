@@ -231,10 +231,9 @@ export default function ArticleEditor() {
   }, [libraryVideos, videoSearch])
 
   const insertVideoInContent = useCallback((video) => {
-    const videoUrl = `${SITE_URL}/video?v=${video.id}`
     const thumbnail = video.thumbnail || (video.platform === 'youtube' && video.video_id
       ? `https://img.youtube.com/vi/${video.video_id}/hqdefault.jpg` : '')
-    const embedHtml = `<div class="article-video" data-video-id="${video.id}"><a href="${videoUrl}" target="_blank" rel="noopener noreferrer"><img src="${thumbnail}" alt="${video.title}" style="width:100%;aspect-ratio:16/9;object-fit:cover;" /><p style="text-align:center;font-size:14px;font-weight:bold;margin-top:8px;">▶ ${video.title}</p></a></div>`
+    const embedHtml = `<div data-video-id="${video.id}" data-video-title="${(video.title || '').replace(/"/g, '&quot;')}" data-video-platform="${video.platform || 'custom'}" data-video-videoid="${video.video_id || ''}" data-video-thumbnail="${thumbnail}" data-video-url="${video.video_url || ''}"><img src="${thumbnail}" alt="${(video.title || '').replace(/"/g, '&quot;')}" style="width:100%;aspect-ratio:16/9;object-fit:cover;" /><p style="text-align:center;font-size:14px;font-weight:bold;margin-top:8px;">▶ ${video.title}</p></div>`
     setContent(prev => prev + '\n' + embedHtml + '\n')
     setVideoPickerOpen(false)
     setVideoSearch('')
