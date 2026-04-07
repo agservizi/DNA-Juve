@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { Play, Pause, Eye, Loader2, Film, X, Share2, Check, Link2, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react'
@@ -437,7 +438,7 @@ function EmbedPlayer({ video }) {
 // ─── SHARE BUTTONS ─────────────────────────────────────────────────
 function ShareButtons({ video }) {
   const [copied, setCopied] = useState(false)
-  const url = `${SITE_URL}/video`
+  const url = `${SITE_URL}/video?v=${video.id}`
   const text = `${video.title} — BianconeriHub`
   const encodedUrl = encodeURIComponent(url)
   const encodedText = encodeURIComponent(text)
@@ -539,6 +540,7 @@ function VideoCard({ video, onClick }) {
 
 // ─── PAGE ──────────────────────────────────────────────────────────
 export default function Video() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activeCategory, setActiveCategory] = useState(null)
   const [activeVideo, setActiveVideo] = useState(null)
 
@@ -550,9 +552,27 @@ export default function Video() {
     },
   })
 
+  // Auto-select video from ?v= query param
+  useEffect(() => {
+    const vid = searchParams.get('v')
+    if (vid && videos?.length && !activeVideo) {
+      const found = videos.find(v => v.id === vid)
+      if (found) {
+        setActiveVideo(found)
+        incrementVideoViews(found.id).then?.(() => {}, () => {})
+      }
+    }
+  }, [videos, searchParams, activeVideo])
+
   const handlePlay = (video) => {
     setActiveVideo(video)
-    incrementVideoViews(video.id).catch(() => {})
+    setSearchParams({ v: video.id }, { replace: true })
+    incrementVideoViews(video.id).then?.(() => {}, () => {})
+  }
+
+  const handleClose = () => {
+    setActiveVideo(null)
+    setSearchParams({}, { replace: true })
   }
 
   return (
@@ -601,7 +621,7 @@ export default function Video() {
                 </div>
                 <ShareButtons video={activeVideo} />
               </div>
-              <button onClick={() => setActiveVideo(null)}
+              <button onClick={handleClose}
                 className="shrink-0 flex items-center gap-1 text-xs text-gray-400 hover:text-juve-gold font-bold uppercase tracking-widest transition-colors">
                 <X className="h-3.5 w-3.5" /> Chiudi
               </button>

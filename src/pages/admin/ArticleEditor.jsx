@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock, ChevronDown } from 'lucide-react'
+import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock, ChevronDown, Film } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -12,6 +12,7 @@ import {
   sendArticlePushNotification, getArticlePoll, upsertArticlePoll,
   duplicateArticle, searchArticlesForRelated, getProfiles,
   getArticleRevisions, getArticleRevisionById, createArticleRevision,
+  getVideos,
 } from '@/lib/supabase'
 import { slugify, stripHtml, readingTime } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -153,6 +154,8 @@ export default function ArticleEditor() {
   const [showRevisions, setShowRevisions] = useState(false)
   const [importUrl, setImportUrl] = useState('')
   const [importLoading, setImportLoading] = useState(false)
+  const [videoPickerOpen, setVideoPickerOpen] = useState(false)
+  const [videoSearch, setVideoSearch] = useState('')
   const [openSections, setOpenSections] = useState(() => new Set(['cover', 'settings']))
   const toggleSection = useCallback((key) => {
     setOpenSections(prev => {
@@ -212,6 +215,31 @@ export default function ArticleEditor() {
       return data || []
     },
   })
+
+  const { data: libraryVideos = [] } = useQuery({
+    queryKey: ['library-videos-picker'],
+    queryFn: async () => {
+      const { data } = await getVideos({ limit: 100 })
+      return data || []
+    },
+  })
+
+  const filteredVideos = useMemo(() => {
+    if (!videoSearch.trim()) return libraryVideos
+    const q = videoSearch.toLowerCase()
+    return libraryVideos.filter(v => v.title?.toLowerCase().includes(q))
+  }, [libraryVideos, videoSearch])
+
+  const insertVideoInContent = useCallback((video) => {
+    const videoUrl = `${SITE_URL}/video?v=${video.id}`
+    const thumbnail = video.thumbnail || (video.platform === 'youtube' && video.video_id
+      ? `https://img.youtube.com/vi/${video.video_id}/hqdefault.jpg` : '')
+    const embedHtml = `<div class="article-video" data-video-id="${video.id}"><a href="${videoUrl}" target="_blank" rel="noopener noreferrer"><img src="${thumbnail}" alt="${video.title}" style="width:100%;aspect-ratio:16/9;object-fit:cover;" /><p style="text-align:center;font-size:14px;font-weight:bold;margin-top:8px;">▶ ${video.title}</p></a></div>`
+    setContent(prev => prev + '\n' + embedHtml + '\n')
+    setVideoPickerOpen(false)
+    setVideoSearch('')
+    toast({ title: 'Video inserito', description: `"${video.title}" aggiunto nel contenuto.`, variant: 'success' })
+  }, [toast])
 
   const {
     register, control, handleSubmit, watch, setValue, reset,
@@ -1148,6 +1176,49 @@ export default function ArticleEditor() {
             <p className="text-xs text-gray-400">Premi Invio o virgola per aggiungere un tag</p>
           </SidebarAccordion>
 
+          {/* Video from library */}
+          <SidebarAccordion id="video" title="Video" icon={<Film className="h-3.5 w-3.5" />} openSections={openSections} toggleSection={toggleSection}>
+            <p className="text-xs text-gray-500 mb-2">Inserisci un video dalla libreria direttamente nel contenuto dell'articolo.</p>
+            <div className="relative mb-2">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                value={videoSearch}
+                onChange={(e) => { setVideoSearch(e.target.value); setVideoPickerOpen(true) }}
+                onFocus={() => setVideoPickerOpen(true)}
+                placeholder="Cerca video..."
+                className="w-full border border-gray-300 pl-7 pr-2 py-1.5 text-xs focus:outline-none focus:border-juve-black"
+              />
+            </div>
+            {videoPickerOpen && (
+              <div className="border border-gray-200 max-h-48 overflow-y-auto">
+                {filteredVideos.length === 0 && (
+                  <p className="text-xs text-gray-400 px-2 py-3 text-center">Nessun video trovato</p>
+                )}
+                {filteredVideos.map(v => {
+                  const thumb = v.thumbnail || (v.platform === 'youtube' && v.video_id
+                    ? `https://img.youtube.com/vi/${v.video_id}/hqdefault.jpg` : null)
+                  return (
+                    <button key={v.id} type="button"
+                      onClick={() => insertVideoInContent(v)}
+                      className="w-full text-left px-2 py-2 text-xs hover:bg-gray-50 border-b border-gray-100 last:border-0 flex items-center gap-2">
+                      {thumb ? (
+                        <img src={thumb} alt="" className="w-14 h-8 object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-14 h-8 bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <Film className="h-3.5 w-3.5 text-gray-300" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-700 truncate">{v.title}</p>
+                        <p className="text-[10px] text-gray-400">{v.category} • {v.platform}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </SidebarAccordion>
+
           {/* Gallery */}
           <SidebarAccordion id="gallery" title="Galleria" icon={<ImageIcon className="h-3.5 w-3.5" />} badge={gallery.length || null} openSections={openSections} toggleSection={toggleSection}>
             <div className="flex gap-2">
@@ -1190,6 +1261,7 @@ export default function ArticleEditor() {
 
           {/* Related articles */}
           <SidebarAccordion id="related" title="Correlati" icon={<Link2 className="h-3.5 w-3.5" />} badge={relatedArticleIds.length || null} openSections={openSections} toggleSection={toggleSection}>
+
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input
