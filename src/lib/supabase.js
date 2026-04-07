@@ -1830,6 +1830,52 @@ export const submitPagellaRating = async ({ playerId, userId, guestId, rating })
 
 // ─── FORUM ──────────────────────────────────────────────────────────────────
 let forumSupported = true
+let forumEngagementSupported = true
+const FORUM_THREAD_BASE_SELECT = 'id, category_id, title, content, author_id, author_name, is_pinned, is_locked, views, reply_count, last_reply_at, created_at, updated_at, forum_categories(name, slug, color)'
+const FORUM_THREAD_ENGAGEMENT_SELECT = 'like_count, follower_count'
+
+function getForumThreadSelect() {
+  return forumEngagementSupported
+    ? `${FORUM_THREAD_BASE_SELECT}, ${FORUM_THREAD_ENGAGEMENT_SELECT}`
+    : FORUM_THREAD_BASE_SELECT
+}
+
+function normalizeForumThread(thread) {
+  if (!thread) return thread
+  return {
+    like_count: 0,
+    follower_count: 0,
+    ...thread,
+  }
+}
+
+function applyForumThreadSorting(query, sortBy = 'active') {
+  if (sortBy === 'popular') {
+    return query
+      .order('views', { ascending: false })
+      .order('like_count', { ascending: false })
+      .order('reply_count', { ascending: false })
+      .order('last_reply_at', { ascending: false, nullsFirst: false })
+  }
+
+  if (sortBy === 'replies') {
+    return query
+      .order('reply_count', { ascending: false })
+      .order('last_reply_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+  }
+
+  if (sortBy === 'recent') {
+    return query
+      .order('created_at', { ascending: false })
+      .order('is_pinned', { ascending: false })
+  }
+
+  return query
+    .order('is_pinned', { ascending: false })
+    .order('last_reply_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+}
 
 export const getForumCategories = async () => {
   if (!forumSupported) return { data: [], error: null }
@@ -1845,39 +1891,75 @@ export const getForumCategories = async () => {
   return { data: data || [], error }
 }
 
-export const getForumThreads = async ({ categoryId, limit = 20, page = 1 } = {}) => {
+export const getForumThreads = async ({
+  categoryId,
+  limit = 20,
+  page = 1,
+  search = '',
+  sortBy = 'active',
+  viewMode = 'all',
+} = {}) => {
   if (!forumSupported) return { data: [], error: null }
-  let query = supabase
-    .from('forum_threads')
-    .select('*, forum_categories(name, slug, color)')
-    .order('is_pinned', { ascending: false })
-    .order('last_reply_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .range((page - 1) * limit, page * limit - 1)
 
-  if (categoryId) query = query.eq('category_id', categoryId)
+  const runQuery = async () => {
+    let query = supabase
+      .from('forum_threads')
+      .select(getForumThreadSelect(), { count: 'exact' })
+      .range((page - 1) * limit, page * limit - 1)
 
-  const { data, error } = await query
+    if (categoryId) query = query.eq('category_id', categoryId)
+
+    const normalizedSearch = String(search || '').trim().replace(/,/g, ' ')
+    if (normalizedSearch) {
+      query = query.or(`title.ilike.%${normalizedSearch}%,content.ilike.%${normalizedSearch}%,author_name.ilike.%${normalizedSearch}%`)
+    }
+
+    if (viewMode === 'pinned') {
+      query = query.eq('is_pinned', true)
+    } else if (viewMode === 'unanswered') {
+      query = query.eq('reply_count', 0)
+    }
+
+    query = applyForumThreadSorting(query, viewMode === 'hot' ? 'popular' : sortBy)
+    return query
+  }
+
+  let { data, error, count } = await runQuery()
+
+  if (error && forumEngagementSupported && (isMissingColumnOrRelation(error, 'like_count') || isMissingColumnOrRelation(error, 'follower_count'))) {
+    forumEngagementSupported = false
+    ;({ data, error, count } = await runQuery())
+  }
+
   if (error && isMissingColumnOrRelation(error, 'forum_threads')) {
     forumSupported = false
-    return { data: [], error: null }
+    return { data: [], count: 0, error: null }
   }
-  return { data: data || [], error }
+
+  return { data: (data || []).map(normalizeForumThread), count: count || 0, error }
 }
 
 export const getForumThread = async (threadId) => {
   if (!forumSupported) return { data: null, error: null }
-  const { data, error } = await supabase
+
+  const runQuery = async () => supabase
     .from('forum_threads')
-    .select('*, forum_categories(name, slug, color)')
+    .select(getForumThreadSelect())
     .eq('id', threadId)
     .maybeSingle()
+
+  let { data, error } = await runQuery()
+
+  if (error && forumEngagementSupported && (isMissingColumnOrRelation(error, 'like_count') || isMissingColumnOrRelation(error, 'follower_count'))) {
+    forumEngagementSupported = false
+    ;({ data, error } = await runQuery())
+  }
 
   if (error && isMissingColumnOrRelation(error, 'forum_threads')) {
     forumSupported = false
     return { data: null, error: null }
   }
-  return { data, error }
+  return { data: normalizeForumThread(data), error }
 }
 
 export const getForumReplies = async (threadId) => {
@@ -1898,26 +1980,103 @@ export const getForumReplies = async (threadId) => {
 export const createForumThread = async ({ categoryId, title, content, authorId, authorName }) =>
   supabase
     .from('forum_threads')
-    .insert([{ category_id: categoryId, title, content, author_id: authorId || null, author_name: authorName, last_reply_at: new Date().toISOString() }])
+    .insert([{
+      category_id: categoryId,
+      title,
+      content,
+      author_id: authorId || null,
+      author_name: authorName,
+      last_reply_at: new Date().toISOString(),
+    }])
     .select()
     .single()
 
-export const createForumReply = async ({ threadId, content, authorId, authorName }) => {
-  const { data, error } = await supabase
+export const createForumReply = ({ threadId, content, authorId, authorName }) =>
+  supabase
     .from('forum_replies')
     .insert([{ thread_id: threadId, content, author_id: authorId || null, author_name: authorName }])
     .select()
     .single()
 
-  if (!error) {
-    await supabase
-      .from('forum_threads')
-      .update({ reply_count: supabase.rpc ? undefined : 0, last_reply_at: new Date().toISOString() })
-      .eq('id', threadId)
+export const getForumThreadViewerState = async (threadId, userId = null) => {
+  if (!forumSupported || !forumEngagementSupported || !threadId || !userId) {
+    return {
+      data: { isLiked: false, isFollowing: false },
+      error: null,
+    }
   }
 
-  return { data, error }
+  const [likeResult, followResult] = await Promise.all([
+    supabase
+      .from('forum_thread_likes')
+      .select('thread_id')
+      .eq('thread_id', threadId)
+      .eq('user_id', userId)
+      .limit(1)
+      .single(),
+    supabase
+      .from('forum_thread_follows')
+      .select('thread_id')
+      .eq('thread_id', threadId)
+      .eq('user_id', userId)
+      .limit(1)
+      .single(),
+  ])
+
+  const likeMissing = likeResult?.error?.code === 'PGRST116'
+  const followMissing = followResult?.error?.code === 'PGRST116'
+
+  if ((likeResult.error && !likeMissing && isMissingColumnOrRelation(likeResult.error, 'forum_thread_likes')) || (followResult.error && !followMissing && isMissingColumnOrRelation(followResult.error, 'forum_thread_follows'))) {
+    forumEngagementSupported = false
+    return { data: { isLiked: false, isFollowing: false }, error: null }
+  }
+
+  return {
+    data: {
+      isLiked: Boolean(likeResult.data),
+      isFollowing: Boolean(followResult.data),
+    },
+    error: likeResult.error && !likeMissing ? likeResult.error : (followResult.error && !followMissing ? followResult.error : null),
+  }
 }
+
+export const likeForumThread = (threadId, userId) =>
+  supabase
+    .from('forum_thread_likes')
+    .insert([{ thread_id: threadId, user_id: userId }])
+
+export const unlikeForumThread = (threadId, userId) =>
+  supabase
+    .from('forum_thread_likes')
+    .delete()
+    .eq('thread_id', threadId)
+    .eq('user_id', userId)
+
+export const followForumThread = (threadId, userId) =>
+  supabase
+    .from('forum_thread_follows')
+    .insert([{ thread_id: threadId, user_id: userId }])
+
+export const unfollowForumThread = (threadId, userId) =>
+  supabase
+    .from('forum_thread_follows')
+    .delete()
+    .eq('thread_id', threadId)
+    .eq('user_id', userId)
+
+export const updateForumThreadModeration = (threadId, updates) =>
+  supabase
+    .from('forum_threads')
+    .update(updates)
+    .eq('id', threadId)
+    .select(getForumThreadSelect())
+    .single()
+
+export const deleteForumThread = (threadId) =>
+  supabase
+    .from('forum_threads')
+    .delete()
+    .eq('id', threadId)
 
 export const incrementThreadViews = (threadId) =>
   supabase.rpc('increment_thread_views', { thread_id: threadId })

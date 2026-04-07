@@ -427,9 +427,14 @@ export default function Header() {
               <Link
                 to="/community/forum"
                 onClick={() => setMenuOpen(false)}
-                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-between gap-3"
               >
-                <MessageSquare className="h-3.5 w-3.5 text-juve-gold" /> Forum
+                <span className="flex items-center gap-2">
+                  <MessageSquare className="h-3.5 w-3.5 text-juve-gold" /> Forum
+                </span>
+                <span className="rounded-full border border-juve-gold/40 bg-juve-gold/10 px-2 py-0.5 text-[9px] font-black tracking-[0.18em] text-juve-black">
+                  Members
+                </span>
               </Link>
               <Link
                 to="/calciomercato/tracker"

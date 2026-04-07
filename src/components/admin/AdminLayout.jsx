@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
-  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film,
+  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
@@ -26,6 +26,7 @@ const navGroups = [
       { icon: BarChart2, label: 'Analytics', to: '/admin/analytics' },
       { icon: Users, label: 'Redattori', to: '/admin/redattori' },
       { icon: MessagesSquare, label: 'Commenti', to: '/admin/commenti' },
+      { icon: Shield, label: 'Forum', to: '/admin/forum' },
       { icon: MessagesSquare, label: 'Proposte Tifosi', to: '/admin/proposte-tifosi' },
       { icon: ArrowUpDown, label: 'Trasferimenti', to: '/admin/mercato' },
       { icon: Film, label: 'Video', to: '/admin/video' },
