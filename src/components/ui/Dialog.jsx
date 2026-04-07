@@ -33,6 +33,19 @@ export function Dialog({ open, onClose, children, className }) {
     }
   }, [canUseDOM, open])
 
+  useEffect(() => {
+    if (!canUseDOM || !open) return undefined
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [canUseDOM, onClose, open])
+
   if (!canUseDOM) return null
 
   return createPortal(
@@ -44,14 +57,17 @@ export function Dialog({ open, onClose, children, className }) {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
           onClick={onClose}
+          role="presentation"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
             className={cn(
-              'bg-white shadow-2xl w-full max-h-[90vh] overflow-y-auto',
+              'bg-white shadow-2xl w-full max-h-[90vh] overflow-y-auto dark:bg-neutral-900',
               'max-w-lg',
               className
             )}
@@ -67,10 +83,10 @@ export function Dialog({ open, onClose, children, className }) {
 
 export function DialogHeader({ children, onClose }) {
   return (
-    <div className="flex items-center justify-between p-6 border-b border-gray-200">
+    <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-white/10">
       <div>{children}</div>
       {onClose && (
-        <button onClick={onClose} className="p-1 hover:bg-gray-100 transition-colors">
+        <button onClick={onClose} className="p-1 transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
           <X className="h-5 w-5" />
         </button>
       )}
