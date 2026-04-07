@@ -10,7 +10,10 @@
     "seed:articles": "node scripts/seed-blog-articles.js",
     "newsletter": "node scripts/send-digest.js",
     "newsletter:preview": "node scripts/send-digest.js --dry-run",
-    "newsletter:cron": "node scripts/send-digest.js --cron"
+    "newsletter:cron": "node scripts/send-digest.js --cron",
+    "community": "node scripts/auto-community.js",
+    "community:preview": "node scripts/auto-community.js --dry-run",
+    "community:cron": "node scripts/auto-community.js --cron"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

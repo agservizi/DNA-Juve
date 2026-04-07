@@ -1613,3 +1613,356 @@ export const approveFanArticleSubmission = async (submission, { authorId } = {})
 
   return { article, submission: updatedSubmission }
 }
+
+// ─── COMMUNITY POLLS (Sondaggi Live) ────────────────────────────────────────
+let communityPollsSupported = true
+
+export const getCommunityPolls = async ({ active = true, featured = false, limit = 20 } = {}) => {
+  if (!communityPollsSupported) return { data: [], error: null }
+  let query = supabase
+    .from('community_polls')
+    .select(`
+      id, question, description, category, cover_image, is_active, is_featured, expires_at, created_at,
+      community_poll_options(id, label, position)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (active) query = query.eq('is_active', true)
+  if (featured) query = query.eq('is_featured', true)
+
+  const { data, error } = await query
+  if (error && isMissingColumnOrRelation(error, 'community_polls')) {
+    communityPollsSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const getCommunityPollById = async (pollId, userId = null) => {
+  if (!communityPollsSupported) return { data: null, error: null }
+  const { data: poll, error: pollError } = await supabase
+    .from('community_polls')
+    .select(`
+      id, question, description, category, cover_image, is_active, is_featured, expires_at, created_at,
+      community_poll_options(id, label, position)
+    `)
+    .eq('id', pollId)
+    .maybeSingle()
+
+  if (pollError && isMissingColumnOrRelation(pollError, 'community_polls')) {
+    communityPollsSupported = false
+    return { data: null, error: null }
+  }
+  if (pollError || !poll) return { data: null, error: pollError }
+
+  const { data: votes } = await supabase
+    .from('community_poll_votes')
+    .select('option_id, user_id')
+    .eq('poll_id', pollId)
+
+  const voteCounts = (votes || []).reduce((acc, v) => { acc[v.option_id] = (acc[v.option_id] || 0) + 1; return acc }, {})
+  const totalVotes = Object.values(voteCounts).reduce((s, c) => s + c, 0)
+  const currentVote = userId ? (votes || []).find(v => v.user_id === userId)?.option_id || null : null
+
+  return {
+    data: {
+      ...poll,
+      totalVotes,
+      currentVote,
+      options: (poll.community_poll_options || []).sort((a, b) => a.position - b.position).map(o => ({
+        id: o.id, label: o.label, position: o.position, votes: voteCounts[o.id] || 0,
+      })),
+    },
+    error: null,
+  }
+}
+
+export const voteCommunityPoll = async ({ pollId, optionId, userId, guestId }) => {
+  const payload = { poll_id: pollId, option_id: optionId }
+  if (userId) payload.user_id = userId
+  if (guestId) payload.guest_id = guestId
+
+  const { error } = await supabase
+    .from('community_poll_votes')
+    .upsert([payload], { onConflict: userId ? 'poll_id,user_id' : undefined })
+
+  return { data: !error, error }
+}
+
+export const createCommunityPoll = async (poll) => {
+  const { data, error } = await supabase
+    .from('community_polls')
+    .insert([{
+      question: poll.question,
+      description: poll.description || null,
+      category: poll.category || 'generale',
+      cover_image: poll.cover_image || null,
+      is_active: true,
+      is_featured: poll.is_featured || false,
+      expires_at: poll.expires_at || null,
+      created_by: poll.created_by || null,
+    }])
+    .select()
+    .single()
+
+  if (error) return { data: null, error }
+
+  if (poll.options?.length) {
+    await supabase.from('community_poll_options').insert(
+      poll.options.map((label, i) => ({ poll_id: data.id, label, position: i }))
+    )
+  }
+
+  return getCommunityPollById(data.id)
+}
+
+// ─── PAGELLE (Player Ratings) ───────────────────────────────────────────────
+let pagelleSupported = true
+
+export const getPagelleMatches = async ({ active = true, limit = 10 } = {}) => {
+  if (!pagelleSupported) return { data: [], error: null }
+  let query = supabase
+    .from('pagelle_matches')
+    .select('*')
+    .order('match_date', { ascending: false })
+    .limit(limit)
+
+  if (active) query = query.eq('is_active', true)
+
+  const { data, error } = await query
+  if (error && isMissingColumnOrRelation(error, 'pagelle_matches')) {
+    pagelleSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const getPagelleMatchById = async (matchId) => {
+  if (!pagelleSupported) return { data: null, error: null }
+  const { data, error } = await supabase
+    .from('pagelle_matches')
+    .select(`
+      *,
+      pagelle_players(id, player_name, player_number, position, is_starter, display_order)
+    `)
+    .eq('id', matchId)
+    .maybeSingle()
+
+  if (error && isMissingColumnOrRelation(error, 'pagelle_matches')) {
+    pagelleSupported = false
+    return { data: null, error: null }
+  }
+  return { data, error }
+}
+
+export const getPagelleRatings = async (matchId) => {
+  if (!pagelleSupported) return { data: [], error: null }
+  const { data: players } = await supabase
+    .from('pagelle_players')
+    .select('id, player_name, player_number, position, is_starter, display_order')
+    .eq('match_id', matchId)
+    .order('display_order')
+
+  if (!players?.length) return { data: [], error: null }
+
+  const playerIds = players.map(p => p.id)
+  const { data: ratings } = await supabase
+    .from('pagelle_ratings')
+    .select('player_id, rating')
+    .in('player_id', playerIds)
+
+  const ratingMap = {}
+  for (const r of (ratings || [])) {
+    if (!ratingMap[r.player_id]) ratingMap[r.player_id] = []
+    ratingMap[r.player_id].push(r.rating)
+  }
+
+  return {
+    data: players.map(p => ({
+      ...p,
+      ratings: ratingMap[p.id] || [],
+      avgRating: ratingMap[p.id]?.length ? +(ratingMap[p.id].reduce((s, r) => s + r, 0) / ratingMap[p.id].length).toFixed(1) : null,
+      totalVotes: ratingMap[p.id]?.length || 0,
+    })),
+    error: null,
+  }
+}
+
+export const submitPagellaRating = async ({ playerId, userId, guestId, rating }) => {
+  const payload = { player_id: playerId, rating }
+  if (userId) payload.user_id = userId
+  if (guestId) payload.guest_id = guestId
+
+  const { error } = await supabase
+    .from('pagelle_ratings')
+    .upsert([payload], { onConflict: userId ? 'player_id,user_id' : undefined })
+
+  return { data: !error, error }
+}
+
+// ─── FORUM ──────────────────────────────────────────────────────────────────
+let forumSupported = true
+
+export const getForumCategories = async () => {
+  if (!forumSupported) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('forum_categories')
+    .select('*')
+    .order('display_order')
+
+  if (error && isMissingColumnOrRelation(error, 'forum_categories')) {
+    forumSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const getForumThreads = async ({ categoryId, limit = 20, page = 1 } = {}) => {
+  if (!forumSupported) return { data: [], error: null }
+  let query = supabase
+    .from('forum_threads')
+    .select('*, forum_categories(name, slug, color)')
+    .order('is_pinned', { ascending: false })
+    .order('last_reply_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .range((page - 1) * limit, page * limit - 1)
+
+  if (categoryId) query = query.eq('category_id', categoryId)
+
+  const { data, error } = await query
+  if (error && isMissingColumnOrRelation(error, 'forum_threads')) {
+    forumSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const getForumThread = async (threadId) => {
+  if (!forumSupported) return { data: null, error: null }
+  const { data, error } = await supabase
+    .from('forum_threads')
+    .select('*, forum_categories(name, slug, color)')
+    .eq('id', threadId)
+    .maybeSingle()
+
+  if (error && isMissingColumnOrRelation(error, 'forum_threads')) {
+    forumSupported = false
+    return { data: null, error: null }
+  }
+  return { data, error }
+}
+
+export const getForumReplies = async (threadId) => {
+  if (!forumSupported) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('forum_replies')
+    .select('*')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: true })
+
+  if (error && isMissingColumnOrRelation(error, 'forum_replies')) {
+    forumSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const createForumThread = async ({ categoryId, title, content, authorId, authorName }) =>
+  supabase
+    .from('forum_threads')
+    .insert([{ category_id: categoryId, title, content, author_id: authorId || null, author_name: authorName, last_reply_at: new Date().toISOString() }])
+    .select()
+    .single()
+
+export const createForumReply = async ({ threadId, content, authorId, authorName }) => {
+  const { data, error } = await supabase
+    .from('forum_replies')
+    .insert([{ thread_id: threadId, content, author_id: authorId || null, author_name: authorName }])
+    .select()
+    .single()
+
+  if (!error) {
+    await supabase
+      .from('forum_threads')
+      .update({ reply_count: supabase.rpc ? undefined : 0, last_reply_at: new Date().toISOString() })
+      .eq('id', threadId)
+  }
+
+  return { data, error }
+}
+
+export const incrementThreadViews = (threadId) =>
+  supabase.rpc('increment_thread_views', { thread_id: threadId })
+
+// ─── TRANSFER TIMELINE ──────────────────────────────────────────────────────
+let transferRumorsSupported = true
+
+export const getTransferRumors = async ({ status, direction, active = true } = {}) => {
+  if (!transferRumorsSupported) return { data: [], error: null }
+  let query = supabase
+    .from('transfer_rumors')
+    .select('*')
+    .order('updated_at', { ascending: false })
+
+  if (active) query = query.eq('is_active', true)
+  if (status) query = query.eq('status', status)
+  if (direction) query = query.eq('direction', direction)
+
+  const { data, error } = await query
+  if (error && isMissingColumnOrRelation(error, 'transfer_rumors')) {
+    transferRumorsSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const getTransferUpdates = async (rumorId) => {
+  const { data, error } = await supabase
+    .from('transfer_updates')
+    .select('*')
+    .eq('rumor_id', rumorId)
+    .order('created_at', { ascending: true })
+  return { data: data || [], error }
+}
+
+// ─── VIDEOS ─────────────────────────────────────────────────────────────────
+let videosSupported = true
+
+export const getVideos = async ({ category, limit = 20, page = 1 } = {}) => {
+  if (!videosSupported) return { data: [], error: null }
+  let query = supabase
+    .from('videos')
+    .select('*')
+    .eq('is_published', true)
+    .order('published_at', { ascending: false })
+    .range((page - 1) * limit, page * limit - 1)
+
+  if (category) query = query.eq('category', category)
+
+  const { data, error } = await query
+  if (error && isMissingColumnOrRelation(error, 'videos')) {
+    videosSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
+}
+
+export const getVideoBySlug = async (slug) => {
+  if (!videosSupported) return { data: null, error: null }
+  const { data, error } = await supabase
+    .from('videos')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_published', true)
+    .maybeSingle()
+
+  if (error && isMissingColumnOrRelation(error, 'videos')) {
+    videosSupported = false
+    return { data: null, error: null }
+  }
+  return { data, error }
+}
+
+export const incrementVideoViews = (videoId) =>
+  supabase.rpc('increment_video_views', { vid_id: videoId })

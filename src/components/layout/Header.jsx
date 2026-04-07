@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Menu, X, Zap, UserCircle, Moon, Sun } from 'lucide-react'
+import { Search, Menu, X, Zap, UserCircle, Moon, Sun, ChevronDown, Users, BarChart3, MessageSquare, Vote, Play, Mic, Shirt } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getCategories, getPublishedArticles } from '@/lib/supabase'
 import { getTransferNews } from '@/lib/newsApi'
@@ -54,6 +54,7 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [scrolled, setScrolled] = useState(false)
+  const [communityOpen, setCommunityOpen] = useState(false)
   const navigate = useNavigate()
   const { reader } = useReader()
   const { theme, toggleTheme } = useTheme()
@@ -249,7 +250,7 @@ export default function Header() {
           </div>
 
           {/* Category nav — desktop */}
-          <nav className="hidden md:flex items-center justify-center gap-0 py-0 overflow-x-auto">
+          <nav className="hidden md:flex items-center justify-center gap-0 py-0 flex-wrap">
             <NavLink
               to="/"
               end
@@ -295,6 +296,58 @@ export default function Header() {
               <span className="h-1.5 w-1.5 bg-green-500 animate-pulse" />
               Live
             </NavLink>
+            <NavLink
+              to="/rosa"
+              className={({ isActive }) =>
+                `px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors whitespace-nowrap ${
+                  isActive ? 'bg-juve-gold text-juve-black border-juve-gold' : 'border-transparent text-gray-600 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
+                }`
+              }
+            >
+              Rosa
+            </NavLink>
+            <NavLink
+              to="/video"
+              className={({ isActive }) =>
+                `px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors whitespace-nowrap ${
+                  isActive ? 'bg-juve-gold text-juve-black border-juve-gold' : 'border-transparent text-gray-600 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
+                }`
+              }
+            >
+              Video
+            </NavLink>
+            <div className="relative" onMouseEnter={() => setCommunityOpen(true)} onMouseLeave={() => setCommunityOpen(false)}>
+              <button
+                className={`px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 border-transparent text-gray-600 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold`}
+              >
+                Community
+                <ChevronDown className={`h-3 w-3 transition-transform ${communityOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <AnimatePresence>
+                {communityOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 shadow-xl z-50 min-w-[200px]"
+                  >
+                    <Link to="/community/sondaggi" onClick={() => setCommunityOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-gray-600 hover:bg-juve-gold/10 hover:text-juve-black transition-colors">
+                      <Vote className="h-3.5 w-3.5 text-juve-gold" /> Sondaggi
+                    </Link>
+                    <Link to="/community/pagelle" onClick={() => setCommunityOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-gray-600 hover:bg-juve-gold/10 hover:text-juve-black transition-colors">
+                      <BarChart3 className="h-3.5 w-3.5 text-juve-gold" /> Pagelle
+                    </Link>
+                    <Link to="/community/forum" onClick={() => setCommunityOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-gray-600 hover:bg-juve-gold/10 hover:text-juve-black transition-colors">
+                      <MessageSquare className="h-3.5 w-3.5 text-juve-gold" /> Forum
+                    </Link>
+                    <Link to="/calciomercato/tracker" onClick={() => setCommunityOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-gray-600 hover:bg-juve-gold/10 hover:text-juve-black transition-colors">
+                      <Users className="h-3.5 w-3.5 text-juve-gold" /> Trasferimenti
+                    </Link>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </nav>
         </div>
       </header>
@@ -340,6 +393,50 @@ export default function Header() {
               >
                 <span className="h-1.5 w-1.5 bg-green-500 animate-pulse" />
                 Notizie Live
+              </Link>
+              <Link
+                to="/rosa"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                Rosa
+              </Link>
+              <Link
+                to="/video"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                Video
+              </Link>
+              <div className="h-px bg-gray-200 dark:bg-gray-700 mx-3 my-1" />
+              <span className="px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-juve-gold">Community</span>
+              <Link
+                to="/community/sondaggi"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+              >
+                <Vote className="h-3.5 w-3.5 text-juve-gold" /> Sondaggi
+              </Link>
+              <Link
+                to="/community/pagelle"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+              >
+                <BarChart3 className="h-3.5 w-3.5 text-juve-gold" /> Pagelle
+              </Link>
+              <Link
+                to="/community/forum"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+              >
+                <MessageSquare className="h-3.5 w-3.5 text-juve-gold" /> Forum
+              </Link>
+              <Link
+                to="/calciomercato/tracker"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+              >
+                <Users className="h-3.5 w-3.5 text-juve-gold" /> Trasferimenti
               </Link>
               <Link
                 to="/area-bianconera"

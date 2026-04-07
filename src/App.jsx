@@ -26,6 +26,13 @@ const MyDnaJuve     = lazy(() => import('@/pages/MyDnaJuve'))
 const MatchCalendar = lazy(() => import('@/pages/MatchCalendar'))
 const Calciomercato = lazy(() => import('@/pages/Calciomercato'))
 const NotizeLive    = lazy(() => import('@/pages/NotizeLive'))
+const Rosa          = lazy(() => import('@/pages/Rosa'))
+const Video         = lazy(() => import('@/pages/Video'))
+const Sondaggi      = lazy(() => import('@/pages/community/Sondaggi'))
+const Pagelle       = lazy(() => import('@/pages/community/Pagelle'))
+const Forum         = lazy(() => import('@/pages/community/Forum'))
+const ForumThread   = lazy(() => import('@/pages/community/ForumThread'))
+const TransferTracker = lazy(() => import('@/pages/community/TransferTracker'))
 const NotFound   = lazy(() => import('@/pages/NotFound'))
 const RssFeed    = lazy(() => import('@/pages/FeedXML').then(m => ({ default: m.RssFeed })))
 const SitemapXML = lazy(() => import('@/pages/FeedXML').then(m => ({ default: m.SitemapXML })))
@@ -44,6 +51,8 @@ const Authors       = lazy(() => import('@/pages/admin/Authors'))
 const CommentsAdmin = lazy(() => import('@/pages/admin/Comments'))
 const FeedManager   = lazy(() => import('@/pages/admin/FeedManager'))
 const FanArticleSubmissions = lazy(() => import('@/pages/admin/FanArticleSubmissions'))
+const TransferAdmin = lazy(() => import('@/pages/admin/TransferAdmin'))
+const VideoAdmin    = lazy(() => import('@/pages/admin/VideoAdmin'))
 const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 function PageLoader() {
@@ -92,6 +101,13 @@ function AppRoutes() {
           <Route path="calendario-partite" element={<MatchCalendar />} />
           <Route path="calciomercato" element={<Calciomercato />} />
           <Route path="notizie-live" element={<NotizeLive />} />
+          <Route path="rosa" element={<Rosa />} />
+          <Route path="video" element={<Video />} />
+          <Route path="community/sondaggi" element={<Sondaggi />} />
+          <Route path="community/pagelle" element={<Pagelle />} />
+          <Route path="community/forum" element={<Forum />} />
+          <Route path="community/forum/:id" element={<ForumThread />} />
+          <Route path="calciomercato/tracker" element={<TransferTracker />} />
           <Route path="feed.xml" element={<RssFeed />} />
           <Route path="sitemap.xml" element={<SitemapXML />} />
           <Route path="*" element={<NotFound />} />
@@ -120,6 +136,8 @@ function AppRoutes() {
           <Route path="redattori" element={<Authors />} />
           <Route path="commenti" element={<CommentsAdmin />} />
           <Route path="proposte-tifosi" element={<FanArticleSubmissions />} />
+          <Route path="mercato" element={<TransferAdmin />} />
+          <Route path="video" element={<VideoAdmin />} />
           <Route path="profilo" element={<Profile />} />
           <Route path="feed" element={<FeedManager />} />
           <Route path="impostazioni" element={<Settings />} />

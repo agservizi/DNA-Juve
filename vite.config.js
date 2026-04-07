@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/football/, ''),
           headers: {
-            'X-Auth-Token': env.FOOTBALL_API_KEY || '',
+            'X-Auth-Token': env.VITE_FOOTBALL_API_KEY || env.FOOTBALL_API_KEY || '',
           },
         },
         '/api/news': {
