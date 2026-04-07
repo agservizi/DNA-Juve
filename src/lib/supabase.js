@@ -612,21 +612,6 @@ export const getFollowedAuthors = (userId) => {
 }
 
 export const invokePushNotifications = async (payload) => {
-  const call = async (accessToken) => {
-    const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    const data = await response.json().catch(() => ({}))
-    return { response, data }
-  }
-
   let { data: { session } } = await supabase.auth.getSession()
   let accessToken = session?.access_token
   const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0
@@ -644,21 +629,25 @@ export const invokePushNotifications = async (payload) => {
     return { data: null, error: new Error('Sessione non valida per l’invio notifiche.') }
   }
 
-  let { response, data } = await call(accessToken)
+  let { data, error } = await supabase.functions.invoke('push-notifications', {
+    body: payload,
+  })
 
-  if (response.status === 401) {
+  if (error?.context?.status === 401 || error?.message?.toLowerCase().includes('unauthorized')) {
     const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
     accessToken = refreshed?.session?.access_token
 
     if (!refreshError && accessToken) {
-      const retry = await call(accessToken)
-      response = retry.response
+      const retry = await supabase.functions.invoke('push-notifications', {
+        body: payload,
+      })
       data = retry.data
+      error = retry.error
     }
   }
 
-  if (!response.ok) {
-    return { data: null, error: new Error(data?.error || 'Invio notifiche non riuscito.') }
+  if (error) {
+    return { data: null, error: new Error(data?.error || error.message || 'Invio notifiche non riuscito.') }
   }
 
   return { data, error: null }
