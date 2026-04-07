@@ -17,6 +17,7 @@ const Search    = lazy(() => import('@/pages/Search'))
 const Author    = lazy(() => import('@/pages/Author'))
 const Tag       = lazy(() => import('@/pages/Tag'))
 const ChiSiamo     = lazy(() => import('@/pages/ChiSiamo'))
+const Redazione    = lazy(() => import('@/pages/Redazione'))
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'))
 const CookiePolicy  = lazy(() => import('@/pages/CookiePolicy'))
 const Contatti      = lazy(() => import('@/pages/Contatti'))
@@ -91,6 +92,7 @@ function AppRoutes() {
           <Route path="autore/:username" element={<Author />} />
           <Route path="tag/:slug" element={<Tag />} />
           <Route path="chi-siamo" element={<ChiSiamo />} />
+          <Route path="redazione" element={<Redazione />} />
           <Route path="privacy" element={<PrivacyPolicy />} />
           <Route path="cookie-policy" element={<CookiePolicy />} />
           <Route path="contatti" element={<Contatti />} />

@@ -82,7 +82,7 @@ export default function Footer() {
             <ul className="space-y-2">
               {[
                 { label: 'Chi siamo', to: '/chi-siamo' },
-                { label: 'Redazione', to: '/chi-siamo' },
+                { label: 'Redazione', to: '/redazione' },
                 { label: 'Contatti', to: '/contatti' },
                 { label: 'FAQ', to: '/faq' },
                 { label: 'Termini', to: '/termini' },
