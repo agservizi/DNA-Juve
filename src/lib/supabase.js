@@ -79,7 +79,7 @@ function getPostMatchOpponent(match) {
 }
 
 function getPostMatchQuestion(match) {
-  return `Che giudizio dai alla Juve dopo ${getPostMatchOpponent(match)}?`
+  return `Dopo ${getPostMatchOpponent(match)}, tu che voto dai alla prestazione della Juve?`
 }
 
 function getPostMatchLabel(match) {
@@ -136,8 +136,8 @@ function buildLocalPostMatchPoll(match, userId = null) {
     },
     articleTitle: getPostMatchLabel(match),
     articleSlug: null,
-    url: '/calendario',
-    ctaLabel: 'Apri il calendario',
+    url: '/community/forum',
+    ctaLabel: 'Entra nel forum',
     expiresAt: new Date(new Date(match.utcDate).getTime() + MATCH_POLL_WINDOW_MS).toISOString(),
     options: DEFAULT_MATCH_POLL_OPTIONS.map((label, index) => {
       const optionId = `local-${matchId}-${index}`
@@ -282,8 +282,8 @@ async function resolveActivePostMatch(match, userId = null) {
       },
       articleTitle: getPostMatchLabel(match),
       articleSlug: null,
-      url: '/calendario',
-      ctaLabel: 'Apri il calendario',
+      url: '/community/forum',
+      ctaLabel: 'Entra nel forum',
       expiresAt: poll.expires_at,
       options: (poll.match_poll_options || [])
         .slice()

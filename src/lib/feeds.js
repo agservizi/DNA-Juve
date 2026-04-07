@@ -48,7 +48,24 @@ export function generateRSS(articles = [], category = null) {
 export function generateSitemap(articles = [], categories = []) {
   const staticUrls = [
     { url: '/', priority: '1.0', changefreq: 'daily' },
+    { url: '/notizie-live', priority: '0.9', changefreq: 'hourly' },
+    { url: '/calciomercato', priority: '0.9', changefreq: 'daily' },
+    { url: '/calendario-partite', priority: '0.8', changefreq: 'daily' },
+    { url: '/video', priority: '0.8', changefreq: 'daily' },
+    { url: '/rosa', priority: '0.7', changefreq: 'weekly' },
+    { url: '/area-bianconera', priority: '0.7', changefreq: 'daily' },
+    { url: '/community/forum', priority: '0.8', changefreq: 'hourly' },
+    { url: '/community/sondaggi', priority: '0.7', changefreq: 'daily' },
+    { url: '/community/pagelle', priority: '0.7', changefreq: 'daily' },
+    { url: '/calciomercato/tracker', priority: '0.7', changefreq: 'daily' },
     { url: '/cerca', priority: '0.3', changefreq: 'monthly' },
+    { url: '/redazione', priority: '0.5', changefreq: 'monthly' },
+    { url: '/chi-siamo', priority: '0.4', changefreq: 'monthly' },
+    { url: '/contatti', priority: '0.3', changefreq: 'yearly' },
+    { url: '/faq', priority: '0.3', changefreq: 'monthly' },
+    { url: '/privacy', priority: '0.2', changefreq: 'yearly' },
+    { url: '/cookie-policy', priority: '0.2', changefreq: 'yearly' },
+    { url: '/termini', priority: '0.2', changefreq: 'yearly' },
     ...categories.map(c => ({ url: `/categoria/${c.slug}`, priority: '0.8', changefreq: 'daily' })),
   ]
 
