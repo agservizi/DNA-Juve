@@ -68,6 +68,43 @@ function getHeadToHeadLabel(match) {
   return `${home} ${homeGoals}-${awayGoals} ${away}${dateLabel ? ` • ${dateLabel}` : ''}`
 }
 
+function summarizeForm(values = []) {
+  if (!values.length) return 'dati recenti non disponibili'
+
+  const wins = values.filter((value) => value === 'V').length
+  const draws = values.filter((value) => value === 'N').length
+  const losses = values.filter((value) => value === 'P').length
+
+  if (wins >= 4) return 'è in grande fiducia'
+  if (wins >= 3 && losses === 0) return 'arriva in buona serie utile'
+  if (losses >= 3) return 'vive un momento complicato'
+  if (draws >= 3) return 'sta trovando continuità ma con diversi pareggi'
+  if (wins > losses) return 'ha rendimento leggermente positivo'
+  if (losses > wins) return 'ha alternato troppo nelle ultime uscite'
+  return 'arriva con andamento equilibrato'
+}
+
+function buildMatchFocus({ match, juveForm, opponentForm, headToHead }) {
+  const isJuveHome = match.homeTeam?.id === JUVE_ID
+  const opponent = isJuveHome ? getTeamDisplay(match.awayTeam, 'Avversaria') : getTeamDisplay(match.homeTeam, 'Avversaria')
+  const venueText = isJuveHome ? 'all’Allianz Stadium' : `in trasferta sul campo del ${opponent.name}`
+  const juveSummary = summarizeForm(juveForm)
+  const opponentSummary = summarizeForm(opponentForm)
+
+  if (!headToHead) {
+    return `La Juve gioca ${venueText} contro ${opponent.name}: i bianconeri ${juveSummary}, mentre ${opponent.name} ${opponentSummary}.`
+  }
+
+  const result = getResultLetter(headToHead, JUVE_ID)
+  const headToHeadSummary = result === 'V'
+    ? 'L’ultimo precedente sorride alla Juve'
+    : result === 'P'
+      ? `L’ultimo confronto ha premiato ${opponent.name}`
+      : 'L’ultimo confronto si era chiuso in parità'
+
+  return `La Juve gioca ${venueText} contro ${opponent.name}: i bianconeri ${juveSummary}, mentre ${opponent.name} ${opponentSummary}. ${headToHeadSummary}.`
+}
+
 function TeamBadge({ team }) {
   return (
     <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-sm border border-black/10 bg-white shadow-sm sm:h-16 sm:w-16">
@@ -143,6 +180,12 @@ export default function MatchCountdown() {
   const home = getTeamDisplay(match.homeTeam, 'Casa')
   const away = getTeamDisplay(match.awayTeam, 'Ospite')
   const venueLabel = getVenueLabel(match)
+  const focusText = useMemo(() => buildMatchFocus({
+    match,
+    juveForm: bundle?.juveForm || [],
+    opponentForm: bundle?.opponentForm || [],
+    headToHead: bundle?.headToHead || null,
+  }), [bundle?.headToHead, bundle?.juveForm, bundle?.opponentForm, match])
   const [remaining, setRemaining] = useState(null)
 
   useEffect(() => {
@@ -258,7 +301,7 @@ export default function MatchCountdown() {
                 <span>Focus match</span>
               </div>
               <p className="text-xs leading-relaxed text-gray-300">
-                La Juve arriva con forma recente aggiornata e precedente diretto gia in vista, cosi il widget racconta davvero il contesto della prossima sfida.
+                {focusText}
               </p>
             </div>
           </div>
