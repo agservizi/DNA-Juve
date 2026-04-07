@@ -613,12 +613,18 @@ export const getFollowedAuthors = (userId) => {
 
 export const invokePushNotifications = async (payload) => {
   const { data: { session } } = await supabase.auth.getSession()
+  const accessToken = session?.access_token
+
+  if (!accessToken) {
+    return { data: null, error: new Error('Sessione non valida per l’invio notifiche.') }
+  }
+
   const response = await fetch(`${supabaseUrl}/functions/v1/push-notifications`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       apikey: supabaseAnonKey,
-      Authorization: `Bearer ${session?.access_token || ''}`,
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   })

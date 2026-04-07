@@ -43,6 +43,7 @@ const schema = z.object({
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 const ARTICLE_DRAFT_STORAGE_PREFIX = 'admin-article-draft'
 const EMPTY_ARRAY = []
+const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 function getTimestamp(value) {
   if (!value) return 0
@@ -631,7 +632,9 @@ export default function ArticleEditor() {
         result?.data?.slug &&
         (!isEdit || existing?.status !== 'published')
 
-      if (shouldSendPush) {
+      const canSendPush = profile?.role === 'admin' || user?.email === PRIMARY_ADMIN_EMAIL
+
+      if (shouldSendPush && canSendPush) {
         const category = categories.find((item) => item.id === result.data.category_id)
         sendArticlePushNotification({
           article: {
