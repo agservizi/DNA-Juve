@@ -4,6 +4,7 @@
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ─── PROFILES ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS profiles (
@@ -173,9 +174,53 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Increment views
-CREATE OR REPLACE FUNCTION increment_article_views(article_id UUID)
-RETURNS VOID AS $$
-BEGIN UPDATE articles SET views = views + 1 WHERE id = article_id; END;
+CREATE TABLE IF NOT EXISTS article_view_events (
+  article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  ip_hash TEXT NOT NULL,
+  viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (article_id, ip_hash)
+);
+
+CREATE INDEX IF NOT EXISTS article_view_events_viewed_at_idx
+  ON article_view_events (viewed_at DESC);
+
+DROP FUNCTION IF EXISTS increment_article_views(UUID);
+
+CREATE OR REPLACE FUNCTION increment_article_views(target_article_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  forwarded_for TEXT;
+  client_ip TEXT;
+  inserted_rows INTEGER;
+BEGIN
+  forwarded_for := COALESCE(
+    current_setting('request.headers', true)::json ->> 'x-forwarded-for',
+    current_setting('request.headers', true)::json ->> 'cf-connecting-ip',
+    ''
+  );
+
+  client_ip := NULLIF(TRIM(SPLIT_PART(forwarded_for, ',', 1)), '');
+
+  IF client_ip IS NULL THEN
+    client_ip := COALESCE(inet_client_addr()::TEXT, 'unknown');
+  END IF;
+
+  INSERT INTO article_view_events (article_id, ip_hash)
+  VALUES (target_article_id, ENCODE(DIGEST(client_ip, 'sha256'), 'hex'))
+  ON CONFLICT (article_id, ip_hash) DO NOTHING;
+
+  GET DIAGNOSTICS inserted_rows = ROW_COUNT;
+
+  IF inserted_rows > 0 THEN
+    UPDATE articles
+    SET views = views + 1
+    WHERE id = target_article_id;
+
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
+END;
 $$ LANGUAGE plpgsql;
 
 -- ─── TAGS ────────────────────────────────────────────────────

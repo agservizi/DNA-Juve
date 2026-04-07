@@ -67,8 +67,8 @@ export default function Article() {
 
     ;(async () => {
       try {
-        await incrementViews(article.id)
-        if (!cancelled) {
+        const { data: counted } = await incrementViews(article.id)
+        if (!cancelled && counted) {
           setDisplayViews((prev) => (Number.isFinite(prev) ? prev + 1 : 1))
         }
       } catch {

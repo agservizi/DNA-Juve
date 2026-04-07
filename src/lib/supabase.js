@@ -903,7 +903,7 @@ export const getSmartRelatedArticles = async (articleId, categoryId, tagIds = []
 }
 
 export const incrementViews = (id) =>
-  supabase.rpc('increment_article_views', { article_id: id })
+  supabase.rpc('increment_article_views', { target_article_id: id })
 
 export const searchArticles = (query) =>
   supabase
