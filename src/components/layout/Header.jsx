@@ -202,12 +202,12 @@ export default function Header() {
             </div>
 
             {/* Logo */}
-            <Link to="/" className="flex flex-col items-center group min-w-0 flex-1 md:flex-none md:justify-self-center">
-              <div className="flex items-baseline gap-1">
-                <span className="font-display text-[1.85rem] sm:text-4xl md:text-5xl font-black text-juve-black leading-none tracking-tight">BIANCONERI</span>
-                <span className="font-display text-[1.85rem] sm:text-4xl md:text-5xl font-black text-juve-gold leading-none tracking-tight">HUB</span>
+            <Link to="/" className="flex flex-col items-center group min-w-0 flex-1 pr-2 md:flex-none md:justify-self-center md:pr-0">
+              <div className="flex items-baseline gap-0.5 sm:gap-1">
+                <span className="font-display text-[1.4rem] sm:text-4xl md:text-5xl font-black text-juve-black leading-none tracking-tight">BIANCONERI</span>
+                <span className="font-display text-[1.4rem] sm:text-4xl md:text-5xl font-black text-juve-gold leading-none tracking-tight">HUB</span>
               </div>
-              <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] sm:tracking-[0.3em] text-gray-500 font-medium mt-0.5 text-center">
+              <span className="text-[7px] sm:text-[9px] uppercase tracking-[0.16em] sm:tracking-[0.3em] text-gray-500 font-medium mt-0.5 text-center">
                 Il Magazine Bianconero
               </span>
             </Link>
