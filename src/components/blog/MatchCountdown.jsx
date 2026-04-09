@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { Calendar, MapPin, Trophy, Loader2, Activity, History } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getNextMatch, getRecentFinishedMatches, getTeamMatches, getVenueLabel, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import { useReader } from '@/hooks/useReader'
 
 const NEXT_MATCH_SNAPSHOT_KEY = 'match-countdown:last-successful-bundle'
 const NEXT_MATCH_REFETCH_MS = 60 * 1000
@@ -183,6 +185,8 @@ function FormStrip({ label, values }) {
 }
 
 export default function MatchCountdown() {
+  const { preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const { data: bundle, isLoading } = useQuery({
     queryKey: ['nextMatchWidgetBundle'],
     queryFn: async () => {
@@ -274,15 +278,17 @@ export default function MatchCountdown() {
   }, [match.utcDate])
 
   const dateStr = useMemo(() => {
-    const date = new Date(match.utcDate)
-    return date.toLocaleDateString('it-IT', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
+    const date = formatDateLocalized(match.utcDate, {
+      locale: localeContext.locale,
+      timeZone: localeContext.timeZone,
+      options: { weekday: 'long', day: 'numeric', month: 'long' },
     })
-  }, [match.utcDate])
+    const time = formatTimeLocalized(match.utcDate, {
+      locale: localeContext.locale,
+      timeZone: localeContext.timeZone,
+    })
+    return [date, time].filter(Boolean).join(' • ')
+  }, [localeContext.locale, localeContext.timeZone, match.utcDate])
 
   return (
     <motion.div

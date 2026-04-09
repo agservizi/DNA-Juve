@@ -53,7 +53,7 @@ const LS = {
 const GAMIFICATION_KEY = 'fb-gamification'
 const NOTIFICATIONS_KEY = 'fb-notifications'
 const CONFIRMATION_REMINDER_KEY = 'fb-confirmation-reminders'
-const DEFAULT_PREFS = { favoriteCategories: [] }
+const DEFAULT_PREFS = { favoriteCategories: [], timeZone: 'auto' }
 const IS_MOCK = import.meta.env.VITE_SUPABASE_URL?.includes('your-project.supabase.co')
 const GUEST_SCOPE = 'guest'
 
@@ -705,6 +705,10 @@ export function ReaderProvider({ children }) {
     setPreferences((prev) => ({ ...prev, favoriteCategories: ids }))
   }, [])
 
+  const setTimeZonePreference = useCallback((timeZone) => {
+    setPreferences((prev) => ({ ...prev, timeZone: timeZone || 'auto' }))
+  }, [])
+
   const openLogin = useCallback((mode = 'register') => {
     if (mode === 'recovery') {
       setLoginDialogMode('recovery')
@@ -771,6 +775,7 @@ export function ReaderProvider({ children }) {
       addToHistory,
       clearHistory,
       setFavoriteCategories,
+      setTimeZonePreference,
       enableNotifications,
       primeNotificationPermission,
       disableNotifications,

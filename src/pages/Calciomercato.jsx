@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Clock, Star, AlertCircle, ChevronDown, ChevronUp, Newspaper, ExternalLink, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react'
 import { getTuttoJuveCalciomercato } from '@/lib/newsApi'
 import SEO from '@/components/blog/SEO'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import { useReader } from '@/hooks/useReader'
 
 // ── Transfer windows ────────────────────────────────────────────────────────
 function getNextTransferWindow() {
@@ -70,6 +72,8 @@ function timeAgo(dateStr) {
 
 function NewsCard({ article, index }) {
   const [expanded, setExpanded] = useState(false)
+  const { preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
 
   return (
     <motion.div
@@ -112,7 +116,16 @@ function NewsCard({ article, index }) {
                 </a>
               )}
               <p className="text-[10px] text-gray-400 mt-2">
-                {new Date(article.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {formatDateLocalized(article.date, {
+                  locale: localeContext.locale,
+                  timeZone: localeContext.timeZone,
+                  options: { day: 'numeric', month: 'long', year: 'numeric' },
+                })}
+                {' • '}
+                {formatTimeLocalized(article.date, {
+                  locale: localeContext.locale,
+                  timeZone: localeContext.timeZone,
+                })}
               </p>
             </div>
           </motion.div>

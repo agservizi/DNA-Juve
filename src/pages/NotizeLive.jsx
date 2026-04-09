@@ -5,11 +5,15 @@ import { useQuery } from '@tanstack/react-query'
 import { Wifi, WifiOff, ChevronDown, ChevronUp, ExternalLink, Loader2, Newspaper, RefreshCw, ArrowRight } from 'lucide-react'
 import { getTransferNews } from '@/lib/newsApi'
 import SEO from '@/components/blog/SEO'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import { useReader } from '@/hooks/useReader'
 
 // ── News Card ───────────────────────────────────────────────────────────────
 
 function NewsCard({ article, index }) {
   const [expanded, setExpanded] = useState(false)
+  const { preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const timeAgo = useMemo(() => {
     const diff = Date.now() - new Date(article.date).getTime()
     const hours = Math.floor(diff / (1000 * 60 * 60))
@@ -61,7 +65,16 @@ function NewsCard({ article, index }) {
                 </a>
               )}
               <p className="text-[10px] text-gray-400 mt-2">
-                {new Date(article.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {formatDateLocalized(article.date, {
+                  locale: localeContext.locale,
+                  timeZone: localeContext.timeZone,
+                  options: { day: 'numeric', month: 'long', year: 'numeric' },
+                })}
+                {' • '}
+                {formatTimeLocalized(article.date, {
+                  locale: localeContext.locale,
+                  timeZone: localeContext.timeZone,
+                })}
                 {article.author && ` • ${article.author}`}
               </p>
             </div>

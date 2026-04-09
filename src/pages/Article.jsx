@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Clock, Eye, Calendar, User, ArrowLeft } from 'lucide-react'
 import { getArticleBySlug, getRelatedArticles, getSmartRelatedArticles, incrementViews, getArticleTags } from '@/lib/supabase'
-import { formatDate, readingTime, formatViews, stripHtml } from '@/lib/utils'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, readingTime, formatViews, stripHtml } from '@/lib/utils'
 import ArticleCard from '@/components/blog/ArticleCard'
 import Sidebar from '@/components/blog/Sidebar'
 import SEO from '@/components/blog/SEO'
@@ -42,6 +42,8 @@ export default function Article() {
   const { slug } = useParams()
   const queryClient = useQueryClient()
   const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
+  const { reader, addToHistory, preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const [displayViews, setDisplayViews] = useState(0)
   const contentRef = useRef(null)
 
@@ -141,8 +143,6 @@ export default function Article() {
     }
   }, [article?.id, queryClient, refetchArticle, slug])
 
-  const { reader, addToHistory } = useReader()
-
   useEffect(() => {
     if (article && reader) {
       addToHistory({
@@ -183,6 +183,15 @@ export default function Article() {
 
   const mins = readingTime(article.content)
   const description = article.excerpt || stripHtml(article.content).slice(0, 160)
+  const publishedDate = formatDateLocalized(article.published_at, {
+    locale: localeContext.locale,
+    timeZone: localeContext.timeZone,
+    options: { day: 'numeric', month: 'long', year: 'numeric' },
+  })
+  const publishedTime = formatTimeLocalized(article.published_at, {
+    locale: localeContext.locale,
+    timeZone: localeContext.timeZone,
+  })
   const contentWithIds = useHeadingIds(article.content)
 
   return (
@@ -273,7 +282,8 @@ export default function Article() {
                 )}
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-4 w-4" />
-                  {formatDate(article.published_at)}
+                  {publishedDate}
+                  {publishedTime ? ` • ${publishedTime}` : ''}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-4 w-4" />

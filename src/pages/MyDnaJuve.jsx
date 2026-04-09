@@ -30,7 +30,7 @@ import SEO from '@/components/blog/SEO'
 import Leaderboard from '@/components/blog/Leaderboard'
 import NotificationAlert from '@/components/blog/NotificationAlert'
 import { useToast } from '@/hooks/useToast'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, COMMON_TIMEZONE_OPTIONS, formatDate, formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
 import {
   LEVELS, getLevel, BADGES, getWeeklyChallenges, PLAYER_CARDS, AVATARS,
   FORMATIONS, SQUAD_PLAYERS,
@@ -65,17 +65,24 @@ const TABS = [
   { id: 'preferences', label: 'Preferenze', icon: Settings2 },
 ]
 
-function formatOfficialMatchLabel(match, { includeScore = false } = {}) {
+function formatOfficialMatchLabel(match, { includeScore = false, localeContext } = {}) {
   const home = match.homeTeam?.shortName || match.homeTeam?.name || 'Casa'
   const away = match.awayTeam?.shortName || match.awayTeam?.name || 'Ospite'
   const competition = match.competition?.name || 'Competizione'
   const kickoff = new Date(match.utcDate)
   const dateLabel = Number.isNaN(kickoff.getTime())
     ? ''
-    : kickoff.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+    : formatDateLocalized(match.utcDate, {
+      locale: localeContext?.locale || 'it-IT',
+      timeZone: localeContext?.timeZone,
+      options: { day: '2-digit', month: 'short' },
+    })
   const timeLabel = Number.isNaN(kickoff.getTime())
     ? ''
-    : kickoff.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    : formatTimeLocalized(match.utcDate, {
+      locale: localeContext?.locale || 'it-IT',
+      timeZone: localeContext?.timeZone,
+    })
 
   const score =
     includeScore && match.status === 'FINISHED'
@@ -92,16 +99,23 @@ function getTeamDisplay(team, fallback = 'Squadra') {
   }
 }
 
-function getMatchMeta(match) {
+function getMatchMeta(match, localeContext) {
   const kickoff = new Date(match.utcDate)
   return {
     competition: match.competition?.name || 'Competizione',
     dateLabel: Number.isNaN(kickoff.getTime())
       ? ''
-      : kickoff.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' }),
+      : formatDateLocalized(match.utcDate, {
+        locale: localeContext?.locale || 'it-IT',
+        timeZone: localeContext?.timeZone,
+        options: { weekday: 'short', day: '2-digit', month: 'short' },
+      }),
     timeLabel: Number.isNaN(kickoff.getTime())
       ? ''
-      : kickoff.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+      : formatTimeLocalized(match.utcDate, {
+        locale: localeContext?.locale || 'it-IT',
+        timeZone: localeContext?.timeZone,
+      }),
     venueLabel: getVenueLabel(match),
   }
 }
@@ -150,12 +164,12 @@ function MatchTeamBadge({ team, align = 'left' }) {
   )
 }
 
-function MatchQuickCard({ match, countdown }) {
+function MatchQuickCard({ match, countdown, localeContext }) {
   if (!match) return null
 
   const home = getTeamDisplay(match.homeTeam, 'Casa')
   const away = getTeamDisplay(match.awayTeam, 'Ospite')
-  const meta = getMatchMeta(match)
+  const meta = getMatchMeta(match, localeContext)
   const finalScore = match.status === 'FINISHED'
     ? `${match.score?.fullTime?.home ?? 0} - ${match.score?.fullTime?.away ?? 0}`
     : null
@@ -196,8 +210,9 @@ export default function MyDnaJuve() {
   const {
     reader, bookmarks, history, preferences, stats, notifications,
     logout, loginDemo, deleteAccount, clearBookmarks, clearHistory,
-    setFavoriteCategories, openLogin, updateProfile, enableNotifications,
+    setFavoriteCategories, setTimeZonePreference, openLogin, updateProfile, enableNotifications,
   } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -458,12 +473,13 @@ export default function MyDnaJuve() {
             className="mx-auto w-full max-w-7xl px-1 sm:px-2 lg:px-4"
           >
             {activeTab === 'dashboard' && (
-              <DashboardTab
+                <DashboardTab
                 stats={stats}
                 level={level}
                 gamification={gamification}
                 history={history}
                 bookmarks={bookmarks}
+                  localeContext={localeContext}
                 onSelectTab={setActiveTab}
                 notificationsEnabled={notifications?.enabled}
                 onEnableNotifications={async () => {
@@ -484,8 +500,8 @@ export default function MyDnaJuve() {
             {activeTab === 'challenges' && <ChallengesTab />}
             {activeTab === 'figurine' && <FigurineTab />}
             {activeTab === 'formation' && <FormationTab />}
-            {activeTab === 'diary' && <DiaryTab officialMatches={officialMatches} matchesLoading={matchesLoading} />}
-            {activeTab === 'predictions' && <PredictionsTab officialMatches={officialMatches} matchesLoading={matchesLoading} />}
+            {activeTab === 'diary' && <DiaryTab officialMatches={officialMatches} matchesLoading={matchesLoading} localeContext={localeContext} />}
+            {activeTab === 'predictions' && <PredictionsTab officialMatches={officialMatches} matchesLoading={matchesLoading} localeContext={localeContext} />}
             {activeTab === 'fan-articles' && <FanArticlesTab reader={reader} />}
             {activeTab === 'leaderboard' && <Leaderboard />}
             {activeTab === 'notifications' && (
@@ -500,8 +516,10 @@ export default function MyDnaJuve() {
                 categories={categories}
                 preferences={preferences}
                 setFavoriteCategories={setFavoriteCategories}
+                setTimeZonePreference={setTimeZonePreference}
                 reader={reader}
                 gamification={gamification}
+                localeContext={localeContext}
                 onUpdateProfile={updateProfile}
                 toast={toast}
                 onDelete={() => setShowDeleteDialog(true)}
@@ -532,7 +550,7 @@ export default function MyDnaJuve() {
 // TAB: DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DashboardTab({ stats, level, gamification, history, bookmarks, onSelectTab, notificationsEnabled, onEnableNotifications }) {
+function DashboardTab({ stats, level, gamification, history, bookmarks, localeContext, onSelectTab, notificationsEnabled, onEnableNotifications }) {
   const { data: recommended } = useQuery({
     queryKey: ['recommended-articles'],
     queryFn: async () => {
@@ -876,7 +894,7 @@ function DashboardTab({ stats, level, gamification, history, bookmarks, onSelect
                 <span className="text-[10px] font-bold uppercase tracking-widest text-juve-gold">Widget live</span>
               </div>
               {diaryWidgetMatch ? (
-                <MatchQuickCard match={diaryWidgetMatch} />
+                <MatchQuickCard match={diaryWidgetMatch} localeContext={localeContext} />
               ) : (
                 <p className="text-sm text-gray-500">{latestDiaryEntry?.match || 'Nessuna partita disponibile'}</p>
               )}
@@ -891,7 +909,7 @@ function DashboardTab({ stats, level, gamification, history, bookmarks, onSelect
                 <p className="font-display text-lg font-black text-juve-black">Pronostici</p>
               </div>
               {predictionWidgetMatch ? (
-                <MatchQuickCard match={predictionWidgetMatch} />
+                <MatchQuickCard match={predictionWidgetMatch} localeContext={localeContext} />
               ) : (
                 <p className="text-sm text-gray-500">{latestPrediction?.match || 'Nessun pronostico disponibile'}</p>
               )}
@@ -1246,7 +1264,7 @@ function FormationTab() {
 // TAB: DIARY
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DiaryTab({ officialMatches = [], matchesLoading = false }) {
+function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext }) {
   const [entries, setEntries] = useState(() => getDiary())
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ matchId: '', match: '', mood: '', rating: 5, note: '' })
@@ -1324,7 +1342,7 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
                     setForm({
                       ...form,
                       matchId: e.target.value,
-                      match: match ? formatOfficialMatchLabel(match, { includeScore: true }) : '',
+                      match: match ? formatOfficialMatchLabel(match, { includeScore: true, localeContext }) : '',
                     })
                   }}
                   className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold bg-white"
@@ -1339,12 +1357,12 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
                   </option>
                   {diaryMatches.map(match => (
                     <option key={match.id} value={match.id}>
-                      {formatOfficialMatchLabel(match, { includeScore: true })}
+                      {formatOfficialMatchLabel(match, { includeScore: true, localeContext })}
                     </option>
                   ))}
                 </select>
               </div>
-              {selectedMatch && <MatchQuickCard match={selectedMatch} />}
+              {selectedMatch && <MatchQuickCard match={selectedMatch} localeContext={localeContext} />}
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Come ti senti?</p>
                 <div className="flex gap-2">
@@ -1426,7 +1444,7 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
                     <button onClick={() => handleDelete(entry.id)} className="text-gray-300 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
-                {storedMatch && <div className="mb-3"><MatchQuickCard match={storedMatch} /></div>}
+                {storedMatch && <div className="mb-3"><MatchQuickCard match={storedMatch} localeContext={localeContext} /></div>}
                 {entry.note && <p className="text-sm text-gray-600">{entry.note}</p>}
                 <p className="text-[10px] text-gray-400 mt-2">{formatDate(entry.createdAt)}</p>
               </motion.div>
@@ -1442,7 +1460,7 @@ function DiaryTab({ officialMatches = [], matchesLoading = false }) {
 // TAB: PREDICTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
+function PredictionsTab({ officialMatches = [], matchesLoading = false, localeContext }) {
   const [predictions, setPredictions] = useState(() => getPredictions())
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
@@ -1515,7 +1533,7 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
                     setForm({
                       ...form,
                       matchId: e.target.value,
-                      match: match ? formatOfficialMatchLabel(match) : '',
+                      match: match ? formatOfficialMatchLabel(match, { localeContext }) : '',
                     })
                   }}
                   className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold bg-white"
@@ -1530,12 +1548,12 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false }) {
                   </option>
                   {upcomingMatches.map(match => (
                     <option key={match.id} value={match.id}>
-                      {formatOfficialMatchLabel(match)}
+                      {formatOfficialMatchLabel(match, { localeContext })}
                     </option>
                   ))}
                 </select>
               </div>
-              {selectedMatch && <MatchQuickCard match={selectedMatch} countdown={selectedCountdown} />}
+              {selectedMatch && <MatchQuickCard match={selectedMatch} countdown={selectedCountdown} localeContext={localeContext} />}
               <div className="flex items-center justify-center gap-4">
                 <div className="text-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
@@ -2244,8 +2262,9 @@ function NotificationsTab({ notifications, readerId, toast }) {
 // TAB: PREFERENZE (updated with avatar picker)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PreferencesTab({ categories, preferences, setFavoriteCategories, reader, gamification, onUpdateProfile, toast, onDelete }) {
+function PreferencesTab({ categories, preferences, setFavoriteCategories, setTimeZonePreference, reader, gamification, localeContext, onUpdateProfile, toast, onDelete }) {
   const favs = preferences.favoriteCategories || []
+  const selectedTimeZone = preferences.timeZone || 'auto'
   const [profileName, setProfileName] = useState(reader.name || '')
   const [profileBio, setProfileBio] = useState(reader.bio || '')
   const [savingProfile, setSavingProfile] = useState(false)
@@ -2324,6 +2343,27 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, reader
               {cat.name}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div>
+        <SectionHeader icon={Clock} title="Fuso orario" />
+        <p className="text-sm text-gray-500 mb-4">Scegli se usare il fuso del browser o uno fisso per partite, live e orari editoriali.</p>
+        <div className="max-w-md space-y-2">
+          <select
+            value={selectedTimeZone}
+            onChange={(event) => setTimeZonePreference(event.target.value)}
+            className="w-full border-2 border-gray-200 px-3 py-2 text-sm font-medium outline-none transition-colors focus:border-juve-gold"
+          >
+            {COMMON_TIMEZONE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-gray-400">
+            Fuso attivo: {localeContext.timeZoneLabel}
+            {localeContext.region ? ` (${localeContext.region})` : ''}
+            {localeContext.isAutoDetected ? ' • rilevato automaticamente' : ' • impostato manualmente'}
+          </p>
         </div>
       </div>
 

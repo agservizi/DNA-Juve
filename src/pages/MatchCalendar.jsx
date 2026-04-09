@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Calendar, MapPin, Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import SEO from '@/components/blog/SEO'
 import { getTeamMatches, shouldRetryFootballQuery } from '@/lib/footballApi'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import { useReader } from '@/hooks/useReader'
 
 // Fallback demo matches
 const DEMO_MATCHES = [
@@ -42,6 +44,8 @@ function mapApiMatches(apiMatches) {
 
 export default function MatchCalendar() {
   const [filter, setFilter] = useState('all')
+  const { preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
 
   const { data: apiMatches, isLoading } = useQuery({
     queryKey: ['teamMatches'],
@@ -69,14 +73,15 @@ export default function MatchCalendar() {
     else results.l++
   })
 
-  const formatMatchDate = (dateStr) => {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
-  }
-  const formatMatchTime = (dateStr) => {
-    const d = new Date(dateStr)
-    return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-  }
+  const formatMatchDate = (dateStr) => formatDateLocalized(dateStr, {
+    locale: localeContext.locale,
+    timeZone: localeContext.timeZone,
+  })
+
+  const formatMatchTime = (dateStr) => formatTimeLocalized(dateStr, {
+    locale: localeContext.locale,
+    timeZone: localeContext.timeZone,
+  })
 
   return (
     <>
@@ -88,6 +93,10 @@ export default function MatchCalendar() {
             <h1 className="font-display text-3xl md:text-4xl font-black text-juve-black">Calendario Partite</h1>
           </div>
           <div className="h-1 w-12 bg-juve-gold" />
+          <p className="mt-3 text-sm text-gray-500">
+            Orari mostrati nel tuo fuso locale: <span className="font-semibold text-juve-black">{localeContext.timeZoneLabel}</span>
+            {localeContext.region ? ` (${localeContext.region})` : ''}
+          </p>
         </motion.div>
 
       {/* Stats strip */}

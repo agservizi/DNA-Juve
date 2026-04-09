@@ -1,12 +1,21 @@
 import { Link } from 'react-router-dom'
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, ChevronRight } from 'lucide-react'
-import { formatDate, readingTime } from '@/lib/utils'
+import { formatDateLocalized, getClientLocaleContext, readingTime } from '@/lib/utils'
+import { useReader } from '@/hooks/useReader'
 import LazyImage from './LazyImage'
 
 export default function FeaturedHero({ articles = [] }) {
   if (!articles.length) return null
+  const { preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const [main, ...rest] = articles
+  const formatPublishedDate = (value) => formatDateLocalized(value, {
+    locale: localeContext.locale,
+    timeZone: localeContext.timeZone,
+    options: { day: 'numeric', month: 'long', year: 'numeric' },
+  })
 
   return (
     <section className="max-w-7xl mx-auto px-4 py-8">
@@ -50,7 +59,7 @@ export default function FeaturedHero({ articles = [] }) {
                 <p className="text-gray-300 text-sm mt-2 line-clamp-2 hidden md:block">{main.excerpt}</p>
               )}
               <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-                <span>{formatDate(main.published_at)}</span>
+                <span>{formatPublishedDate(main.published_at)}</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {readingTime(main.content || main.excerpt)} min
@@ -90,7 +99,7 @@ export default function FeaturedHero({ articles = [] }) {
                   <h3 className="font-display text-sm font-bold leading-tight text-juve-black group-hover:text-juve-gold transition-colors mt-0.5 line-clamp-2">
                     {article.title}
                   </h3>
-                  <p className="text-xs text-gray-500 mt-1">{formatDate(article.published_at)}</p>
+                  <p className="text-xs text-gray-500 mt-1">{formatPublishedDate(article.published_at)}</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-juve-gold shrink-0 self-center ml-2 transition-colors" />
               </Link>
