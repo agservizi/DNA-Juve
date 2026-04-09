@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 import { useTheme } from '@/hooks/useTheme'
 
-const FINAL_BADGE_WINDOW_MS = 3 * 60 * 60 * 1000
+const FINAL_BADGE_WINDOW_MS = 24 * 60 * 60 * 1000
 
 function getLiveMatchLabel(match) {
   if (!match) return ''
