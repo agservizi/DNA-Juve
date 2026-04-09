@@ -30,6 +30,7 @@ import {
   deletePushSubscription,
   pushNotificationsConfigured,
   vapidPublicKey,
+  signInWithGoogle,
 } from '@/lib/supabase'
 import {
   getPushSupportStatus,
@@ -564,6 +565,12 @@ export function ReaderProvider({ children }) {
     return { mode: 'success' }
   }, [enableNotifications, ensureWelcomeNotification])
 
+  const loginWithGoogle = useCallback(async () => {
+    setShowLoginDialog(false)
+    const { error } = await signInWithGoogle()
+    if (error) throw error
+  }, [])
+
   const resendConfirmationEmail = useCallback(async (email) => {
     const normalizedEmail = String(email || '').trim()
     if (!normalizedEmail) {
@@ -853,6 +860,7 @@ export function ReaderProvider({ children }) {
       isPasswordRecovery,
       register,
       login,
+      loginWithGoogle,
       resendConfirmationEmail,
       sendPasswordReset,
       completePasswordReset,

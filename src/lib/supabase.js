@@ -356,6 +356,14 @@ export const resetReaderPassword = (email) =>
 export const updateReaderPassword = (password) =>
   supabase.auth.updateUser({ password })
 
+export const signInWithGoogle = () =>
+  supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: getReaderAuthRedirectUrl(),
+    },
+  })
+
 export const signInWithMagicLink = (email, options = {}) =>
   supabase.auth.signInWithOtp({
     email,
