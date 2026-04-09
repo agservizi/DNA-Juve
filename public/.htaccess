@@ -7,8 +7,16 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
+  # Redirect legacy article URLs with query params to the canonical article path.
+  RewriteCond %{QUERY_STRING} (^|&)page=news_article(&|$) [NC]
+  RewriteCond %{QUERY_STRING} (^|&)slug=([^&]+)(&|$) [NC]
+  RewriteRule ^ /articolo/%2? [R=301,L,NE]
+
+  # Missing article slugs should be a real 404 for crawlers, not a soft-404 SPA page.
+  RewriteRule ^articolo/[^/]+/?$ - [R=404,L]
+
   # Fallback to the SPA only for app routes.
   RewriteRule . /index.html [L]
 </IfModule>
 
-ErrorDocument 404 /index.html
+ErrorDocument 404 /404.html

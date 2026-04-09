@@ -14,6 +14,7 @@ const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
 let readerStateSupported = true
 let profileRoleSupported = true
 let matchPollSupported = true
+let articleReactionsSupported = true
 
 const MATCH_POLL_WINDOW_MS = 48 * 60 * 60 * 1000
 const LOCAL_MATCH_POLL_PREFIX = 'post-match-poll'
@@ -932,6 +933,87 @@ export const getSmartRelatedArticles = async (articleId, categoryId, tagIds = []
 
 export const incrementViews = (id) =>
   supabase.rpc('increment_article_views', { target_article_id: id })
+
+export const getArticleReactions = async (articleId, { userId = null } = {}) => {
+  if (!articleId) return { data: { counts: {}, userReaction: null, source: 'remote' }, error: null }
+
+  if (!articleReactionsSupported) {
+    return { data: { counts: {}, userReaction: null, source: 'local' }, error: null }
+  }
+
+  const { data, error } = await supabase
+    .from('article_reactions')
+    .select('emoji, user_id')
+    .eq('article_id', articleId)
+
+  if (error && isMissingColumnOrRelation(error, 'article_reactions')) {
+    articleReactionsSupported = false
+    return { data: { counts: {}, userReaction: null, source: 'local' }, error: null }
+  }
+
+  if (error) return { data: null, error }
+
+  const counts = {}
+  let userReaction = null
+
+  for (const reaction of (data || [])) {
+    if (!reaction?.emoji) continue
+    counts[reaction.emoji] = (counts[reaction.emoji] || 0) + 1
+
+    if (userId && reaction.user_id === userId) {
+      userReaction = reaction.emoji
+    }
+  }
+
+  return { data: { counts, userReaction, source: 'remote' }, error: null }
+}
+
+export const upsertArticleReaction = async ({ articleId, userId, emoji }) => {
+  if (!articleId || !userId || !emoji) {
+    return { data: null, error: new Error('Dati reazione mancanti.') }
+  }
+
+  if (!articleReactionsSupported) {
+    return { data: null, error: null }
+  }
+
+  const { data, error } = await supabase
+    .from('article_reactions')
+    .upsert([{ article_id: articleId, user_id: userId, emoji }], { onConflict: 'article_id,user_id' })
+    .select()
+    .single()
+
+  if (error && isMissingColumnOrRelation(error, 'article_reactions')) {
+    articleReactionsSupported = false
+    return { data: null, error: null }
+  }
+
+  return { data, error }
+}
+
+export const deleteArticleReaction = async ({ articleId, userId }) => {
+  if (!articleId || !userId) {
+    return { data: null, error: new Error('Dati reazione mancanti.') }
+  }
+
+  if (!articleReactionsSupported) {
+    return { data: null, error: null }
+  }
+
+  const { data, error } = await supabase
+    .from('article_reactions')
+    .delete()
+    .eq('article_id', articleId)
+    .eq('user_id', userId)
+    .select()
+
+  if (error && isMissingColumnOrRelation(error, 'article_reactions')) {
+    articleReactionsSupported = false
+    return { data: null, error: null }
+  }
+
+  return { data, error }
+}
 
 export const searchArticles = (query) =>
   supabase

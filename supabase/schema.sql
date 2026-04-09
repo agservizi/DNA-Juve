@@ -268,6 +268,21 @@ CREATE TRIGGER comments_updated_at
   BEFORE UPDATE ON comments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- ─── ARTICLE REACTIONS ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS article_reactions (
+  article_id   UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  emoji        TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (article_id, user_id)
+);
+
+DROP TRIGGER IF EXISTS article_reactions_updated_at ON article_reactions;
+CREATE TRIGGER article_reactions_updated_at
+  BEFORE UPDATE ON article_reactions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- ─── FORUM / DISCUSSIONS ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS forum_categories (
   id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -707,6 +722,7 @@ ALTER TABLE articles   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tags       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE article_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE article_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE forum_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE forum_threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE forum_replies ENABLE ROW LEVEL SECURITY;
@@ -775,6 +791,25 @@ CREATE POLICY "Comments: public insert"
 CREATE POLICY "Comments: auth moderate"
   ON comments FOR ALL
   USING (auth.role() = 'authenticated');
+
+-- Article reactions
+DROP POLICY IF EXISTS "Article reactions: public read" ON article_reactions;
+DROP POLICY IF EXISTS "Article reactions: owner insert" ON article_reactions;
+DROP POLICY IF EXISTS "Article reactions: owner update" ON article_reactions;
+DROP POLICY IF EXISTS "Article reactions: owner delete" ON article_reactions;
+CREATE POLICY "Article reactions: public read"
+  ON article_reactions FOR SELECT
+  USING (true);
+CREATE POLICY "Article reactions: owner insert"
+  ON article_reactions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Article reactions: owner update"
+  ON article_reactions FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Article reactions: owner delete"
+  ON article_reactions FOR DELETE
+  USING (auth.uid() = user_id OR is_admin_user(auth.uid()));
 
 -- Forum
 DROP POLICY IF EXISTS "forum_categories_read" ON forum_categories;
@@ -1051,6 +1086,7 @@ CREATE INDEX IF NOT EXISTS article_tags_article_idx ON article_tags(article_id);
 CREATE INDEX IF NOT EXISTS article_tags_tag_idx     ON article_tags(tag_id);
 CREATE INDEX IF NOT EXISTS tags_slug_idx            ON tags(slug);
 CREATE INDEX IF NOT EXISTS comments_article_idx     ON comments(article_id, approved, created_at);
+CREATE INDEX IF NOT EXISTS article_reactions_article_idx ON article_reactions(article_id, emoji);
 CREATE INDEX IF NOT EXISTS forum_threads_category_idx ON forum_threads(category_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS forum_threads_pinned_idx ON forum_threads(is_pinned, last_reply_at DESC);
 CREATE INDEX IF NOT EXISTS forum_threads_last_reply_idx ON forum_threads(last_reply_at DESC, created_at DESC);

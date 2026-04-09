@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { addXP, XP_ACTIONS, updateWeeklyProgress } from '@/lib/gamification'
+import { getArticleReactions, upsertArticleReaction, deleteArticleReaction } from '@/lib/supabase'
+import { useReader } from '@/hooks/useReader'
 
 const REACTIONS = [
   { emoji: '🔥', label: 'Fuoco' },
@@ -20,17 +22,76 @@ function saveReactions(data) {
 }
 
 export default function ArticleReactions({ articleId }) {
+  const { authUser, isAuthenticated, openLogin } = useReader()
   const [counts, setCounts] = useState({})
   const [userReaction, setUserReaction] = useState(null)
+  const [storageMode, setStorageMode] = useState('remote')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    const all = loadReactions()
-    const article = all[articleId] || {}
-    setCounts(article.counts || {})
-    setUserReaction(article.userReaction || null)
-  }, [articleId])
+    let active = true
 
-  const handleReact = useCallback((emoji) => {
+    const loadReactionState = async () => {
+      const { data, error } = await getArticleReactions(articleId, { userId: authUser?.id || null })
+
+      if (!active) return
+
+      if (!error && data?.source === 'remote') {
+        setCounts(data.counts || {})
+        setUserReaction(data.userReaction || null)
+        setStorageMode('remote')
+        return
+      }
+
+      const all = loadReactions()
+      const article = all[articleId] || {}
+      setCounts(article.counts || {})
+      setUserReaction(article.userReaction || null)
+      setStorageMode('local')
+    }
+
+    loadReactionState()
+
+    return () => {
+      active = false
+    }
+  }, [articleId, authUser?.id])
+
+  const handleReact = useCallback(async (emoji) => {
+    if (storageMode === 'remote') {
+      if (!isAuthenticated || !authUser?.id) {
+        openLogin('login')
+        return
+      }
+
+      setIsSubmitting(true)
+
+      const prevReaction = userReaction
+      const result = prevReaction === emoji
+        ? await deleteArticleReaction({ articleId, userId: authUser.id })
+        : await upsertArticleReaction({ articleId, userId: authUser.id, emoji })
+
+      if (result.error) {
+        setIsSubmitting(false)
+        return
+      }
+
+      if (prevReaction !== emoji) {
+        addXP(XP_ACTIONS.reaction, 'reaction')
+        updateWeeklyProgress('reactions')
+      }
+
+      const refreshed = await getArticleReactions(articleId, { userId: authUser.id })
+      if (!refreshed.error && refreshed.data) {
+        setCounts(refreshed.data.counts || {})
+        setUserReaction(refreshed.data.userReaction || null)
+        setStorageMode(refreshed.data.source || 'remote')
+      }
+
+      setIsSubmitting(false)
+      return
+    }
+
     const all = loadReactions()
     const article = all[articleId] || { counts: {}, userReaction: null }
     const prevReaction = article.userReaction
@@ -58,7 +119,7 @@ export default function ArticleReactions({ articleId }) {
     saveReactions(all)
     setCounts({ ...article.counts })
     setUserReaction(article.userReaction)
-  }, [articleId])
+  }, [articleId, authUser?.id, isAuthenticated, openLogin, storageMode, userReaction])
 
   const total = Object.values(counts).reduce((s, v) => s + v, 0)
 
@@ -72,6 +133,7 @@ export default function ArticleReactions({ articleId }) {
             key={emoji}
             whileTap={{ scale: 0.9 }}
             onClick={() => handleReact(emoji)}
+            disabled={isSubmitting}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 border-2 text-sm transition-all ${
               isActive
                 ? 'border-juve-gold bg-juve-gold/10'
@@ -100,6 +162,15 @@ export default function ArticleReactions({ articleId }) {
         <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 ml-1">
           {total} reazion{total === 1 ? 'e' : 'i'}
         </span>
+      )}
+      {storageMode === 'remote' && !isAuthenticated && (
+        <button
+          type="button"
+          onClick={() => openLogin('login')}
+          className="text-[10px] font-bold uppercase tracking-widest text-juve-gold ml-1"
+        >
+          Accedi per reagire
+        </button>
       )}
     </div>
   )
