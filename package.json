@@ -13,7 +13,9 @@
     "newsletter:cron": "node scripts/send-digest.js --cron",
     "community": "node scripts/auto-community.js",
     "community:preview": "node scripts/auto-community.js --dry-run",
-    "community:cron": "node scripts/auto-community.js --cron"
+    "community:cron": "node scripts/auto-community.js --cron",
+    "notifications:process": "node scripts/process-reader-notifications.js",
+    "notifications:preview": "node scripts/process-reader-notifications.js --dry-run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

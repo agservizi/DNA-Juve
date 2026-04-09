@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, Eye } from 'lucide-react'
-import { formatDateLocalized, getClientLocaleContext, readingTime, formatViews, truncate } from '@/lib/utils'
+import { formatDateLocalized, getClientLocaleContext, getRelativeDateLabel, readingTime, formatViews, truncate } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 import LazyImage from './LazyImage'
 import BookmarkButton from './BookmarkButton'
@@ -17,6 +17,7 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
     timeZone: localeContext.timeZone,
     options: { day: 'numeric', month: 'long', year: 'numeric' },
   })
+  const freshness = getRelativeDateLabel(article.published_at)
 
   if (variant === 'horizontal') {
     return (
@@ -46,7 +47,7 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
               {article.title}
             </h3>
           </Link>
-          <p className="text-xs text-gray-500 mt-1">{publishedDate}</p>
+          <p className="text-xs text-gray-500 mt-1">{publishedDate}{freshness ? ` · ${freshness}` : ''}</p>
         </div>
       </motion.article>
     )
@@ -71,7 +72,7 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
           </h3>
         </Link>
         <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-          <span>{publishedDate}</span>
+          <span>{publishedDate}{freshness ? ` · ${freshness}` : ''}</span>
           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{mins} min</span>
         </div>
       </motion.article>
@@ -113,7 +114,7 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
         )}
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span>{publishedDate}</span>
+            <span>{publishedDate}{freshness ? ` · ${freshness}` : ''}</span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />{mins} min
             </span>

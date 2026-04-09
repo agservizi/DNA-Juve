@@ -146,18 +146,18 @@ export const PLAYER_CARDS = [
 // ── Avatars ─────────────────────────────────────────────────────────────────
 
 export const AVATARS = [
-  { id: 'shield', label: 'Scudetto', emoji: '🛡️' },
-  { id: 'zebra', label: 'Zebra', emoji: '🦓' },
-  { id: 'star', label: 'Stella', emoji: '⭐' },
-  { id: 'trophy', label: 'Coppa', emoji: '🏆' },
-  { id: 'fire', label: 'Fuoco', emoji: '🔥' },
-  { id: 'crown', label: 'Corona', emoji: '👑' },
-  { id: 'stadium', label: 'Stadio', emoji: '🏟️' },
-  { id: 'ball', label: 'Pallone', emoji: '⚽' },
-  { id: 'flag', label: 'Bandiera', emoji: '🏴' },
-  { id: 'heart', label: 'Cuore', emoji: '🖤' },
-  { id: 'eagle', label: 'Aquila', emoji: '🦅' },
-  { id: 'diamond', label: 'Diamante', emoji: '💎' },
+  { id: 'trophy',  label: 'Campione',   icon: 'Trophy',  color: 'gold' },
+  { id: 'star',    label: 'Stella',     icon: 'Star',    color: 'gold' },
+  { id: 'shield',  label: 'Difensore',  icon: 'Shield',  color: 'black' },
+  { id: 'crown',   label: 'Re',         icon: 'Crown',   color: 'gold' },
+  { id: 'zap',     label: 'Fulmine',    icon: 'Zap',     color: 'black' },
+  { id: 'swords',  label: 'Guerriero',  icon: 'Swords',  color: 'black' },
+  { id: 'target',  label: 'Bomber',     icon: 'Target',  color: 'red' },
+  { id: 'medal',   label: 'Medaglia',   icon: 'Medal',   color: 'gold' },
+  { id: 'flame',   label: 'Fuoco',      icon: 'Flame',   color: 'orange' },
+  { id: 'heart',   label: 'Passione',   icon: 'Heart',   color: 'red' },
+  { id: 'flag',    label: 'Bandiera',   icon: 'Flag',    color: 'black' },
+  { id: 'gem',     label: 'Diamante',   icon: 'Gem',     color: 'blue' },
 ]
 
 // ── Formations ──────────────────────────────────────────────────────────────

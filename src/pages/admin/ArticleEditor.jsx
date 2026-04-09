@@ -14,7 +14,7 @@ import {
   getArticleRevisions, getArticleRevisionById, createArticleRevision,
   getVideos,
 } from '@/lib/supabase'
-import { slugify, stripHtml, readingTime } from '@/lib/utils'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, slugify, stripHtml, readingTime } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import RichEditor from '@/components/admin/RichEditor'
@@ -308,6 +308,7 @@ export default function ArticleEditor() {
     },
   })
   const formValues = watch()
+  const editorLocaleContext = useMemo(() => getClientLocaleContext('auto'), [])
 
   // Word count and reading time (memoized)
   const wordStats = useMemo(() => {
@@ -723,6 +724,38 @@ export default function ArticleEditor() {
     ogImage,
     noindex,
   })
+  const scheduledSummary = useMemo(() => {
+    const value = formValues.scheduled_at
+    if (!showSchedule || !value) return null
+
+    const isoValue = new Date(value).toISOString()
+    return {
+      local: `${formatDateLocalized(isoValue, {
+        locale: editorLocaleContext.locale,
+        timeZone: editorLocaleContext.timeZone,
+        options: { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+      })} · ${formatTimeLocalized(isoValue, {
+        locale: editorLocaleContext.locale,
+        timeZone: editorLocaleContext.timeZone,
+      })}`,
+      rome: `${formatDateLocalized(isoValue, {
+        locale: 'it-IT',
+        timeZone: 'Europe/Rome',
+        options: { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+      })} · ${formatTimeLocalized(isoValue, {
+        locale: 'it-IT',
+        timeZone: 'Europe/Rome',
+      })}`,
+      utc: `${formatDateLocalized(isoValue, {
+        locale: 'it-IT',
+        timeZone: 'UTC',
+        options: { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+      })} · ${formatTimeLocalized(isoValue, {
+        locale: 'it-IT',
+        timeZone: 'UTC',
+      })} UTC`,
+    }
+  }, [editorLocaleContext.locale, editorLocaleContext.timeZone, formValues.scheduled_at, showSchedule])
 
   const updatePollOption = (index, value) => {
     setPollOptions((prev) => prev.map((option, currentIndex) => (currentIndex === index ? value : option)))
@@ -1079,6 +1112,14 @@ export default function ArticleEditor() {
                   <input type="datetime-local" {...register('scheduled_at')}
                     className="w-full border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:border-juve-black" />
                   <p className="text-xs text-gray-400 mt-1">L'articolo sarà pubblicato in automatico alla data indicata</p>
+                  {scheduledSummary && (
+                    <div className="mt-3 border border-gray-200 bg-gray-50 p-3 text-[11px] text-gray-600">
+                      <p className="font-bold uppercase tracking-widest text-gray-500">Lettura oraria editoriale</p>
+                      <p className="mt-2">Browser autore: {scheduledSummary.local}</p>
+                      <p>Desk Roma: {scheduledSummary.rome}</p>
+                      <p>Server/UTC: {scheduledSummary.utc}</p>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </div>

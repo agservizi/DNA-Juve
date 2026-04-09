@@ -207,13 +207,20 @@ export default function Pagelle() {
               PAGELLE
             </h1>
             <p className="text-sm text-gray-400 max-w-lg mx-auto">
-              Vota i giocatori della Juventus dopo ogni partita. Da 1 a 10, la tua opinione conta.
+              Vota i giocatori della Juventus dopo ogni partita. Le pagelle restano pubbliche: puoi lasciare i tuoi voti anche senza registrazione.
             </p>
           </motion.div>
         </div>
       </section>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-6 border border-juve-gold/30 bg-juve-gold/10 p-4 text-sm text-gray-700">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-juve-gold">Accesso</p>
+          <p className="mt-2 leading-relaxed">
+            Questa sezione e pubblica come i sondaggi. Il login serve invece per entrare nel forum e usare le funzioni sincronizzate dell&apos;Area Bianconera.
+          </p>
+        </div>
+
         {selectedMatch ? (
           <div>
             <button

@@ -14,6 +14,20 @@ type PushRecord = {
   subscription: Record<string, unknown>
 }
 
+type ReaderStateRow = {
+  user_id: string
+  notifications_enabled?: boolean | null
+  preferences?: Record<string, unknown> | null
+}
+
+type ReaderDeliveryPreferences = {
+  timeZone: string
+  quietHoursEnabled: boolean
+  quietHoursStart: string
+  quietHoursEnd: string
+  digestHour: string
+}
+
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || ''
@@ -21,6 +35,7 @@ const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || ''
 const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:notifications@bianconerihub.com'
 const brevoApiKey = Deno.env.get('BREVO_API_KEY') || ''
 const siteUrl = Deno.env.get('SITE_URL') || 'https://bianconerihub.com'
+const cronSecret = Deno.env.get('CRON_SECRET') || ''
 
 if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
@@ -127,6 +142,293 @@ async function createInternalNotifications(
     .insert(rows)
 
   if (error) throw error
+}
+
+function getReaderDeliveryPreferences(state?: ReaderStateRow | null): ReaderDeliveryPreferences {
+  const preferences = (state?.preferences || {}) as Record<string, unknown>
+  const notificationSettings = ((preferences.notificationSettings || {}) as Record<string, unknown>)
+  const timeZone = typeof preferences.timeZone === 'string' && preferences.timeZone && preferences.timeZone !== 'auto'
+    ? preferences.timeZone
+    : 'Europe/Rome'
+
+  return {
+    timeZone,
+    quietHoursEnabled: notificationSettings.quietHoursEnabled !== false,
+    quietHoursStart: typeof notificationSettings.quietHoursStart === 'string' ? notificationSettings.quietHoursStart : '23:00',
+    quietHoursEnd: typeof notificationSettings.quietHoursEnd === 'string' ? notificationSettings.quietHoursEnd : '08:00',
+    digestHour: typeof notificationSettings.digestHour === 'string' ? notificationSettings.digestHour : '08:30',
+  }
+}
+
+function getTimeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+
+  const mapped = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]))
+  return {
+    year: Number(mapped.year || 0),
+    month: Number(mapped.month || 1),
+    day: Number(mapped.day || 1),
+    hour: Number(mapped.hour || 0),
+    minute: Number(mapped.minute || 0),
+  }
+}
+
+function parseTimeToMinutes(timeValue: string) {
+  const [hours = '0', minutes = '0'] = String(timeValue || '00:00').split(':')
+  return (Number(hours) * 60) + Number(minutes)
+}
+
+function isWithinQuietHours(preferences: ReaderDeliveryPreferences, now = new Date()) {
+  if (!preferences.quietHoursEnabled) return false
+
+  const current = getTimeZoneParts(now, preferences.timeZone)
+  const currentMinute = (current.hour * 60) + current.minute
+  const startMinute = parseTimeToMinutes(preferences.quietHoursStart)
+  const endMinute = parseTimeToMinutes(preferences.quietHoursEnd)
+
+  if (startMinute === endMinute) return true
+  if (startMinute < endMinute) {
+    return currentMinute >= startMinute && currentMinute < endMinute
+  }
+
+  return currentMinute >= startMinute || currentMinute < endMinute
+}
+
+function getNextAllowedDeliveryAt(preferences: ReaderDeliveryPreferences, now = new Date()) {
+  const endMinute = parseTimeToMinutes(preferences.quietHoursEnd)
+  const current = getTimeZoneParts(now, preferences.timeZone)
+  const candidate = new Date(Date.UTC(
+    current.year,
+    current.month - 1,
+    current.day,
+    Math.floor(endMinute / 60),
+    endMinute % 60,
+    0,
+  ))
+  const currentMinute = (current.hour * 60) + current.minute
+
+  if (currentMinute >= endMinute) {
+    candidate.setUTCDate(candidate.getUTCDate() + 1)
+  }
+
+  return candidate.toISOString()
+}
+
+async function queuePushMessages(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  items: Array<{ userId: string, type: string, title: string, body?: string, url?: string, tag?: string, metadata?: Record<string, unknown>, deliverNotBefore: string }>,
+) {
+  if (!items.length) return
+
+  const { error } = await supabaseAdmin
+    .from('reader_push_queue')
+    .insert(items.map((item) => ({
+      user_id: item.userId,
+      type: item.type,
+      title: item.title,
+      body: item.body || null,
+      url: item.url || null,
+      tag: item.tag || null,
+      metadata: item.metadata || {},
+      deliver_not_before: item.deliverNotBefore,
+    })))
+
+  if (error) throw error
+}
+
+async function processPendingDeliveries(supabaseAdmin: ReturnType<typeof createClient>) {
+  const nowIso = new Date().toISOString()
+
+  const [{ data: queueItems, error: queueError }, { data: dueReminders, error: remindersError }] = await Promise.all([
+    supabaseAdmin
+      .from('reader_push_queue')
+      .select('id, user_id, type, title, body, url, tag, metadata, deliver_not_before, sent_at')
+      .is('sent_at', null)
+      .lte('deliver_not_before', nowIso)
+      .order('deliver_not_before', { ascending: true })
+      .limit(100),
+    supabaseAdmin
+      .from('reader_match_reminders')
+      .select('id, user_id, match_id, minutes_before, reminder_label, scheduled_for, status, sent_at, match_payload')
+      .in('status', ['scheduled', 'queued'])
+      .is('sent_at', null)
+      .lte('scheduled_for', nowIso)
+      .order('scheduled_for', { ascending: true })
+      .limit(100),
+  ])
+
+  if (queueError) throw queueError
+  if (remindersError) throw remindersError
+
+  const userIds = [...new Set([
+    ...((queueItems || []).map((item) => item.user_id)),
+    ...((dueReminders || []).map((item) => item.user_id)),
+  ].filter(Boolean))]
+
+  const { data: readerStates, error: statesError } = userIds.length
+    ? await supabaseAdmin
+        .from('reader_states')
+        .select('user_id, notifications_enabled, preferences')
+        .in('user_id', userIds)
+    : { data: [], error: null }
+
+  if (statesError) throw statesError
+
+  const statesByUserId = new Map((readerStates || []).map((item) => [item.user_id, item as ReaderStateRow]))
+
+  const immediateQueueUserIds = [...new Set((queueItems || []).filter((item) => {
+    const state = statesByUserId.get(item.user_id)
+    if (!state?.notifications_enabled) return false
+    return !isWithinQuietHours(getReaderDeliveryPreferences(state))
+  }).map((item) => item.user_id))]
+
+  const { data: queueSubscriptions, error: queueSubscriptionsError } = immediateQueueUserIds.length
+    ? await supabaseAdmin
+        .from('push_subscriptions')
+        .select('id, user_id, guest_token, endpoint, subscription')
+        .eq('is_active', true)
+        .in('user_id', immediateQueueUserIds)
+    : { data: [], error: null }
+
+  if (queueSubscriptionsError) throw queueSubscriptionsError
+
+  const queueSubscriptionsByUser = new Map<string, PushRecord[]>()
+  for (const record of (queueSubscriptions || []) as PushRecord[]) {
+    if (!record.user_id) continue
+    const bucket = queueSubscriptionsByUser.get(record.user_id) || []
+    bucket.push(record)
+    queueSubscriptionsByUser.set(record.user_id, bucket)
+  }
+
+  const queueSummary = { delivered: 0, failed: 0, queued: 0, processed: 0 }
+
+  for (const item of queueItems || []) {
+    const state = statesByUserId.get(item.user_id)
+    const preferences = getReaderDeliveryPreferences(state)
+
+    if (!state?.notifications_enabled) {
+      await supabaseAdmin.from('reader_push_queue').update({ sent_at: nowIso }).eq('id', item.id)
+      queueSummary.processed += 1
+      continue
+    }
+
+    if (isWithinQuietHours(preferences)) {
+      await supabaseAdmin
+        .from('reader_push_queue')
+        .update({ deliver_not_before: getNextAllowedDeliveryAt(preferences) })
+        .eq('id', item.id)
+      queueSummary.queued += 1
+      continue
+    }
+
+    const subscriptions = queueSubscriptionsByUser.get(item.user_id) || []
+    if (!subscriptions.length) {
+      await supabaseAdmin.from('reader_push_queue').update({ sent_at: nowIso }).eq('id', item.id)
+      queueSummary.processed += 1
+      continue
+    }
+
+    const summary = await sendNotificationToRecords(supabaseAdmin, subscriptions, {
+      title: item.title,
+      body: item.body || '',
+      url: item.url || '/area-bianconera',
+      tag: item.tag || `queued-${item.id}`,
+    })
+
+    await supabaseAdmin.from('reader_push_queue').update({ sent_at: nowIso }).eq('id', item.id)
+    queueSummary.delivered += summary.delivered.length
+    queueSummary.failed += summary.failed.length
+    queueSummary.processed += 1
+  }
+
+  const reminderUserIds = [...new Set((dueReminders || []).map((item) => item.user_id).filter(Boolean))]
+  const { data: reminderSubscriptions, error: reminderSubscriptionsError } = reminderUserIds.length
+    ? await supabaseAdmin
+        .from('push_subscriptions')
+        .select('id, user_id, guest_token, endpoint, subscription')
+        .eq('is_active', true)
+        .in('user_id', reminderUserIds)
+    : { data: [], error: null }
+
+  if (reminderSubscriptionsError) throw reminderSubscriptionsError
+
+  const reminderSubscriptionsByUser = new Map<string, PushRecord[]>()
+  for (const record of (reminderSubscriptions || []) as PushRecord[]) {
+    if (!record.user_id) continue
+    const bucket = reminderSubscriptionsByUser.get(record.user_id) || []
+    bucket.push(record)
+    reminderSubscriptionsByUser.set(record.user_id, bucket)
+  }
+
+  const reminderSummary = { sent: 0, rescheduled: 0, notifications: 0 }
+
+  for (const reminder of dueReminders || []) {
+    const state = statesByUserId.get(reminder.user_id)
+    const preferences = getReaderDeliveryPreferences(state)
+    const matchPayload = (reminder.match_payload || {}) as Record<string, unknown>
+    const home = String(matchPayload.home || 'Juventus')
+    const away = String(matchPayload.away || 'Avversaria')
+    const title = reminder.minutes_before === 0
+      ? `Si parte: ${home} vs ${away}`
+      : `${reminder.reminder_label}: ${home} vs ${away}`
+    const body = `${(matchPayload.competition as { name?: string } | null)?.name || 'Match Juventus'} · ${matchPayload.venue || 'Calendario Juventus'}`
+
+    if (isWithinQuietHours(preferences)) {
+      await supabaseAdmin
+        .from('reader_match_reminders')
+        .update({
+          status: 'queued',
+          scheduled_for: getNextAllowedDeliveryAt(preferences),
+        })
+        .eq('id', reminder.id)
+      reminderSummary.rescheduled += 1
+      continue
+    }
+
+    await createInternalNotifications(supabaseAdmin, [reminder.user_id], {
+      type: 'match-reminder',
+      title,
+      body,
+      url: '/calendario',
+      metadata: {
+        reminderId: reminder.id,
+        matchId: reminder.match_id,
+        minutesBefore: reminder.minutes_before,
+      },
+    })
+
+    const subscriptions = reminderSubscriptionsByUser.get(reminder.user_id) || []
+    if (state?.notifications_enabled && subscriptions.length) {
+      await sendNotificationToRecords(supabaseAdmin, subscriptions, {
+        title,
+        body,
+        url: '/calendario',
+        tag: `match-reminder-${reminder.id}`,
+      })
+    }
+
+    await supabaseAdmin
+      .from('reader_match_reminders')
+      .update({ status: 'sent', sent_at: nowIso })
+      .eq('id', reminder.id)
+
+    reminderSummary.sent += 1
+    reminderSummary.notifications += 1
+  }
+
+  return {
+    queue: queueSummary,
+    reminders: reminderSummary,
+  }
 }
 
 async function sendTestNotification(
@@ -237,19 +539,39 @@ async function sendArticleNotification(
   )
 
   const stateByUserId = new Map((readerStates || []).map((state) => [state.user_id, state]))
-  const pushEnabledUserIds = new Set(
-    eligibleUserIds.filter((userId) => Boolean(stateByUserId.get(userId)?.notifications_enabled)),
-  )
+  const pushEnabledUserIds = eligibleUserIds.filter((userId) => Boolean(stateByUserId.get(userId)?.notifications_enabled))
+  const immediateUserIds = pushEnabledUserIds.filter((userId) => !isWithinQuietHours(getReaderDeliveryPreferences(stateByUserId.get(userId))))
+  const queuedItems = pushEnabledUserIds
+    .filter((userId) => !immediateUserIds.includes(userId))
+    .map((userId) => ({
+      userId,
+      type: 'article',
+      title: article.authorName
+        ? `Nuovo articolo di ${article.authorName}`
+        : article.categoryName
+        ? `Nuovo articolo ${article.categoryName}`
+        : 'Nuovo articolo BianconeriHub',
+      body: article.excerpt || article.title,
+      url: `/articolo/${article.slug}`,
+      tag: `article-${article.slug}`,
+      metadata: {
+        slug: article.slug,
+        categoryId: article.categoryId || null,
+      },
+      deliverNotBefore: getNextAllowedDeliveryAt(getReaderDeliveryPreferences(stateByUserId.get(userId))),
+    }))
+
+  await queuePushMessages(supabaseAdmin, queuedItems)
 
   const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
     .from('push_subscriptions')
     .select('id, user_id, guest_token, endpoint, subscription')
     .eq('is_active', true)
-    .in('user_id', eligibleUserIds)
+    .in('user_id', immediateUserIds)
 
   if (subscriptionsError) throw subscriptionsError
 
-  const eligibleRecords = (subscriptions || []).filter((record) => record.user_id && pushEnabledUserIds.has(record.user_id))
+  const eligibleRecords = (subscriptions || []).filter((record) => record.user_id && immediateUserIds.includes(record.user_id))
 
   const { data: guestSubscriptions, error: guestSubscriptionsError } = await supabaseAdmin
     .from('push_subscriptions')
@@ -291,7 +613,8 @@ async function sendArticleNotification(
 
   return {
     ...summary,
-    skipped: (subscriptions?.length || 0) - eligibleRecords.length,
+    queued: queuedItems.length,
+    skipped: ((subscriptions?.length || 0) - eligibleRecords.length) + queuedItems.length,
   }
 }
 
@@ -499,12 +822,27 @@ async function sendReaderEventNotification(
 
   const { data: state } = await supabaseAdmin
     .from('reader_states')
-    .select('notifications_enabled')
+    .select('notifications_enabled, preferences')
     .eq('user_id', userId)
     .maybeSingle()
 
   if (!state?.notifications_enabled) {
     return { delivered: [], invalidated: [], failed: [], skipped: 0 }
+  }
+
+  const preferences = getReaderDeliveryPreferences(state as ReaderStateRow)
+  if (isWithinQuietHours(preferences)) {
+    await queuePushMessages(supabaseAdmin, [{
+      userId,
+      type: payload.type || 'system',
+      title: payload.title,
+      body: payload.body || '',
+      url: payload.url || '/area-bianconera',
+      tag: `reader-event-${payload.type || 'system'}-${userId}`,
+      metadata: payload.metadata || {},
+      deliverNotBefore: getNextAllowedDeliveryAt(preferences),
+    }])
+    return { delivered: [], invalidated: [], failed: [], skipped: 0, queued: 1 }
   }
 
   const { data: subscriptions, error } = await supabaseAdmin
@@ -608,6 +946,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     const action = body?.action || 'send-test'
 
+    if (action === 'process-pending' && cronSecret && body?.cronSecret === cronSecret) {
+      const summary = await processPendingDeliveries(supabaseAdmin)
+      return jsonResponse(summary)
+    }
+
     if (action === 'upsert-subscription') {
       const data = await upsertSubscriptionRecord(supabaseAdmin, {
         userId: body.userId || null,
@@ -690,6 +1033,10 @@ Deno.serve(async (req) => {
       const summary = await sendFanSubmissionNotification(supabaseAdmin, user, body.submissionId || '')
       if ('error' in summary) return jsonResponse({ error: summary.error }, 403)
       return jsonResponse(summary)
+    }
+
+    if (action === 'process-pending') {
+      return jsonResponse({ error: 'Forbidden' }, 403)
     }
 
     return jsonResponse({ error: 'Unsupported action.' }, 400)

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Calendar, MapPin, Trophy, Loader2, Activity, History } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getNextMatch, getRecentFinishedMatches, getTeamMatches, getVenueLabel, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
-import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, getRelativeMatchKickoff } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 
 const NEXT_MATCH_SNAPSHOT_KEY = 'match-countdown:last-successful-bundle'
@@ -289,6 +289,10 @@ export default function MatchCountdown() {
     })
     return [date, time].filter(Boolean).join(' • ')
   }, [localeContext.locale, localeContext.timeZone, match.utcDate])
+  const relativeKickoff = useMemo(() => getRelativeMatchKickoff(match.utcDate, {
+    locale: localeContext.locale,
+    timeZone: localeContext.timeZone,
+  }), [localeContext.locale, localeContext.timeZone, match.utcDate])
 
   return (
     <motion.div
@@ -307,7 +311,12 @@ export default function MatchCountdown() {
         </div>
       ) : (
         <>
-          <p className="mb-3 text-[10px] uppercase tracking-wider text-gray-400">{match.competition?.name || 'Competizione'}</p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">{match.competition?.name || 'Competizione'}</p>
+            {relativeKickoff?.shortLabel && (
+              <span className="text-[10px] font-black uppercase tracking-widest text-juve-gold">{relativeKickoff.shortLabel}</span>
+            )}
+          </div>
 
           {bundle?.fallbackSource === 'cached' && (
             <p className="mb-3 text-[10px] uppercase tracking-wider text-juve-gold/80">Ultimo dato disponibile salvato</p>
@@ -354,7 +363,7 @@ export default function MatchCountdown() {
           <div className="space-y-1.5 text-xs text-gray-400">
             <div className="flex items-start gap-2">
               <Calendar className="h-3.5 w-3.5 text-juve-gold" />
-              <span className="capitalize leading-relaxed">{dateStr}</span>
+              <span className="capitalize leading-relaxed">{dateStr}{relativeKickoff?.fullLabel ? ` · ${relativeKickoff.fullLabel}` : ''}</span>
             </div>
             <div className="flex items-start gap-2">
               <MapPin className="h-3.5 w-3.5 text-juve-gold" />

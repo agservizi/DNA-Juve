@@ -15,6 +15,7 @@ let readerStateSupported = true
 let profileRoleSupported = true
 let matchPollSupported = true
 let articleReactionsSupported = true
+let readerMatchRemindersSupported = true
 
 const MATCH_POLL_WINDOW_MS = 48 * 60 * 60 * 1000
 const LOCAL_MATCH_POLL_PREFIX = 'post-match-poll'
@@ -90,6 +91,29 @@ function getPostMatchLabel(match) {
   const awayGoals = match?.score?.fullTime?.away
   const score = homeGoals != null && awayGoals != null ? ` ${homeGoals}-${awayGoals}` : ''
   return `${home}${score} ${away}`.trim()
+}
+
+function buildReminderMatchPayload(match = {}) {
+  return {
+    id: String(match.id || ''),
+    slug: match.slug || null,
+    home: match.homeTeam?.shortName || match.homeTeam?.name || match.home || 'Juventus',
+    away: match.awayTeam?.shortName || match.awayTeam?.name || match.away || 'Avversaria',
+    homeTeam: match.homeTeam || null,
+    awayTeam: match.awayTeam || null,
+    competition: match.competition || null,
+    venue: match.venue || null,
+    utcDate: match.utcDate || match.date || null,
+  }
+}
+
+function buildReminderLabel(minutesBefore) {
+  if (minutesBefore === 0) return 'Calcio d’inizio'
+  if (minutesBefore >= 60) {
+    const hours = minutesBefore / 60
+    return `${hours}h prima`
+  }
+  return `${minutesBefore}m prima`
 }
 
 function getLocalMatchPollStorageKey(matchId, userId = 'guest') {
@@ -502,6 +526,88 @@ export const getReaderNotifications = (userId, { limit = 20, unreadOnly = false 
   }
 
   return query
+}
+
+export const getReaderMatchReminders = async (userId, { matchId = null, activeOnly = true } = {}) => {
+  if (!userId) return { data: [], error: null }
+  if (!readerMatchRemindersSupported) return { data: [], error: null }
+
+  let query = supabase
+    .from('reader_match_reminders')
+    .select('id, user_id, match_id, minutes_before, reminder_label, scheduled_for, status, sent_at, match_payload, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('scheduled_for', { ascending: true })
+
+  if (matchId) query = query.eq('match_id', String(matchId))
+  if (activeOnly) query = query.in('status', ['scheduled', 'queued'])
+
+  const result = await query
+
+  if (result.error && isMissingColumnOrRelation(result.error, 'reader_match_reminders')) {
+    readerMatchRemindersSupported = false
+    return { data: [], error: null }
+  }
+
+  return result
+}
+
+export const upsertReaderMatchReminder = async ({ userId, match, minutesBefore }) => {
+  if (!userId) {
+    return { data: null, error: new Error('Serve un account per salvare i reminder partita.') }
+  }
+
+  if (!readerMatchRemindersSupported) {
+    return { data: null, error: new Error('Reminder partita non disponibili in questo ambiente.') }
+  }
+
+  const kickoff = new Date(match?.utcDate || match?.date || '').getTime()
+  if (Number.isNaN(kickoff)) {
+    return { data: null, error: new Error('Data partita non valida per il reminder.') }
+  }
+
+  const scheduledFor = new Date(kickoff - (Math.max(0, Number(minutesBefore) || 0) * 60 * 1000)).toISOString()
+  const payload = {
+    user_id: userId,
+    match_id: String(match.id),
+    minutes_before: Math.max(0, Number(minutesBefore) || 0),
+    reminder_label: buildReminderLabel(Math.max(0, Number(minutesBefore) || 0)),
+    scheduled_for: scheduledFor,
+    status: 'scheduled',
+    sent_at: null,
+    match_payload: buildReminderMatchPayload(match),
+  }
+
+  const result = await supabase
+    .from('reader_match_reminders')
+    .upsert([payload], { onConflict: 'user_id,match_id,minutes_before' })
+    .select()
+    .single()
+
+  if (result.error && isMissingColumnOrRelation(result.error, 'reader_match_reminders')) {
+    readerMatchRemindersSupported = false
+    return { data: null, error: new Error('Reminder partita non ancora disponibili sul database remoto.') }
+  }
+
+  return result
+}
+
+export const deleteReaderMatchReminder = async ({ userId, matchId, minutesBefore }) => {
+  if (!userId || !matchId) return { data: null, error: null }
+  if (!readerMatchRemindersSupported) return { data: null, error: null }
+
+  const result = await supabase
+    .from('reader_match_reminders')
+    .delete()
+    .eq('user_id', userId)
+    .eq('match_id', String(matchId))
+    .eq('minutes_before', Math.max(0, Number(minutesBefore) || 0))
+
+  if (result.error && isMissingColumnOrRelation(result.error, 'reader_match_reminders')) {
+    readerMatchRemindersSupported = false
+    return { data: null, error: null }
+  }
+
+  return result
 }
 
 export const createReaderNotification = (userId, notification) =>
@@ -2230,3 +2336,87 @@ export const getVideoBySlug = async (slug) => {
 
 export const incrementVideoViews = (videoId) =>
   supabase.rpc('increment_video_views', { vid_id: videoId })
+
+// ─── COMMUNITY FEED ───────────────────────────────────────────────────────────
+
+export const savePublicDiaryEntry = async (entry) => {
+  try {
+    const { data, error } = await supabase
+      .from('community_diary_entries')
+      .insert([{
+        reader_id:        entry.readerId || 'guest',
+        username:         entry.username || 'Tifoso',
+        match:            entry.match,
+        competition:      entry.competition || null,
+        utc_date:         entry.utcDate || null,
+        home_team_name:   entry.homeTeamName || null,
+        away_team_name:   entry.awayTeamName || null,
+        home_team_crest:  entry.homeTeamCrest || null,
+        away_team_crest:  entry.awayTeamCrest || null,
+        final_home_score: entry.finalHomeScore ?? null,
+        final_away_score: entry.finalAwayScore ?? null,
+        mood:             entry.mood || null,
+        rating:           entry.rating || null,
+        note:             entry.note || null,
+      }])
+      .select()
+      .single()
+    return { data, error }
+  } catch (err) {
+    return { data: null, error: err }
+  }
+}
+
+export const savePublicPrediction = async (prediction) => {
+  try {
+    const { data, error } = await supabase
+      .from('community_predictions')
+      .insert([{
+        reader_id:       prediction.readerId || 'guest',
+        username:        prediction.username || 'Tifoso',
+        match:           prediction.match,
+        competition:     prediction.competition || null,
+        utc_date:        prediction.utcDate || null,
+        home_team_name:  prediction.homeTeamName || null,
+        away_team_name:  prediction.awayTeamName || null,
+        home_team_crest: prediction.homeTeamCrest || null,
+        away_team_crest: prediction.awayTeamCrest || null,
+        home_score:      prediction.homeScore ?? 0,
+        away_score:      prediction.awayScore ?? 0,
+        motm:            prediction.motm || null,
+      }])
+      .select()
+      .single()
+    return { data, error }
+  } catch (err) {
+    return { data: null, error: err }
+  }
+}
+
+export const getCommunityFeed = async ({ limit = 10 } = {}) => {
+  try {
+    const [diaryRes, predRes] = await Promise.all([
+      supabase
+        .from('community_diary_entries')
+        .select('id, reader_id, username, match, competition, utc_date, home_team_name, away_team_name, home_team_crest, away_team_crest, final_home_score, final_away_score, mood, rating, note, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit),
+      supabase
+        .from('community_predictions')
+        .select('id, reader_id, username, match, competition, utc_date, home_team_name, away_team_name, home_team_crest, away_team_crest, home_score, away_score, motm, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    ])
+
+    const diary = (diaryRes.data || []).map(e => ({ ...e, type: 'diary' }))
+    const predictions = (predRes.data || []).map(p => ({ ...p, type: 'prediction' }))
+
+    const combined = [...diary, ...predictions]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, limit)
+
+    return { data: combined, error: diaryRes.error || predRes.error }
+  } catch (err) {
+    return { data: [], error: err }
+  }
+}

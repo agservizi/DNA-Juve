@@ -160,13 +160,20 @@ export default function Sondaggi() {
               SONDAGGI LIVE
             </h1>
             <p className="text-sm text-gray-400 max-w-lg mx-auto">
-              Esprimi la tua opinione. Vota e scopri cosa pensano gli altri tifosi bianconeri.
+              Esprimi la tua opinione. I sondaggi restano pubblici: puoi votare subito anche senza account e confrontarti con la community bianconera.
             </p>
           </motion.div>
         </div>
       </section>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-6 border border-juve-gold/30 bg-juve-gold/10 p-4 text-sm text-gray-700">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-juve-gold">Accesso</p>
+          <p className="mt-2 leading-relaxed">
+            Sondaggi e pagelle sono aperti anche ai visitatori. La registrazione resta richiesta solo per il forum e per le funzioni personali di Area Bianconera.
+          </p>
+        </div>
+
         {isLoading && (
           <div className="text-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-juve-gold mx-auto mb-3" />

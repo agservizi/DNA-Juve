@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { useInView } from 'react-intersection-observer'
 import { motion } from 'framer-motion'
@@ -11,12 +11,16 @@ import MatchdayPulse from '@/components/blog/MatchdayPulse'
 import Sidebar from '@/components/blog/Sidebar'
 import SEO from '@/components/blog/SEO'
 import Newsletter from '@/components/blog/Newsletter'
+import CommunityFeed from '@/components/blog/CommunityFeed'
 import { useReader } from '@/hooks/useReader'
+import { getClientLocaleContext, getSoftLocalizationSegment } from '@/lib/utils'
 
 const PAGE_SIZE = 9
 
 export default function Home() {
-  const { reader, history } = useReader()
+  const { reader, history, preferences } = useReader()
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone, preferences?.cityLabel || ''), [preferences?.timeZone, preferences?.cityLabel])
+  const softSegment = useMemo(() => getSoftLocalizationSegment(localeContext, preferences), [localeContext, preferences])
   const { data: featured = [], isLoading: loadingFeatured } = useQuery({
     queryKey: ['featured'],
     queryFn: async () => {
@@ -85,6 +89,20 @@ export default function Home() {
   const unreadCount = readerNotifications.length
   const hotThread = homeHotThreads[0] || null
   const livePoll = homePolls[0] || null
+  const contextualTitle = softSegment.bucket === 'morning'
+    ? 'Finestra locale: digest e calendario'
+    : softSegment.bucket === 'afternoon'
+      ? 'Finestra locale: aggiornamenti rapidi'
+      : softSegment.bucket === 'evening'
+        ? 'Finestra locale: forum e live'
+        : 'Finestra locale: modalita smart'
+  const contextualDescription = softSegment.bucket === 'morning'
+    ? 'Hai una fascia ideale per riprendere match in agenda, reminder e letture salvate.'
+    : softSegment.bucket === 'afternoon'
+      ? 'Questa e la fascia piu utile per live, mercato e appuntamenti a breve nel tuo fuso.'
+      : softSegment.bucket === 'evening'
+        ? 'La community pesa di piu la sera: forum, sondaggi e countdown vengono prima nel tuo mix.'
+        : 'Quando la fascia e delicata, il sistema riduce il rumore e lascia spazio solo agli alert davvero utili.'
 
   return (
     <>
@@ -145,16 +163,16 @@ export default function Home() {
               </div>
 
               <div className="border border-gray-200 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Da non perdere</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">{contextualTitle}</p>
                 <h3 className="mt-2 font-display text-xl font-black text-juve-black">
-                  {unreadCount > 0 ? `${unreadCount} notific${unreadCount === 1 ? 'a' : 'he'} da leggere` : livePoll?.question || 'Area Bianconera ti aspetta'}
+                  {unreadCount > 0 ? `${unreadCount} notific${unreadCount === 1 ? 'a' : 'he'} da leggere` : livePoll?.question || 'Home locale attiva'}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-gray-600">
                   {unreadCount > 0
                     ? 'Hai segnali nuovi da controllare: risposte, reminder o aggiornamenti utili per farti rientrare.'
                     : livePoll
-                    ? 'C’è un sondaggio attivo della community: un voto rapido ti rimette subito dentro il giro.'
-                    : 'Se vuoi un rientro più personale, Area Bianconera è il punto migliore da cui ripartire.'}
+                    ? contextualDescription
+                    : `Segmento attivo: ${softSegment.regionLabel} · ${localeContext.timeZoneLabel}. ${contextualDescription}`}
                 </p>
                 <div className="mt-4">
                   <Link to={unreadCount > 0 ? '/area-bianconera' : livePoll ? '/community/sondaggi' : '/area-bianconera'}>
@@ -169,6 +187,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Community feed: diari e pronostici pubblici */}
+      <CommunityFeed />
 
       {/* Main content + sidebar */}
       <div className="max-w-7xl mx-auto px-4 py-8">

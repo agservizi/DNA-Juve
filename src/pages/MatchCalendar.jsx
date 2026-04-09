@@ -1,10 +1,21 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Calendar, MapPin, Loader2 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { Calendar, Bell, Download, ExternalLink, MapPin, Loader2 } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import SEO from '@/components/blog/SEO'
 import { getTeamMatches, shouldRetryFootballQuery } from '@/lib/footballApi'
-import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { deleteReaderMatchReminder, getReaderMatchReminders, upsertReaderMatchReminder } from '@/lib/supabase'
+import { useToast } from '@/hooks/useToast'
+import {
+  MATCH_REMINDER_PRESETS,
+  buildMatchCalendarPayload,
+  downloadICSFile,
+  formatDateLocalized,
+  formatTimeLocalized,
+  getClientLocaleContext,
+  getRelativeMatchKickoff,
+} from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 
 // Fallback demo matches
@@ -44,7 +55,9 @@ function mapApiMatches(apiMatches) {
 
 export default function MatchCalendar() {
   const [filter, setFilter] = useState('all')
-  const { preferences } = useReader()
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { preferences, reader, openLogin, isAuthenticated } = useReader()
   const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
 
   const { data: apiMatches, isLoading } = useQuery({
@@ -56,6 +69,24 @@ export default function MatchCalendar() {
   })
 
   const allMatches = apiMatches ? mapApiMatches(apiMatches) : DEMO_MATCHES
+
+  const { data: reminderRows = [] } = useQuery({
+    queryKey: ['reader-match-reminders', reader?.id],
+    queryFn: async () => {
+      const { data } = await getReaderMatchReminders(reader?.id)
+      return data || []
+    },
+    enabled: Boolean(reader?.id),
+    staleTime: 15000,
+  })
+
+  const reminderMap = useMemo(() => {
+    return reminderRows.reduce((acc, item) => {
+      if (!acc[item.match_id]) acc[item.match_id] = new Set()
+      acc[item.match_id].add(item.minutes_before)
+      return acc
+    }, {})
+  }, [reminderRows])
 
   const filtered = allMatches.filter(m => {
     if (filter === 'played') return m.played
@@ -82,6 +113,60 @@ export default function MatchCalendar() {
     locale: localeContext.locale,
     timeZone: localeContext.timeZone,
   })
+
+  const toggleReminder = async (match, minutesBefore) => {
+    if (!isAuthenticated) {
+      openLogin('login')
+      toast({
+        title: 'Accesso richiesto',
+        description: 'Per salvare reminder e agenda personale devi entrare in Area Bianconera.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const isActive = reminderMap[String(match.id)]?.has(minutesBefore)
+
+    try {
+      if (isActive) {
+        await deleteReaderMatchReminder({ userId: reader.id, matchId: match.id, minutesBefore })
+      } else {
+        await upsertReaderMatchReminder({ userId: reader.id, match, minutesBefore })
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['reader-match-reminders', reader.id] })
+      toast({
+        title: isActive ? 'Reminder rimosso' : 'Reminder salvato',
+        description: isActive
+          ? 'La partita resta in agenda, ma senza avviso automatico.'
+          : `Ti avviseremo ${minutesBefore === 0 ? 'al calcio d’inizio' : `${minutesBefore >= 60 ? `${minutesBefore / 60} ore` : `${minutesBefore} minuti`} prima`}.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      toast({
+        title: 'Reminder non aggiornato',
+        description: error.message || 'Non sono riuscito a salvare il reminder della partita.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const exportMatch = (match, mode) => {
+    const payload = buildMatchCalendarPayload(match, {
+      title: `${match.home} vs ${match.away}`,
+      description: `${match.competition} · ${match.venue || 'Calendario Juventus'} · Orario locale ${formatMatchTime(match.date)}`,
+      location: match.venue,
+    })
+
+    if (!payload) return
+
+    if (mode === 'google') {
+      window.open(payload.googleUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    downloadICSFile(payload.icsFileName, payload.ics)
+  }
 
   return (
     <>
@@ -151,6 +236,11 @@ export default function MatchCalendar() {
         <div className="space-y-2">
           {filtered.map((match, i) => {
             const juveHome = match.home === 'Juventus' || match.home === 'Juventus FC'
+            const relativeKickoff = getRelativeMatchKickoff(match.date, {
+              locale: localeContext.locale,
+              timeZone: localeContext.timeZone,
+            })
+            const activeReminderSet = reminderMap[String(match.id)] || new Set()
             let resultClass = ''
             if (match.played) {
               const juveScore = juveHome ? match.homeScore : match.awayScore
@@ -172,7 +262,12 @@ export default function MatchCalendar() {
                   <span className={`text-[10px] font-bold uppercase tracking-widest text-white px-2 py-0.5 ${COMP_COLORS[match.competition] || 'bg-gray-600'}`}>
                     {match.competition}
                   </span>
-                  <span className="text-[10px] text-gray-400 capitalize">{formatMatchDate(match.date)}</span>
+                  <div className="text-right">
+                    <span className="block text-[10px] text-gray-400 capitalize">{formatMatchDate(match.date)}</span>
+                    {!match.played && relativeKickoff?.shortLabel && (
+                      <span className="block text-[10px] font-bold uppercase tracking-widest text-juve-gold">{relativeKickoff.shortLabel}</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -203,6 +298,47 @@ export default function MatchCalendar() {
                   <div className="flex items-center gap-1.5 mt-2 text-[10px] text-gray-400">
                     <MapPin className="h-3 w-3" />
                     <span>{match.venue}</span>
+                  </div>
+                )}
+
+                {!match.played && (
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => exportMatch(match, 'google')}>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Google Calendar
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => exportMatch(match, 'ics')}>
+                        <Download className="h-3.5 w-3.5" />
+                        File ICS
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {MATCH_REMINDER_PRESETS.map((preset) => {
+                        const isActive = activeReminderSet.has(preset.minutes)
+
+                        return (
+                          <button
+                            key={`${match.id}-${preset.minutes}`}
+                            type="button"
+                            onClick={() => toggleReminder(match, preset.minutes)}
+                            className={`inline-flex items-center gap-1.5 border px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                              isActive
+                                ? 'border-juve-gold bg-juve-gold/15 text-juve-black'
+                                : 'border-gray-200 text-gray-500 hover:border-juve-gold hover:text-juve-black'
+                            }`}
+                          >
+                            <Bell className="h-3 w-3" />
+                            {preset.shortLabel}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-gray-400">
+                      {isAuthenticated
+                        ? 'Reminder sincronizzati con la tua agenda personale e con le quiet hours salvate.'
+                        : 'Per salvare reminder e sincronizzarli con Area Bianconera serve l’accesso.'}
+                    </p>
                   </div>
                 )}
               </motion.div>

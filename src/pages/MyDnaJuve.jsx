@@ -1,24 +1,29 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bookmark, History, Settings2, BarChart3, Trash2, LogOut, BookOpen, Clock,
   Heart, ArrowRight, Trophy, Star, Medal, Zap, Swords, Grid3X3, PenLine,
   Target, Timer, ChevronDown, ChevronUp, Plus, X, Check, Share2, Sparkles, Bell,
+  Calendar, Download, Loader2, Shield, Crown, Flame, Flag, Gem,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createReaderNotification,
   createFanArticleSubmission,
+  deleteReaderMatchReminder,
   getCategories,
   getCommunityPolls,
   getForumThreads,
   getPublishedArticles,
+  getReaderMatchReminders,
   getReaderNotifications,
   markAllReaderNotificationsRead,
   markReaderNotificationRead,
   sendReaderEventNotification,
   sendFanSubmissionAdminNotification,
+  savePublicDiaryEntry,
+  savePublicPrediction,
 } from '@/lib/supabase'
 import { getSquadPlayers, getTeamMatches, getVenueLabel, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
@@ -30,7 +35,22 @@ import SEO from '@/components/blog/SEO'
 import Leaderboard from '@/components/blog/Leaderboard'
 import NotificationAlert from '@/components/blog/NotificationAlert'
 import { useToast } from '@/hooks/useToast'
-import { cn, COMMON_TIMEZONE_OPTIONS, formatDate, formatDateLocalized, formatTimeLocalized, getClientLocaleContext } from '@/lib/utils'
+import {
+  buildMatchCalendarPayload,
+  cn,
+  COMMON_TIMEZONE_OPTIONS,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  downloadICSFile,
+  formatDate,
+  formatDateLocalized,
+  formatTimeLocalized,
+  getClientLocaleContext,
+  detectRealCity,
+  getRelativeMatchKickoff,
+  getSmartDeliveryLabel,
+  getSoftLocalizationSegment,
+  MATCH_REMINDER_PRESETS,
+} from '@/lib/utils'
 import {
   LEVELS, getLevel, BADGES, getWeeklyChallenges, PLAYER_CARDS, AVATARS,
   FORMATIONS, SQUAD_PLAYERS,
@@ -47,10 +67,22 @@ import RichEditor from '@/components/admin/RichEditor'
 
 const IS_DEV = import.meta.env.DEV
 
+// ── Avatar helpers ──────────────────────────────────────────────────────────
+
+const AVATAR_ICON_MAP = { Trophy, Star, Shield, Crown, Zap, Swords, Target, Medal, Flame, Heart, Flag, Gem }
+const AVATAR_COLOR_MAP = {
+  gold:   { bg: 'bg-juve-gold',   fg: 'text-juve-black' },
+  black:  { bg: 'bg-juve-black',  fg: 'text-juve-gold' },
+  red:    { bg: 'bg-red-600',     fg: 'text-white' },
+  orange: { bg: 'bg-orange-500',  fg: 'text-white' },
+  blue:   { bg: 'bg-sky-500',     fg: 'text-white' },
+}
+
 // ── Tabs ────────────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: Sparkles },
+  { id: 'agenda', label: 'Agenda', icon: Calendar },
   { id: 'bookmarks', label: 'Segnalibri', icon: Bookmark },
   { id: 'history', label: 'Cronologia', icon: History },
   { id: 'badges', label: 'Badge', icon: Medal },
@@ -204,18 +236,36 @@ function MatchQuickCard({ match, countdown, localeContext }) {
   )
 }
 
+function EmptyState({ icon: Icon, title, text }) {
+  return (
+    <div className="border border-dashed border-gray-300 bg-white p-8 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+        <Icon className="h-5 w-5" />
+      </div>
+      <h3 className="mt-4 font-display text-2xl font-black text-juve-black">{title}</h3>
+      <p className="mt-2 text-sm text-gray-500">{text}</p>
+    </div>
+  )
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function MyDnaJuve() {
   const {
     reader, bookmarks, history, preferences, stats, notifications,
     logout, loginDemo, deleteAccount, clearBookmarks, clearHistory,
-    setFavoriteCategories, setTimeZonePreference, openLogin, updateProfile, enableNotifications,
+    setFavoriteCategories, setTimeZonePreference, setCityLabel, setNotificationSettings, setReminderDefaults,
+    openLogin, updateProfile, enableNotifications, syncGamification,
+    authReady,
   } = useReader()
-  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
+  const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone, preferences?.cityLabel || ''), [preferences?.timeZone, preferences?.cityLabel])
+  const softSegment = useMemo(() => getSoftLocalizationSegment(localeContext, preferences), [localeContext, preferences])
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const TAB_IDS = TABS.map(t => t.id)
+  const activeTab = TAB_IDS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'dashboard'
+  const setActiveTab = (tabId) => setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', tabId); return next }, { replace: true })
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const { data: categories = [] } = useQuery({
@@ -238,14 +288,34 @@ export default function MyDnaJuve() {
     enabled: Boolean(reader?.id),
     staleTime: 15000,
   })
+  const { data: readerMatchReminders = [] } = useQuery({
+    queryKey: ['reader-match-reminders', reader?.id],
+    queryFn: async () => {
+      const { data } = await getReaderMatchReminders(reader?.id)
+      return data || []
+    },
+    enabled: Boolean(reader?.id),
+    staleTime: 15000,
+  })
 
-  const gamification = useMemo(() => getGamificationState(), [activeTab])
+  const [gamificationTick, setGamificationTick] = useState(0)
+  const refreshGamification = useCallback(() => {
+    setGamificationTick(t => t + 1)
+    syncGamification()
+  }, [syncGamification])
+  const gamification = useMemo(() => getGamificationState(), [gamificationTick])
   const level = useMemo(() => getLevel(gamification.xp), [gamification.xp])
   const officialMatches = useMemo(() => teamMatches || [], [teamMatches])
   const unreadNotifications = useMemo(
     () => (readerNotifications || []).filter((item) => !item.is_read).length,
     [readerNotifications],
   )
+  const upcomingReminders = useMemo(() => {
+    return (readerMatchReminders || [])
+      .filter((item) => item?.match_payload?.utcDate)
+      .slice()
+      .sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for))
+  }, [readerMatchReminders])
 
   useEffect(() => {
     if (!reader?.id) return
@@ -337,6 +407,14 @@ export default function MyDnaJuve() {
     }
   }, [reader, history, bookmarks])
 
+  if (!authReady) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-juve-gold" />
+      </div>
+    )
+  }
+
   if (!reader) {
     return (
       <>
@@ -369,6 +447,8 @@ export default function MyDnaJuve() {
   }
 
   const avatar = AVATARS.find(a => a.id === gamification.avatar) || AVATARS[0]
+  const AvatarIconComp = AVATAR_ICON_MAP[avatar?.icon] || Trophy
+  const avatarColors = AVATAR_COLOR_MAP[avatar?.color] || AVATAR_COLOR_MAP.black
 
   return (
     <>
@@ -379,8 +459,8 @@ export default function MyDnaJuve() {
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
               {/* Avatar */}
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center bg-juve-black text-3xl">
-                {avatar.emoji}
+              <div className={`flex h-16 w-16 shrink-0 items-center justify-center ${avatarColors.bg}`}>
+                <AvatarIconComp className={`h-8 w-8 ${avatarColors.fg}`} />
               </div>
               <div className="min-w-0 flex-1">
                 <h1 className="font-display text-3xl md:text-4xl font-black text-juve-black break-words">
@@ -479,7 +559,9 @@ export default function MyDnaJuve() {
                 gamification={gamification}
                 history={history}
                 bookmarks={bookmarks}
+                  upcomingReminders={upcomingReminders}
                   localeContext={localeContext}
+                softSegment={softSegment}
                 onSelectTab={setActiveTab}
                 notificationsEnabled={notifications?.enabled}
                 onEnableNotifications={async () => {
@@ -494,15 +576,36 @@ export default function MyDnaJuve() {
                 }}
               />
             )}
+            {activeTab === 'agenda' && (
+              <AgendaTab
+                reminders={upcomingReminders}
+                bookmarks={bookmarks}
+                officialMatches={officialMatches}
+                localeContext={localeContext}
+                onRemoveReminder={async (reminder) => {
+                  try {
+                    await deleteReaderMatchReminder({
+                      userId: reader.id,
+                      matchId: reminder.match_id,
+                      minutesBefore: reminder.minutes_before,
+                    })
+                    await queryClient.invalidateQueries({ queryKey: ['reader-match-reminders', reader.id] })
+                    toast({ title: 'Reminder rimosso', description: 'L’agenda e stata aggiornata.', variant: 'success' })
+                  } catch (error) {
+                    toast({ title: 'Agenda non aggiornata', description: error.message || 'Non sono riuscito a rimuovere il reminder.', variant: 'destructive' })
+                  }
+                }}
+              />
+            )}
             {activeTab === 'bookmarks' && <BookmarksTab bookmarks={bookmarks} clearBookmarks={clearBookmarks} />}
             {activeTab === 'history' && <HistoryTab history={history} clearHistory={clearHistory} />}
             {activeTab === 'badges' && <BadgesTab gamification={gamification} />}
             {activeTab === 'challenges' && <ChallengesTab />}
             {activeTab === 'figurine' && <FigurineTab />}
-            {activeTab === 'formation' && <FormationTab />}
-            {activeTab === 'diary' && <DiaryTab officialMatches={officialMatches} matchesLoading={matchesLoading} localeContext={localeContext} />}
-            {activeTab === 'predictions' && <PredictionsTab officialMatches={officialMatches} matchesLoading={matchesLoading} localeContext={localeContext} />}
-            {activeTab === 'fan-articles' && <FanArticlesTab reader={reader} />}
+            {activeTab === 'formation' && <FormationTab onRefreshGamification={refreshGamification} />}
+            {activeTab === 'diary' && <DiaryTab officialMatches={officialMatches} matchesLoading={matchesLoading} localeContext={localeContext} onRefreshGamification={refreshGamification} />}
+            {activeTab === 'predictions' && <PredictionsTab officialMatches={officialMatches} matchesLoading={matchesLoading} localeContext={localeContext} onRefreshGamification={refreshGamification} />}
+            {activeTab === 'fan-articles' && <FanArticlesTab reader={reader} onRefreshGamification={refreshGamification} />}
             {activeTab === 'leaderboard' && <Leaderboard />}
             {activeTab === 'notifications' && (
               <NotificationsTab
@@ -517,9 +620,15 @@ export default function MyDnaJuve() {
                 preferences={preferences}
                 setFavoriteCategories={setFavoriteCategories}
                 setTimeZonePreference={setTimeZonePreference}
+                setCityLabel={setCityLabel}
+                setNotificationSettings={setNotificationSettings}
+                setReminderDefaults={setReminderDefaults}
+                reminderCount={upcomingReminders.length}
                 reader={reader}
                 gamification={gamification}
+                onRefreshGamification={refreshGamification}
                 localeContext={localeContext}
+                softSegment={softSegment}
                 onUpdateProfile={updateProfile}
                 toast={toast}
                 onDelete={() => setShowDeleteDialog(true)}
@@ -550,7 +659,7 @@ export default function MyDnaJuve() {
 // TAB: DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DashboardTab({ stats, level, gamification, history, bookmarks, localeContext, onSelectTab, notificationsEnabled, onEnableNotifications }) {
+function DashboardTab({ stats, level, gamification, history, bookmarks, upcomingReminders, localeContext, softSegment, onSelectTab, notificationsEnabled, onEnableNotifications }) {
   const { data: recommended } = useQuery({
     queryKey: ['recommended-articles'],
     queryFn: async () => {
@@ -600,6 +709,7 @@ function DashboardTab({ stats, level, gamification, history, bookmarks, localeCo
   const latestRead = history[0] || null
   const latestDiaryEntry = getDiary()[0] || null
   const latestPrediction = getPredictions()[0] || null
+  const nextReminder = upcomingReminders?.[0] || null
   const diaryWidgetMatch = latestDiaryEntry?.homeTeamName && latestDiaryEntry?.awayTeamName
     ? {
       homeTeam: { shortName: latestDiaryEntry.homeTeamName, crest: latestDiaryEntry.homeTeamCrest },
@@ -627,6 +737,45 @@ function DashboardTab({ stats, level, gamification, history, bookmarks, localeCo
 
   return (
     <div className="space-y-8">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="border border-gray-200 bg-white p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Contesto locale</p>
+          <h3 className="mt-2 font-display text-2xl font-black text-juve-black">
+            {softSegment.bucket === 'morning' ? 'Finestra perfetta per il digest' : softSegment.bucket === 'afternoon' ? 'Fascia da aggiornamenti rapidi' : softSegment.bucket === 'evening' ? 'Momento ideale per forum e live' : 'Modalita silenziosa intelligente'}
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+            Segmento attivo: {softSegment.regionLabel} · {localeContext.timeZoneLabel}. La home e le notifiche si adattano a fascia oraria, regione e preferenze salvate.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3 text-[11px] font-bold uppercase tracking-widest text-gray-400">
+            <span>{localeContext.timeZoneLabel}</span>
+            <span>{softSegment.regionLabel}</span>
+            <span>{softSegment.followsManyCategories ? 'profilo editoriale ampio' : 'profilo editoriale focalizzato'}</span>
+          </div>
+        </div>
+
+        <div className="border border-juve-gold/30 bg-juve-gold/10 p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-juve-gold">Agenda personale</p>
+          <h3 className="mt-2 font-display text-2xl font-black text-juve-black">
+            {nextReminder ? nextReminder.match_payload?.home + ' vs ' + nextReminder.match_payload?.away : 'Nessun reminder attivo'}
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+            {nextReminder
+              ? `${nextReminder.reminder_label} · ${getRelativeMatchKickoff(nextReminder.match_payload?.utcDate, { locale: localeContext.locale, timeZone: localeContext.timeZone })?.fullLabel || 'Prossimo match in agenda'}`
+              : 'Aggiungi reminder dal calendario per costruire una vera agenda Juve nel tuo fuso orario.'}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button variant="gold" size="sm" onClick={() => onSelectTab('agenda')}>
+              Apri agenda
+            </Button>
+            <Link to="/calendario">
+              <Button variant="outline" size="sm">
+                Calendario partite
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <div>
         <SectionHeader icon={Sparkles} title="Da fare oggi" />
         <div className="mb-4 border border-juve-gold/30 bg-juve-black p-4 text-white">
@@ -963,6 +1112,124 @@ function DashboardTab({ stats, level, gamification, history, bookmarks, localeCo
   )
 }
 
+function AgendaTab({ reminders, bookmarks, officialMatches, localeContext, onRemoveReminder }) {
+  const nextOfficialMatches = (officialMatches || [])
+    .filter((match) => new Date(match.utcDate).getTime() > Date.now())
+    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
+    .slice(0, 3)
+
+  const exportMatchReminder = (reminder) => {
+    const matchPayload = reminder.match_payload || {}
+    const payload = buildMatchCalendarPayload({
+      id: reminder.match_id,
+      ...matchPayload,
+      venue: matchPayload.venue,
+      utcDate: matchPayload.utcDate,
+    }, {
+      title: `${matchPayload.home} vs ${matchPayload.away}`,
+      description: `${reminder.reminder_label} · Agenda BianconeriHub`,
+      location: matchPayload.venue,
+    })
+
+    if (payload) {
+      downloadICSFile(payload.icsFileName, payload.ics)
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <SectionHeader icon={Calendar} title="Agenda Juve" />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="border border-gray-200 bg-white p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Reminder attivi</p>
+            <h3 className="mt-2 font-display text-2xl font-black text-juve-black">{reminders?.length || 0} in agenda</h3>
+            <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              Qui trovi i promemoria partita sincronizzati con il tuo fuso e pronti per export su calendario esterno.
+            </p>
+          </div>
+          <div className="border border-gray-200 bg-white p-5">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Segnalibri</p>
+            <h3 className="mt-2 font-display text-2xl font-black text-juve-black">{bookmarks.length} articoli salvati</h3>
+            <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              L’agenda personale tiene insieme match da seguire e articoli da recuperare quando cambia la tua finestra locale di lettura.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <SectionHeader icon={Bell} title="Promemoria partita" />
+        {reminders?.length ? (
+          <div className="space-y-3">
+            {reminders.map((reminder) => {
+              const matchPayload = reminder.match_payload || {}
+              const relative = getRelativeMatchKickoff(matchPayload.utcDate, {
+                locale: localeContext.locale,
+                timeZone: localeContext.timeZone,
+              })
+
+              return (
+                <div key={reminder.id} className="border border-gray-200 bg-white p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">{reminder.reminder_label}</p>
+                      <h3 className="mt-1 font-display text-xl font-black text-juve-black">{matchPayload.home} vs {matchPayload.away}</h3>
+                      <p className="mt-2 text-sm text-gray-600">
+                        {relative?.fullLabel || 'Match in agenda'}
+                        {matchPayload.competition?.name ? ` · ${matchPayload.competition.name}` : ''}
+                        {matchPayload.venue ? ` · ${matchPayload.venue}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => exportMatchReminder(reminder)}>
+                        <Download className="h-4 w-4" />
+                        ICS
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onRemoveReminder(reminder)}>
+                        <X className="h-4 w-4" />
+                        Rimuovi
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            icon={Bell}
+            title="Nessun reminder attivo"
+            text="Vai nel calendario partite e attiva i preset che vuoi usare per costruire la tua agenda Juve."
+          />
+        )}
+      </div>
+
+      <div>
+        <SectionHeader icon={Calendar} title="Prossimi match ufficiali" />
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          {nextOfficialMatches.map((match) => {
+            const relative = getRelativeMatchKickoff(match.utcDate, {
+              locale: localeContext.locale,
+              timeZone: localeContext.timeZone,
+            })
+
+            return (
+              <div key={match.id} className="border border-gray-200 bg-white p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">{match.competition?.name || 'Match'}</p>
+                <h3 className="mt-2 font-display text-xl font-black text-juve-black">
+                  {match.homeTeam?.shortName || match.homeTeam?.name} vs {match.awayTeam?.shortName || match.awayTeam?.name}
+                </h3>
+                <p className="mt-2 text-sm text-gray-600">{relative?.fullLabel || 'Prossimo appuntamento'} </p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TAB: BADGES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1163,7 +1430,7 @@ function FigurineTab() {
 // TAB: FORMATION — dati Transfermarkt 2025/26
 // ═══════════════════════════════════════════════════════════════════════════
 
-function FormationTab() {
+function FormationTab({ onRefreshGamification }) {
   const saved = getFormation()
   const [formation, setFormation] = useState(saved?.formation || '4-3-3')
   const [selected, setSelected] = useState(saved?.players || [])
@@ -1180,6 +1447,7 @@ function FormationTab() {
 
   const handleSave = () => {
     saveFormation(formation, selected)
+    onRefreshGamification?.()
   }
 
   return (
@@ -1264,10 +1532,11 @@ function FormationTab() {
 // TAB: DIARY
 // ═══════════════════════════════════════════════════════════════════════════
 
-function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext }) {
+function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext, onRefreshGamification }) {
+  const { reader } = useReader()
   const [entries, setEntries] = useState(() => getDiary())
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ matchId: '', match: '', mood: '', rating: 5, note: '' })
+  const [form, setForm] = useState({ matchId: '', match: '', mood: '', rating: 5, note: '', isPublic: false })
 
   const diaryMatches = useMemo(() => (
     officialMatches
@@ -1290,7 +1559,7 @@ function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext 
 
   const handleSubmit = () => {
     if (!form.matchId || !form.match) return
-    addDiaryEntry({
+    const entry = {
       ...form,
       competition: selectedMatch?.competition?.name || '',
       utcDate: selectedMatch?.utcDate || '',
@@ -1300,16 +1569,26 @@ function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext 
       awayTeamCrest: selectedMatch?.awayTeam?.crest || '',
       finalHomeScore: selectedMatch?.score?.fullTime?.home ?? null,
       finalAwayScore: selectedMatch?.score?.fullTime?.away ?? null,
-    })
+    }
+    addDiaryEntry(entry)
     addXP(XP_ACTIONS.diaryEntry, 'diaryEntry')
+    if (form.isPublic) {
+      savePublicDiaryEntry({
+        ...entry,
+        readerId: reader?.id || 'guest',
+        username: reader?.username || reader?.email?.split('@')[0] || 'Tifoso',
+      })
+    }
     setEntries(getDiary())
-    setForm({ matchId: '', match: '', mood: '', rating: 5, note: '' })
+    onRefreshGamification?.()
+    setForm({ matchId: '', match: '', mood: '', rating: 5, note: '', isPublic: false })
     setShowForm(false)
   }
 
   const handleDelete = (id) => {
     deleteDiaryEntry(id)
     setEntries(getDiary())
+    onRefreshGamification?.()
   }
 
   return (
@@ -1389,6 +1668,15 @@ function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext 
                 rows={3}
                 className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold resize-none"
               />
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.isPublic}
+                  onChange={e => setForm({ ...form, isPublic: e.target.checked })}
+                  className="h-4 w-4 accent-juve-gold"
+                />
+                <span className="text-xs font-bold text-gray-600">Condividi con la community (visibile in home)</span>
+              </label>
               <div className="flex gap-2">
                 <button
                   onClick={handleSubmit}
@@ -1460,10 +1748,11 @@ function DiaryTab({ officialMatches = [], matchesLoading = false, localeContext 
 // TAB: PREDICTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PredictionsTab({ officialMatches = [], matchesLoading = false, localeContext }) {
+function PredictionsTab({ officialMatches = [], matchesLoading = false, localeContext, onRefreshGamification }) {
+  const { reader } = useReader()
   const [predictions, setPredictions] = useState(() => getPredictions())
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
+  const [form, setForm] = useState({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '', isPublic: false })
   const [now, setNow] = useState(() => Date.now())
 
   const upcomingMatches = useMemo(() => (
@@ -1489,7 +1778,7 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false, localeCo
 
   const handleSubmit = () => {
     if (!form.matchId || !form.match) return
-    addPrediction({
+    const prediction = {
       ...form,
       competition: selectedMatch?.competition?.name || '',
       utcDate: selectedMatch?.utcDate || '',
@@ -1497,10 +1786,19 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false, localeCo
       awayTeamName: selectedMatch?.awayTeam?.shortName || selectedMatch?.awayTeam?.name || '',
       homeTeamCrest: selectedMatch?.homeTeam?.crest || '',
       awayTeamCrest: selectedMatch?.awayTeam?.crest || '',
-    })
+    }
+    addPrediction(prediction)
     addXP(XP_ACTIONS.prediction, 'prediction')
+    if (form.isPublic) {
+      savePublicPrediction({
+        ...prediction,
+        readerId: reader?.id || 'guest',
+        username: reader?.username || reader?.email?.split('@')[0] || 'Tifoso',
+      })
+    }
     setPredictions(getPredictions())
-    setForm({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '' })
+    onRefreshGamification?.()
+    setForm({ matchId: '', match: '', homeScore: 0, awayScore: 0, motm: '', isPublic: false })
     setShowForm(false)
   }
 
@@ -1584,6 +1882,15 @@ function PredictionsTab({ officialMatches = [], matchesLoading = false, localeCo
                 onChange={e => setForm({ ...form, motm: e.target.value })}
                 className="w-full border-2 border-juve-black px-3 py-2 text-sm focus:outline-none focus:border-juve-gold"
               />
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.isPublic}
+                  onChange={e => setForm({ ...form, isPublic: e.target.checked })}
+                  className="h-4 w-4 accent-juve-gold"
+                />
+                <span className="text-xs font-bold text-gray-600">Condividi con la community (visibile in home)</span>
+              </label>
               <div className="flex gap-2">
                 <button
                   onClick={handleSubmit}
@@ -1650,7 +1957,7 @@ const FAN_ARTICLE_INITIAL_FORM = {
   pitch: '',
 }
 
-function FanArticlesTab({ reader }) {
+function FanArticlesTab({ reader, onRefreshGamification }) {
   const [articles, setArticles] = useState(() => getFanArticles())
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(FAN_ARTICLE_INITIAL_FORM)
@@ -1678,6 +1985,7 @@ function FanArticlesTab({ reader }) {
         submissionId: data?.id || null,
       })
       addXP(XP_ACTIONS.fanArticleSubmit, 'fanArticleSubmit')
+      onRefreshGamification?.()
       setArticles(getFanArticles())
       setForm(FAN_ARTICLE_INITIAL_FORM)
       setShowForm(false)
@@ -1726,6 +2034,7 @@ function FanArticlesTab({ reader }) {
       authorEmail: reader.email,
     })
     addXP(XP_ACTIONS.fanArticleDraft, 'fanArticleDraft')
+    onRefreshGamification?.()
     setArticles(getFanArticles())
     setForm(saved)
     setShowForm(true)
@@ -2262,13 +2571,19 @@ function NotificationsTab({ notifications, readerId, toast }) {
 // TAB: PREFERENZE (updated with avatar picker)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PreferencesTab({ categories, preferences, setFavoriteCategories, setTimeZonePreference, reader, gamification, localeContext, onUpdateProfile, toast, onDelete }) {
+function PreferencesTab({ categories, preferences, setFavoriteCategories, setTimeZonePreference, setCityLabel, setNotificationSettings, setReminderDefaults, reminderCount, reader, gamification, onRefreshGamification, localeContext, softSegment, onUpdateProfile, toast, onDelete }) {
   const favs = preferences.favoriteCategories || []
   const selectedTimeZone = preferences.timeZone || 'auto'
+  const notificationSettings = {
+    ...DEFAULT_NOTIFICATION_SETTINGS,
+    ...(preferences.notificationSettings || {}),
+  }
+  const reminderDefaults = Array.isArray(preferences.reminderOffsets) ? preferences.reminderOffsets : []
   const [profileName, setProfileName] = useState(reader.name || '')
   const [profileBio, setProfileBio] = useState(reader.bio || '')
   const [savingProfile, setSavingProfile] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [detectingCity, setDetectingCity] = useState(false)
 
   useEffect(() => {
     setProfileName(reader.name || '')
@@ -2282,7 +2597,7 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, setTim
 
   const handleAvatarChange = (avatarId) => {
     setAvatar(avatarId)
-    window.location.reload() // Refresh to reflect avatar change
+    onRefreshGamification()
   }
 
   const handleProfileSave = async () => {
@@ -2315,18 +2630,26 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, setTim
       <div>
         <SectionHeader icon={Star} title="Il tuo avatar" />
         <div className="flex flex-wrap gap-3">
-          {AVATARS.map(a => (
-            <button
-              key={a.id}
-              onClick={() => handleAvatarChange(a.id)}
-              className={`w-14 h-14 text-2xl flex items-center justify-center border-2 transition-colors ${
-                gamification.avatar === a.id ? 'border-juve-gold bg-juve-gold/10' : 'border-gray-200 hover:border-gray-400'
-              }`}
-              title={a.label}
-            >
-              {a.emoji}
-            </button>
-          ))}
+          {AVATARS.map(a => {
+            const IconComp = AVATAR_ICON_MAP[a.icon] || Trophy
+            const { bg, fg } = AVATAR_COLOR_MAP[a.color] || AVATAR_COLOR_MAP.black
+            const isSelected = gamification.avatar === a.id
+            return (
+              <button
+                key={a.id}
+                onClick={() => handleAvatarChange(a.id)}
+                className={`w-14 h-14 flex flex-col items-center justify-center gap-1 border-2 transition-all ${
+                  isSelected ? 'border-juve-gold ring-2 ring-juve-gold/30' : 'border-gray-200 hover:border-gray-400'
+                }`}
+                title={a.label}
+              >
+                <div className={`flex h-8 w-8 items-center justify-center ${isSelected ? bg : 'bg-gray-100'}`}>
+                  <IconComp className={`h-4 w-4 ${isSelected ? fg : 'text-gray-500'}`} />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 leading-none">{a.label}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -2347,9 +2670,9 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, setTim
       </div>
 
       <div>
-        <SectionHeader icon={Clock} title="Fuso orario" />
+        <SectionHeader icon={Clock} title="Fuso orario e posizione" />
         <p className="text-sm text-gray-500 mb-4">Scegli se usare il fuso del browser o uno fisso per partite, live e orari editoriali.</p>
-        <div className="max-w-md space-y-2">
+        <div className="max-w-md space-y-3">
           <select
             value={selectedTimeZone}
             onChange={(event) => setTimeZonePreference(event.target.value)}
@@ -2359,11 +2682,145 @@ function PreferencesTab({ categories, preferences, setFavoriteCategories, setTim
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
+
+          {/* Geolocalizzazione reale */}
+          <div className="border border-gray-100 bg-gray-50 p-3 space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+              Posizione precisa
+            </p>
+            <p className="text-xs text-gray-500">
+              Il fuso orario identifica solo il paese (es. "Roma" per tutta Italia). Rileva la tua citta reale con la geolocalizzazione del browser.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setDetectingCity(true)
+                  try {
+                    const city = await detectRealCity()
+                    if (city) {
+                      setCityLabel(city)
+                      toast?.({ title: 'Posizione rilevata', description: `Citta: ${city}`, variant: 'success' })
+                    } else {
+                      toast?.({ title: 'Posizione non disponibile', description: 'Consenti la geolocalizzazione nel browser e riprova.', variant: 'destructive' })
+                    }
+                  } finally {
+                    setDetectingCity(false)
+                  }
+                }}
+                disabled={detectingCity}
+                className="inline-flex items-center gap-2 border border-gray-300 px-3 py-1.5 text-xs font-black uppercase tracking-widest text-gray-600 hover:border-juve-gold hover:text-juve-black transition-colors disabled:opacity-50"
+              >
+                {detectingCity
+                  ? <><Loader2 className="h-3 w-3 animate-spin" /> Rilevamento...</>
+                  : 'Rileva posizione'}
+              </button>
+              {preferences.cityLabel && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-juve-black">{preferences.cityLabel}</span>
+                  <button
+                    type="button"
+                    onClick={() => setCityLabel('')}
+                    className="text-gray-400 hover:text-red-500"
+                    title="Rimuovi"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <p className="text-[11px] text-gray-400">
-            Fuso attivo: {localeContext.timeZoneLabel}
+            Posizione attiva: <strong>{localeContext.timeZoneLabel}</strong>
             {localeContext.region ? ` (${localeContext.region})` : ''}
-            {localeContext.isAutoDetected ? ' • rilevato automaticamente' : ' • impostato manualmente'}
+            {localeContext.isAutoDetected && !preferences.cityLabel ? ' • fuso rilevato automaticamente' : ''}
+            {preferences.cityLabel ? ' • citta rilevata via GPS' : ''}
           </p>
+        </div>
+      </div>
+
+      <div>
+        <SectionHeader icon={Bell} title="Invio smart notifiche" />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Quiet hours</p>
+                <p className="mt-1 text-sm text-gray-600">Blocca push nelle fasce locali meno utili e rimanda il recap al primo slot disponibile.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotificationSettings({ quietHoursEnabled: !notificationSettings.quietHoursEnabled })}
+                className={`inline-flex h-7 w-12 items-center rounded-full transition-colors ${notificationSettings.quietHoursEnabled ? 'bg-juve-gold' : 'bg-gray-200'}`}
+              >
+                <span className={`h-5 w-5 rounded-full bg-white transition-transform ${notificationSettings.quietHoursEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                Da
+                <input
+                  type="time"
+                  value={notificationSettings.quietHoursStart}
+                  onChange={(event) => setNotificationSettings({ quietHoursStart: event.target.value })}
+                  className="mt-1 w-full border border-gray-200 px-3 py-2 text-sm font-medium"
+                />
+              </label>
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                A
+                <input
+                  type="time"
+                  value={notificationSettings.quietHoursEnd}
+                  onChange={(event) => setNotificationSettings({ quietHoursEnd: event.target.value })}
+                  className="mt-1 w-full border border-gray-200 px-3 py-2 text-sm font-medium"
+                />
+              </label>
+            </div>
+            <p className="mt-3 text-[11px] text-gray-400">{getSmartDeliveryLabel(localeContext, notificationSettings)}</p>
+          </div>
+
+          <div className="border border-gray-200 bg-white p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500">Digest locale</p>
+            <p className="mt-1 text-sm text-gray-600">Se una push viene rinviata, il sistema prova a riproporla nel tuo slot locale preferito.</p>
+            <label className="mt-4 block text-xs font-bold uppercase tracking-widest text-gray-500">
+              Orario digest
+              <input
+                type="time"
+                value={notificationSettings.digestHour}
+                onChange={(event) => setNotificationSettings({ digestHour: event.target.value })}
+                className="mt-1 w-full border border-gray-200 px-3 py-2 text-sm font-medium"
+              />
+            </label>
+            <div className="mt-4 rounded-sm border border-juve-gold/30 bg-juve-gold/10 p-3 text-sm text-gray-700">
+              Segmento attivo: {softSegment.regionLabel} · {localeContext.timeZoneLabel} · {softSegment.bucket}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <SectionHeader icon={Calendar} title="Preset reminder partite" />
+        <p className="mb-4 text-sm text-gray-500">Scegli i preset che vuoi ritrovare come default quando gestisci i promemoria dal calendario. Reminder attivi ora: {reminderCount}.</p>
+        <div className="flex flex-wrap gap-2">
+          {MATCH_REMINDER_PRESETS.map((preset) => {
+            const selected = reminderDefaults.includes(preset.minutes)
+            return (
+              <button
+                key={preset.minutes}
+                type="button"
+                onClick={() => {
+                  const nextValues = selected
+                    ? reminderDefaults.filter((value) => value !== preset.minutes)
+                    : [...reminderDefaults, preset.minutes].sort((a, b) => b - a)
+                  setReminderDefaults(nextValues)
+                }}
+                className={`border px-4 py-2 text-xs font-black uppercase tracking-wider transition-colors ${selected ? 'border-juve-gold bg-juve-gold/10 text-juve-black' : 'border-gray-200 text-gray-500 hover:border-juve-gold hover:text-juve-black'}`}
+              >
+                {preset.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 

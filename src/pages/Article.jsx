@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Clock, Eye, Calendar, User, ArrowLeft } from 'lucide-react'
 import { getArticleBySlug, getRelatedArticles, getSmartRelatedArticles, incrementViews, getArticleTags } from '@/lib/supabase'
-import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, readingTime, formatViews, stripHtml } from '@/lib/utils'
+import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, getRelativeDateLabel, readingTime, formatViews, stripHtml } from '@/lib/utils'
 import ArticleCard from '@/components/blog/ArticleCard'
 import Sidebar from '@/components/blog/Sidebar'
 import SEO from '@/components/blog/SEO'
@@ -192,6 +192,7 @@ export default function Article() {
     locale: localeContext.locale,
     timeZone: localeContext.timeZone,
   })
+  const publishedRelative = getRelativeDateLabel(article.published_at)
   const contentWithIds = useHeadingIds(article.content)
 
   return (
@@ -284,6 +285,7 @@ export default function Article() {
                   <Calendar className="h-4 w-4" />
                   {publishedDate}
                   {publishedTime ? ` • ${publishedTime}` : ''}
+                  {publishedRelative ? ` • ${publishedRelative}` : ''}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-4 w-4" />

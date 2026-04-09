@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, createContext, useContext, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, createContext, useContext, useCallback } from 'react'
 import {
   addXP,
   XP_ACTIONS,
@@ -38,6 +38,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '@/lib/pushNotifications'
+import { DEFAULT_READER_PREFERENCES, mergeReaderPreferences } from '@/lib/utils'
 
 const ReaderContext = createContext(null)
 
@@ -53,7 +54,7 @@ const LS = {
 const GAMIFICATION_KEY = 'fb-gamification'
 const NOTIFICATIONS_KEY = 'fb-notifications'
 const CONFIRMATION_REMINDER_KEY = 'fb-confirmation-reminders'
-const DEFAULT_PREFS = { favoriteCategories: [], timeZone: 'auto' }
+const DEFAULT_PREFS = DEFAULT_READER_PREFERENCES
 const IS_MOCK = import.meta.env.VITE_SUPABASE_URL?.includes('your-project.supabase.co')
 const GUEST_SCOPE = 'guest'
 
@@ -134,7 +135,7 @@ function getLocalSnapshot(scope = GUEST_SCOPE) {
     reader: load(keys.reader, null),
     bookmarks: load(keys.bookmarks, []),
     history: load(keys.history, []),
-    preferences: load(keys.prefs, DEFAULT_PREFS),
+    preferences: mergeReaderPreferences(load(keys.prefs, DEFAULT_PREFS)),
     gamification: load(keys.gamification, null),
     notifications: load(keys.notifications, { enabled: false, lastCheck: null }),
   }
@@ -178,33 +179,81 @@ export function ReaderProvider({ children }) {
     setGamificationScope(storageScope)
   }, [storageScope])
 
-  useEffect(() => { save(storageKeys.bookmarks, bookmarks) }, [bookmarks, storageKeys.bookmarks])
-  useEffect(() => { save(storageKeys.history, history) }, [history, storageKeys.history])
-  useEffect(() => { save(storageKeys.prefs, preferences) }, [preferences, storageKeys.prefs])
-  useEffect(() => { save(storageKeys.notifications, notifications) }, [notifications, storageKeys.notifications])
+  // Usiamo un ref per storageKeys nei save effects: così quando storageScope cambia
+  // (guest → userId) il cambiamento della chiave NON scatena il save effect che
+  // scriverebbe le preferenze guest vuote su fb-preferences:<userId>.
+  // Il save avviene solo quando il DATO cambia; la chiave aggiornata è già lì tramite ref.
+  const storageKeysRef = useRef(storageKeys)
+  useEffect(() => { storageKeysRef.current = storageKeys }, [storageKeys])
+
+  useEffect(() => { save(storageKeysRef.current.bookmarks, bookmarks) }, [bookmarks])
+  useEffect(() => { save(storageKeysRef.current.history, history) }, [history])
+  useEffect(() => { save(storageKeysRef.current.prefs, preferences) }, [preferences])
+  useEffect(() => { save(storageKeysRef.current.notifications, notifications) }, [notifications])
   useEffect(() => {
-    if (reader) save(storageKeys.reader, reader)
-    else remove(storageKeys.reader)
-  }, [reader, storageKeys.reader])
+    if (reader) save(storageKeysRef.current.reader, reader)
+    else remove(storageKeysRef.current.reader)
+  }, [reader])
+
+  // Quando le preferenze cambiano e c'è un utente autenticato, sincronizza su Supabase
+  // con debounce di 1.5s per non fare troppe chiamate durante modifiche rapide
+  useEffect(() => {
+    if (IS_MOCK || !authUser?.id) return undefined
+    const timer = setTimeout(() => {
+      upsertReaderState(authUser.id, {
+        bookmarks,
+        history,
+        preferences,
+        gamification: getGamificationState(),
+        notifications_enabled: notifications.enabled,
+        last_synced_at: new Date().toISOString(),
+      }).catch(() => {})
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [preferences, authUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ref sempre aggiornata per evitare che l'effect di hydration dipenda da applySnapshot
+  // e cicli ogni volta che storageScope cambia.
+  const storagesScopeRef = useRef(storageScope)
+  useEffect(() => { storagesScopeRef.current = storageScope }, [storageScope])
 
   const applySnapshot = useCallback((snapshot, nextReader) => {
     setReader(nextReader || snapshot.reader || null)
     setBookmarks(snapshot.bookmarks || [])
     setHistory(snapshot.history || [])
-    setPreferences(snapshot.preferences || DEFAULT_PREFS)
+    setPreferences(mergeReaderPreferences(snapshot.preferences || DEFAULT_PREFS))
     setNotifications(snapshot.notifications || { enabled: false, lastCheck: null })
-    persistGamificationSnapshot(snapshot.gamification || getGamificationState(), storageScope)
-  }, [storageScope])
+    persistGamificationSnapshot(snapshot.gamification || getGamificationState(), storagesScopeRef.current)
+  }, [])  // Stabile: non dipende da storageScope
+
+  // Sync immediato della gamification (chiamato dopo ogni write su gamification.js)
+  const syncGamification = useCallback(() => {
+    if (!authUser?.id || IS_MOCK) return
+    upsertReaderState(authUser.id, {
+      bookmarks,
+      history,
+      preferences,
+      gamification: getGamificationState(),
+      notifications_enabled: notifications.enabled,
+      last_synced_at: new Date().toISOString(),
+    }).catch(() => {})
+  }, [authUser?.id, bookmarks, history, preferences, notifications.enabled])
+
+  // Ref per syncRemoteState: consente all'effect di hydration di avere deps [] e non
+  // ricominciare ogni volta che bookmarks/history/preferences cambiano dopo applySnapshot.
+  const stateRef = useRef({ bookmarks, history, preferences, notifications })
+  useEffect(() => { stateRef.current = { bookmarks, history, preferences, notifications } }, [bookmarks, history, preferences, notifications])
 
   const syncRemoteState = useCallback(async (sessionUser, overrides = {}) => {
     if (!sessionUser?.id || IS_MOCK) return
 
+    const s = stateRef.current
     const payload = {
-      bookmarks: overrides.bookmarks ?? bookmarks,
-      history: overrides.history ?? history,
-      preferences: overrides.preferences ?? preferences,
+      bookmarks: overrides.bookmarks ?? s.bookmarks,
+      history: overrides.history ?? s.history,
+      preferences: overrides.preferences ?? s.preferences,
       gamification: overrides.gamification ?? getGamificationState(),
-      notifications_enabled: overrides.notificationsEnabled ?? notifications.enabled,
+      notifications_enabled: overrides.notificationsEnabled ?? s.notifications.enabled,
       last_synced_at: new Date().toISOString(),
     }
 
@@ -213,7 +262,7 @@ export function ReaderProvider({ children }) {
     } catch {
       // Reader sync should never block the experience.
     }
-  }, [bookmarks, history, notifications.enabled, preferences])
+  }, [])  // Stabile: legge lo stato corrente tramite ref
 
   useEffect(() => {
     if (IS_MOCK) return undefined
@@ -222,6 +271,10 @@ export function ReaderProvider({ children }) {
 
     const hydrateFromSession = async (sessionUser, authEvent = null) => {
       if (!active) return
+      // Leggi lo snapshot locale PRIMA di setAuthUser per evitare che il cambio
+      // di storageScope (guest → userId) scateni il useEffect che sovrascrive
+      // fb-preferences:<userId> con le preferenze guest vuote.
+      const preloadedLocal = sessionUser?.id ? getLocalSnapshot(sessionUser.id) : null
       setAuthUser(sessionUser ?? null)
       setIsPasswordRecovery(authEvent === 'PASSWORD_RECOVERY')
 
@@ -271,12 +324,23 @@ export function ReaderProvider({ children }) {
         }
       }
 
-      const local = getLocalSnapshot(sessionUser.id)
+      const local = preloadedLocal || getLocalSnapshot(sessionUser.id)
+      // Strategia locale-first:
+      // - preferences: merge con locale che vince (è salvato immediatamente ad ogni cambio)
+      // - gamification: locale vince sempre (gamification.js scrive in localStorage in modo sincrono
+      //   e immediato, il remote può essere indietro di secondi per via del debounce sync)
+      // - bookmarks/history: remote vince (multi-device support)
+      const mergedPreferences = mergeReaderPreferences({
+        ...(remoteState?.preferences || {}),
+        ...(local.preferences || {}),
+      })
+      const mergedGamification =
+        local.gamification || remoteState?.gamification || getGamificationState()
       const snapshot = {
         bookmarks: remoteState?.bookmarks ?? local.bookmarks,
         history: remoteState?.history ?? local.history,
-        preferences: remoteState?.preferences || local.preferences,
-        gamification: remoteState?.gamification || local.gamification || getGamificationState(),
+        preferences: mergedPreferences,
+        gamification: mergedGamification,
         notifications: {
           enabled: remoteState?.notifications_enabled ?? local.notifications.enabled,
           lastCheck: local.notifications.lastCheck ?? null,
@@ -293,7 +357,7 @@ export function ReaderProvider({ children }) {
         await syncRemoteState(sessionUser, {
           bookmarks: snapshot.bookmarks,
           history: snapshot.history,
-          preferences: snapshot.preferences,
+          preferences: mergeReaderPreferences(snapshot.preferences),
           gamification: snapshot.gamification,
           notificationsEnabled: snapshot.notifications.enabled,
         })
@@ -312,7 +376,7 @@ export function ReaderProvider({ children }) {
       active = false
       subscription.unsubscribe()
     }
-  }, [applySnapshot, syncRemoteState])
+  }, [])  // Stabile: applySnapshot e syncRemoteState sono ora stabili
 
   useEffect(() => {
     if (!reader) return
@@ -544,7 +608,7 @@ export function ReaderProvider({ children }) {
     setReader(null)
     setBookmarks([])
     setHistory([])
-    setPreferences(DEFAULT_PREFS)
+    setPreferences(mergeReaderPreferences(DEFAULT_PREFS))
     setNotifications({ enabled: false, lastCheck: null })
 
     remove(storageKeys.reader)
@@ -606,7 +670,7 @@ export function ReaderProvider({ children }) {
       { articleId: 'art-07', slug: 'vlahovic-doppietta-record-stagionale', title: 'Vlahovic incontenibile: doppietta e record stagionale', categoryName: 'Calcio', categorySlug: 'calcio', readAt: '2026-04-01T20:00:00Z', readingMinutes: 3 },
       { articleId: 'art-13', slug: 'mercato-giuntoli-talento-brasiliano-santos', title: 'Mercato: Giuntoli punta il talento brasiliano del Santos', categoryName: 'Mercato', categorySlug: 'mercato', readAt: '2026-04-01T10:00:00Z', readingMinutes: 4 },
     ]
-    const demoPrefs = { favoriteCategories: ['cat-01', 'cat-04', 'cat-02'] }
+    const demoPrefs = mergeReaderPreferences({ favoriteCategories: ['cat-01', 'cat-04', 'cat-02'] })
     setReader(profile)
     setBookmarks(demoBookmarks)
     setHistory(demoHistory)
@@ -618,7 +682,7 @@ export function ReaderProvider({ children }) {
     setReader(null)
     setBookmarks([])
     setHistory([])
-    setPreferences(DEFAULT_PREFS)
+    setPreferences(mergeReaderPreferences(DEFAULT_PREFS))
     setNotifications({ enabled: false, lastCheck: null })
     remove(storageKeys.reader)
     remove(storageKeys.bookmarks)
@@ -709,6 +773,33 @@ export function ReaderProvider({ children }) {
     setPreferences((prev) => ({ ...prev, timeZone: timeZone || 'auto' }))
   }, [])
 
+  const setCityLabel = useCallback((city) => {
+    setPreferences((prev) => ({ ...prev, cityLabel: city || '' }))
+  }, [])
+
+  const setNotificationSettings = useCallback((updates) => {
+    setPreferences((prev) => {
+      const next = typeof updates === 'function'
+        ? updates(prev.notificationSettings || DEFAULT_PREFS.notificationSettings)
+        : updates
+
+      return mergeReaderPreferences({
+        ...prev,
+        notificationSettings: {
+          ...(prev.notificationSettings || DEFAULT_PREFS.notificationSettings),
+          ...(next || {}),
+        },
+      })
+    })
+  }, [])
+
+  const setReminderDefaults = useCallback((offsets) => {
+    setPreferences((prev) => mergeReaderPreferences({
+      ...prev,
+      reminderOffsets: Array.isArray(offsets) ? offsets : DEFAULT_PREFS.reminderOffsets,
+    }))
+  }, [])
+
   const openLogin = useCallback((mode = 'register') => {
     if (mode === 'recovery') {
       setLoginDialogMode('recovery')
@@ -776,6 +867,10 @@ export function ReaderProvider({ children }) {
       clearHistory,
       setFavoriteCategories,
       setTimeZonePreference,
+      setCityLabel,
+      setNotificationSettings,
+      syncGamification,
+      setReminderDefaults,
       enableNotifications,
       primeNotificationPermission,
       disableNotifications,
