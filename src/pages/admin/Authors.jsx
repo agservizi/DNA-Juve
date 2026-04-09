@@ -371,7 +371,7 @@ export default function Authors() {
 
         <button
           onClick={() => setInviteOpen(true)}
-          className="inline-flex items-center justify-center gap-2 bg-juve-gold px-5 py-2.5 text-sm font-black uppercase tracking-wider text-black transition-colors hover:bg-juve-gold-dark"
+          className="inline-flex w-full items-center justify-center gap-2 bg-juve-gold px-5 py-2.5 text-sm font-black uppercase tracking-wider text-black transition-colors hover:bg-juve-gold-dark sm:w-auto"
         >
           <UserPlus className="h-4 w-4" />
           Invita redattore
@@ -436,20 +436,20 @@ export default function Authors() {
       ) : (
         <div className="space-y-8">
           <section className="border border-gray-200 bg-white">
-            <div className="border-b border-gray-100 px-6 py-4">
+            <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-juve-gold">Inviti e onboarding</p>
               <h2 className="mt-2 font-display text-xl font-black text-juve-black">Inviti in sospeso</h2>
             </div>
 
             {pendingInvites.length === 0 ? (
-              <div className="px-6 py-10 text-sm text-gray-500">
+              <div className="px-4 py-10 text-sm text-gray-500 sm:px-6">
                 Nessun invito pendente nella vista corrente.
               </div>
             ) : (
               <>
                 <div className="divide-y divide-gray-100">
                   {visiblePendingInvites.map((author) => (
-                    <div key={author.id} className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center">
+                    <div key={author.id} className="flex flex-col gap-4 px-4 py-5 lg:flex-row lg:items-center sm:px-6">
                       <div className="flex min-w-0 flex-1 items-center gap-4">
                         <AuthorAvatar author={author} />
                         <div className="min-w-0">
@@ -466,7 +466,7 @@ export default function Authors() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                         <RoleSelect
                           value={author.role}
                           disabled={roleMutation.isPending}
@@ -503,19 +503,115 @@ export default function Authors() {
           </section>
 
           <section className="border border-gray-200 bg-white">
-            <div className="border-b border-gray-100 px-6 py-4">
+            <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-juve-gold">Team attivo</p>
               <h2 className="mt-2 font-display text-xl font-black text-juve-black">Redazione operativa</h2>
             </div>
 
             {activeAuthors.length === 0 ? (
-              <div className="px-6 py-14 text-center text-gray-400">
+              <div className="px-4 py-14 text-center text-gray-400 sm:px-6">
                 <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
                 <p className="font-display text-lg">Nessun redattore in questa vista</p>
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="space-y-4 px-4 py-4 lg:hidden sm:px-6">
+                  {visibleActiveAuthors.map((author, index) => {
+                    const access = accountAccessMeta(author)
+
+                    return (
+                      <motion.div
+                        key={author.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="border border-gray-200 bg-gray-50 p-4"
+                      >
+                        <div className="flex items-start gap-4">
+                          <AuthorAvatar author={author} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-bold text-juve-black">{author.username}</p>
+                              <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${roleBadge(author.role)}`}>
+                                {roleLabel(author.role)}
+                              </span>
+                              <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${statusBadge(author.status)}`}>
+                                {statusLabel(author.status)}
+                              </span>
+                            </div>
+                            <p className="mt-1 break-all text-sm text-gray-500">{author.email || 'Email non disponibile'}</p>
+                            <p className="mt-2 text-xs text-gray-500">{author.bio || 'Nessuna bio redazionale impostata.'}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <div className="border border-gray-200 bg-white p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">Pubblicati</p>
+                            <p className="mt-2 font-display text-2xl font-black text-juve-black">{author.published_total}</p>
+                            <p className="mt-1 text-xs text-gray-400">{author.drafts_total} bozze</p>
+                          </div>
+                          <div className="border border-gray-200 bg-white p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">Accesso</p>
+                            <p className={`mt-2 text-sm font-semibold ${access.tone}`}>{access.title}</p>
+                            <p className="mt-1 text-xs text-gray-400">{access.detail}</p>
+                          </div>
+                        </div>
+
+                        {author.latest_article && (
+                          <a
+                            href={`/articolo/${author.latest_article.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-juve-black transition-colors hover:text-juve-gold"
+                          >
+                            Ultimo pezzo: {author.latest_article.title}
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+
+                        <div className="mt-4 space-y-3">
+                          <RoleSelect
+                            value={author.role}
+                            disabled={roleMutation.isPending || isProtectedAdmin(author)}
+                            onChange={(role) => roleMutation.mutate({ userId: author.id, role })}
+                          />
+
+                          {isProtectedAdmin(author) && (
+                            <p className="text-[11px] text-gray-400">Ruolo protetto per l’account admin principale.</p>
+                          )}
+
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <button
+                              onClick={() => setDetailTarget(author)}
+                              className="inline-flex items-center justify-center gap-2 border border-gray-300 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-600 transition-colors hover:border-juve-gold hover:text-juve-black"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Profilo
+                            </button>
+                            <button
+                              onClick={() => resetMutation.mutate({ email: author.email })}
+                              disabled={resetMutation.isPending || !author.email}
+                              className="inline-flex items-center justify-center gap-2 border border-gray-300 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-600 transition-colors hover:border-juve-gold hover:text-juve-black disabled:opacity-50"
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                              Reset password
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(author)}
+                              disabled={isProtectedAdmin(author)}
+                              className="inline-flex items-center justify-center gap-2 border border-red-200 px-3 py-2 text-xs font-bold uppercase tracking-wider text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Rimuovi
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto lg:block">
                   <div className="min-w-[980px]">
                     <div className="grid grid-cols-[1.9fr_0.9fr_1fr_0.8fr_0.9fr_1.4fr] gap-4 border-b border-gray-100 px-6 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
                       <span>Profilo</span>

@@ -11,6 +11,7 @@ export default function ReaderLoginDialog() {
     closeLogin,
     register,
     login,
+    primeNotificationPermission,
     resendConfirmationEmail,
     sendPasswordReset,
     completePasswordReset,
@@ -88,6 +89,10 @@ export default function ReaderLoginDialog() {
     setLoading(true)
 
     try {
+      if (mode !== 'recovery') {
+        await primeNotificationPermission().catch(() => {})
+      }
+
       if (mode === 'register' && name.trim() && email.trim() && password.trim()) {
         const result = await register(name.trim(), email.trim(), password.trim())
         setSuccessMode(result?.mode === 'confirm-email' ? 'confirm-email' : 'success')

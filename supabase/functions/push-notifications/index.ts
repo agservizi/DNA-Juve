@@ -8,7 +8,8 @@ const corsHeaders = {
 
 type PushRecord = {
   id: string
-  user_id: string
+  user_id: string | null
+  guest_token?: string | null
   endpoint: string
   subscription: Record<string, unknown>
 }
@@ -130,16 +131,25 @@ async function createInternalNotifications(
 
 async function sendTestNotification(
   supabaseAdmin: ReturnType<typeof createClient>,
-  userId: string
+  options: { userId?: string | null, guestToken?: string | null }
 ) {
-  const { data: subscriptions, error } = await supabaseAdmin
+  const { userId, guestToken } = options
+
+  if (!userId && !guestToken) {
+    throw new Error('Destinatario test push mancante.')
+  }
+
+  let query = supabaseAdmin
     .from('push_subscriptions')
-    .select('id, user_id, endpoint, subscription')
-    .eq('user_id', userId)
+    .select('id, user_id, guest_token, endpoint, subscription')
     .eq('is_active', true)
 
+  query = userId ? query.eq('user_id', userId) : query.eq('guest_token', guestToken as string)
+
+  const { data: subscriptions, error } = await query
+
   if (error) throw error
-  if (!subscriptions?.length) throw new Error('Nessuna subscription push attiva trovata per questo utente.')
+  if (!subscriptions?.length) throw new Error('Nessuna subscription push attiva trovata per questo dispositivo.')
 
   return sendNotificationToRecords(supabaseAdmin, subscriptions as PushRecord[], {
     title: 'BianconeriHub',
@@ -233,14 +243,33 @@ async function sendArticleNotification(
 
   const { data: subscriptions, error: subscriptionsError } = await supabaseAdmin
     .from('push_subscriptions')
-    .select('id, user_id, endpoint, subscription')
+    .select('id, user_id, guest_token, endpoint, subscription')
     .eq('is_active', true)
     .in('user_id', eligibleUserIds)
 
   if (subscriptionsError) throw subscriptionsError
 
-  const eligibleRecords = (subscriptions || []).filter((record) => pushEnabledUserIds.has(record.user_id))
-  if (!eligibleRecords.length) {
+  const eligibleRecords = (subscriptions || []).filter((record) => record.user_id && pushEnabledUserIds.has(record.user_id))
+
+  const { data: guestSubscriptions, error: guestSubscriptionsError } = await supabaseAdmin
+    .from('push_subscriptions')
+    .select('id, user_id, guest_token, endpoint, subscription')
+    .eq('is_active', true)
+    .not('guest_token', 'is', null)
+
+  if (guestSubscriptionsError) throw guestSubscriptionsError
+
+  const recordsByEndpoint = new Map<string, PushRecord>()
+  for (const record of eligibleRecords as PushRecord[]) {
+    recordsByEndpoint.set(record.endpoint, record)
+  }
+  for (const record of (guestSubscriptions || []) as PushRecord[]) {
+    recordsByEndpoint.set(record.endpoint, record)
+  }
+
+  const allRecords = [...recordsByEndpoint.values()]
+
+  if (!allRecords.length) {
     return {
       delivered: [],
       invalidated: [],
@@ -249,7 +278,7 @@ async function sendArticleNotification(
     }
   }
 
-  const summary = await sendNotificationToRecords(supabaseAdmin, eligibleRecords as PushRecord[], {
+  const summary = await sendNotificationToRecords(supabaseAdmin, allRecords, {
     title: article.authorName
       ? `Nuovo articolo di ${article.authorName}`
       : article.categoryName
@@ -497,6 +526,69 @@ async function sendReaderEventNotification(
   })
 }
 
+async function upsertSubscriptionRecord(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  payload: {
+    userId?: string | null
+    guestToken?: string | null
+    subscription?: Record<string, unknown>
+    userAgent?: string | null
+  },
+) {
+  const subscription = payload.subscription || {}
+  const endpoint = typeof subscription.endpoint === 'string' ? subscription.endpoint : ''
+  const keys = typeof subscription.keys === 'object' && subscription.keys !== null ? subscription.keys as Record<string, unknown> : {}
+
+  if (!endpoint) throw new Error('Subscription push non valida.')
+  if (!payload.userId && !payload.guestToken) throw new Error('Destinatario subscription mancante.')
+
+  const { data, error } = await supabaseAdmin
+    .from('push_subscriptions')
+    .upsert([{
+      user_id: payload.userId || null,
+      guest_token: payload.userId ? null : payload.guestToken || null,
+      endpoint,
+      subscription,
+      p256dh: typeof keys.p256dh === 'string' ? keys.p256dh : '',
+      auth: typeof keys.auth === 'string' ? keys.auth : '',
+      user_agent: payload.userAgent || null,
+      is_active: true,
+      last_seen_at: new Date().toISOString(),
+      last_error: null,
+    }], { onConflict: 'endpoint' })
+    .select('id, user_id, guest_token, endpoint')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+async function deleteSubscriptionRecord(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  payload: {
+    userId?: string | null
+    guestToken?: string | null
+    endpoint?: string | null
+  },
+) {
+  if (!payload.endpoint) throw new Error('Endpoint subscription mancante.')
+  if (!payload.userId && !payload.guestToken) throw new Error('Destinatario subscription mancante.')
+
+  let query = supabaseAdmin
+    .from('push_subscriptions')
+    .delete()
+    .eq('endpoint', payload.endpoint)
+
+  query = payload.userId
+    ? query.eq('user_id', payload.userId)
+    : query.eq('guest_token', payload.guestToken as string)
+
+  const { error } = await query
+  if (error) throw error
+
+  return { deleted: true }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -513,16 +605,42 @@ Deno.serve(async (req) => {
   })
 
   try {
-    const user = await getAuthenticatedUser(supabaseAdmin, req.headers.get('Authorization'))
     const body = await req.json().catch(() => ({}))
     const action = body?.action || 'send-test'
 
+    if (action === 'upsert-subscription') {
+      const data = await upsertSubscriptionRecord(supabaseAdmin, {
+        userId: body.userId || null,
+        guestToken: body.guestToken || null,
+        subscription: body.subscription || {},
+        userAgent: body.userAgent || null,
+      })
+      return jsonResponse(data)
+    }
+
+    if (action === 'delete-subscription') {
+      const data = await deleteSubscriptionRecord(supabaseAdmin, {
+        userId: body.userId || null,
+        guestToken: body.guestToken || null,
+        endpoint: body.endpoint || null,
+      })
+      return jsonResponse(data)
+    }
+
+    const authHeader = req.headers.get('Authorization')
+    const hasAuth = Boolean(authHeader)
+    const user = hasAuth ? await getAuthenticatedUser(supabaseAdmin, authHeader) : null
+
     if (action === 'send-test') {
-      const summary = await sendTestNotification(supabaseAdmin, user.id)
+      const summary = await sendTestNotification(supabaseAdmin, {
+        userId: user?.id || null,
+        guestToken: user ? null : (body.guestToken || null),
+      })
       return jsonResponse(summary)
     }
 
     if (action === 'send-reader-event') {
+      if (!user) throw new Error('Unauthorized')
       const targetUserId = body.userId || ''
       const targetUserEmail = body.userEmail || ''
       const isSelfTarget = (targetUserId && targetUserId === user.id) || (targetUserEmail && targetUserEmail === user.email)
@@ -555,7 +673,7 @@ Deno.serve(async (req) => {
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', user?.id)
       .maybeSingle()
 
     if (profileError) throw profileError

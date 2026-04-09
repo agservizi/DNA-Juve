@@ -339,6 +339,9 @@ export default function MyDnaJuve() {
               <Button variant="gold" size="lg" onClick={() => openLogin('register')}>Registrati</Button>
               <Button variant="outline" size="lg" onClick={() => openLogin('login')}>Accedi</Button>
             </div>
+            <div className="mt-8 text-left">
+              <NotificationAlert />
+            </div>
             {IS_DEV && (
               <div className="mt-4">
                 <Button variant="link" onClick={loginDemo}>Prova con account demo</Button>

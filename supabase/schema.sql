@@ -363,7 +363,8 @@ CREATE TABLE IF NOT EXISTS reader_states (
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id         UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  guest_token     TEXT,
   endpoint        TEXT NOT NULL UNIQUE,
   subscription    JSONB NOT NULL,
   p256dh          TEXT NOT NULL,
@@ -374,7 +375,8 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   last_error      TEXT,
   last_seen_at    TIMESTAMPTZ DEFAULT NOW(),
   created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  updated_at      TIMESTAMPTZ DEFAULT NOW(),
+  CHECK (user_id IS NOT NULL OR guest_token IS NOT NULL)
 );
 
 CREATE TABLE IF NOT EXISTS reader_notifications (
@@ -1062,6 +1064,7 @@ CREATE INDEX IF NOT EXISTS fan_article_submissions_status_idx ON fan_article_sub
 CREATE INDEX IF NOT EXISTS fan_article_submissions_submitted_idx ON fan_article_submissions(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS profiles_role_idx        ON profiles(role);
 CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS push_subscriptions_guest_idx ON push_subscriptions(guest_token);
 CREATE INDEX IF NOT EXISTS push_subscriptions_active_idx ON push_subscriptions(is_active);
 CREATE INDEX IF NOT EXISTS reader_notifications_user_idx ON reader_notifications(user_id);
 CREATE INDEX IF NOT EXISTS reader_notifications_unread_idx ON reader_notifications(user_id, is_read, created_at DESC);

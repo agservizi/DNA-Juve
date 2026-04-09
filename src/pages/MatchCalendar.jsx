@@ -91,7 +91,7 @@ export default function MatchCalendar() {
         </motion.div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-4 gap-px bg-gray-200 mb-8">
+      <div className="grid grid-cols-2 gap-px bg-gray-200 mb-8 sm:grid-cols-4">
         <div className="bg-white p-4 text-center">
           <p className="font-display text-2xl font-black text-juve-black">{allMatches.length}</p>
           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Partite</p>
@@ -111,24 +111,26 @@ export default function MatchCalendar() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex border-b-2 border-juve-black mb-6">
-        {[
-          { id: 'all', label: 'Tutte' },
-          { id: 'upcoming', label: 'Prossime' },
-          { id: 'played', label: 'Risultati' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setFilter(tab.id)}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${
-              filter === tab.id
-                ? 'bg-juve-gold text-juve-black border-juve-gold'
-                : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6 overflow-x-auto">
+        <div className="flex min-w-max border-b-2 border-juve-black">
+          {[
+            { id: 'all', label: 'Tutte' },
+            { id: 'upcoming', label: 'Prossime' },
+            { id: 'played', label: 'Risultati' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setFilter(tab.id)}
+              className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${
+                filter === tab.id
+                  ? 'bg-juve-gold text-juve-black border-juve-gold'
+                  : 'border-transparent text-gray-500 hover:text-juve-black hover:bg-juve-gold/20'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Match list */}
@@ -164,15 +166,15 @@ export default function MatchCalendar() {
                   <span className="text-[10px] text-gray-400 capitalize">{formatMatchDate(match.date)}</span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3 sm:flex-1">
                     <div className={`w-8 h-8 flex items-center justify-center text-xs font-black ${juveHome ? 'bg-juve-black text-white' : 'bg-gray-100 text-gray-700'}`}>
                       {match.home[0]}
                     </div>
-                    <span className={`text-sm ${juveHome ? 'font-bold' : ''}`}>{match.home}</span>
+                    <span className={`min-w-0 text-sm ${juveHome ? 'font-bold' : ''}`}>{match.home}</span>
                   </div>
 
-                  <div className="px-4 text-center shrink-0">
+                  <div className="px-0 text-center shrink-0 sm:px-4">
                     {match.played ? (
                       <span className="font-display text-xl font-black">{match.homeScore} - {match.awayScore}</span>
                     ) : (
@@ -180,8 +182,8 @@ export default function MatchCalendar() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 flex-1 justify-end">
-                    <span className={`text-sm ${!juveHome ? 'font-bold' : ''}`}>{match.away}</span>
+                  <div className="flex min-w-0 items-center justify-end gap-3 sm:flex-1">
+                    <span className={`min-w-0 text-right text-sm ${!juveHome ? 'font-bold' : ''}`}>{match.away}</span>
                     <div className={`w-8 h-8 flex items-center justify-center text-xs font-black ${!juveHome ? 'bg-juve-black text-white' : 'bg-gray-100 text-gray-700'}`}>
                       {match.away[0]}
                     </div>

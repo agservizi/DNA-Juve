@@ -7,9 +7,9 @@ export default function CookiePolicy() {
     <>
       <SEO title="Cookie Policy" url="/cookie-policy" noindex />
 
-      <div className="max-w-3xl mx-auto px-4 py-16">
+      <div className="max-w-3xl mx-auto px-4 py-10 sm:py-16">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-display text-4xl font-black mb-2">Cookie Policy</h1>
+          <h1 className="font-display text-3xl font-black mb-2 sm:text-4xl">Cookie Policy</h1>
           <p className="text-sm text-gray-400 mb-10">Ultimo aggiornamento: 5 aprile 2026</p>
 
           <div className="prose prose-lg max-w-none prose-headings:font-display prose-headings:font-bold">
@@ -28,16 +28,18 @@ export default function CookiePolicy() {
               Senza questi strumenti il magazine non può garantire autenticazione, sicurezza o memorizzazione
               delle preferenze strettamente tecniche. Non richiedono consenso.
             </p>
-            <table>
-              <thead>
-                <tr><th>Nome / categoria</th><th>Finalità</th><th>Durata indicativa</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>fb-cookie-consent</td><td>Memorizza la scelta dell&apos;utente sulle preferenze cookie</td><td>12 mesi</td></tr>
-                <tr><td>sb-*-auth-token / token Supabase</td><td>Gestione sessione di accesso per area lettori e area amministrativa</td><td>sessione / rinnovo controllato da Supabase</td></tr>
-                <tr><td>Storage locale del lettore</td><td>Preferenze, progressi, bozze e stato locale di Area Bianconera</td><td>fino a cancellazione da browser o logout</td></tr>
-              </tbody>
-            </table>
+            <div className="not-prose content-table-wrapper">
+              <table className="content-table">
+                <thead>
+                  <tr><th>Nome / categoria</th><th>Finalità</th><th>Durata indicativa</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>fb-cookie-consent</td><td>Memorizza la scelta dell&apos;utente sulle preferenze cookie</td><td>12 mesi</td></tr>
+                  <tr><td>sb-*-auth-token / token Supabase</td><td>Gestione sessione di accesso per area lettori e area amministrativa</td><td>sessione / rinnovo controllato da Supabase</td></tr>
+                  <tr><td>Storage locale del lettore</td><td>Preferenze, progressi, bozze e stato locale di Area Bianconera</td><td>fino a cancellazione da browser o logout</td></tr>
+                </tbody>
+              </table>
+            </div>
 
             <h3>Strumenti analitici opzionali</h3>
             <p>
@@ -100,7 +102,7 @@ export default function CookiePolicy() {
               <button
                 type="button"
                 onClick={openCookiePreferences}
-                className="mt-3 inline-flex items-center justify-center border border-juve-black px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-juve-black transition-colors hover:bg-juve-black hover:text-white"
+                className="mt-3 inline-flex w-full items-center justify-center border border-juve-black px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-juve-black transition-colors hover:bg-juve-black hover:text-white sm:w-auto"
               >
                 Rivedi preferenze cookie
               </button>

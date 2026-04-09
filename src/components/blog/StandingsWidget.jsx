@@ -60,41 +60,43 @@ export default function StandingsWidget() {
           <Loader2 className="h-5 w-5 animate-spin text-juve-gold" />
         </div>
       ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="bg-gray-50 text-gray-500">
-              <th className="text-left px-3 py-2 font-bold">#</th>
-              <th className="text-left px-2 py-2 font-bold">Squadra</th>
-              <th className="text-center px-2 py-2 font-bold">V</th>
-              <th className="text-center px-2 py-2 font-bold">P</th>
-              <th className="text-center px-2 py-2 font-bold">S</th>
-              <th className="text-center px-2 py-2 font-bold">DR</th>
-              <th className="text-right px-3 py-2 font-bold">Pt</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr
-                key={row.team}
-                className={cn(
-                  'border-t border-gray-100 transition-colors',
-                  row.isJuve ? 'bg-juve-gold/10 font-bold' : 'hover:bg-gray-50'
-                )}
-              >
-                <td className={cn('px-3 py-2', row.pos <= 4 && 'text-juve-gold font-bold')}>{row.pos}</td>
-                <td className={cn('px-2 py-2', row.isJuve && 'text-juve-black')}>{row.team}</td>
-                <td className="text-center px-2 py-2 text-gray-600">{row.w}</td>
-                <td className="text-center px-2 py-2 text-gray-600">{row.d}</td>
-                <td className="text-center px-2 py-2 text-gray-600">{row.l}</td>
-                <td className="text-center px-2 py-2 text-gray-500">{row.gd}</td>
-                <td className={cn('text-right px-3 py-2 font-bold', row.isJuve ? 'text-juve-gold' : 'text-juve-black')}>{row.pts}</td>
+        <div className="overflow-x-auto">
+          <table className="min-w-[380px] w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500">
+                <th className="text-left px-3 py-2 font-bold">#</th>
+                <th className="text-left px-2 py-2 font-bold">Squadra</th>
+                <th className="text-center px-2 py-2 font-bold">V</th>
+                <th className="text-center px-2 py-2 font-bold">P</th>
+                <th className="text-center px-2 py-2 font-bold">S</th>
+                <th className="text-center px-2 py-2 font-bold">DR</th>
+                <th className="text-right px-3 py-2 font-bold">Pt</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.team}
+                  className={cn(
+                    'border-t border-gray-100 transition-colors',
+                    row.isJuve ? 'bg-juve-gold/10 font-bold' : 'hover:bg-gray-50'
+                  )}
+                >
+                  <td className={cn('px-3 py-2', row.pos <= 4 && 'text-juve-gold font-bold')}>{row.pos}</td>
+                  <td className={cn('px-2 py-2', row.isJuve && 'text-juve-black')}>{row.team}</td>
+                  <td className="text-center px-2 py-2 text-gray-600">{row.w}</td>
+                  <td className="text-center px-2 py-2 text-gray-600">{row.d}</td>
+                  <td className="text-center px-2 py-2 text-gray-600">{row.l}</td>
+                  <td className="text-center px-2 py-2 text-gray-500">{row.gd}</td>
+                  <td className={cn('text-right px-3 py-2 font-bold', row.isJuve ? 'text-juve-gold' : 'text-juve-black')}>{row.pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+      <div className="flex flex-col gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-[10px] text-gray-400">Le prime 4 si qualificano alla Champions League</span>
         {allRows.length > 8 && (
           <button

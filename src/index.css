@@ -176,6 +176,36 @@
     @apply bg-juve-black text-white;
   }
 
+  .content-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .content-table {
+    width: 100%;
+    min-width: 36rem;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .content-table th,
+  .content-table td {
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .content-table thead th {
+    background-color: #f9fafb;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

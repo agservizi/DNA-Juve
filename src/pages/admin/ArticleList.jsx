@@ -45,14 +45,14 @@ export default function ArticleList() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-black">Articoli</h1>
           <p className="text-sm text-gray-500 mt-1">{articles.length} articoli totali</p>
         </div>
         <Link
           to="/admin/articoli/nuovo"
-          className="flex items-center gap-2 bg-juve-gold text-black px-5 py-2.5 text-sm font-black uppercase tracking-wider hover:bg-juve-gold-dark transition-colors"
+          className="inline-flex w-full items-center justify-center gap-2 bg-juve-gold px-5 py-2.5 text-sm font-black uppercase tracking-wider text-black transition-colors hover:bg-juve-gold-dark sm:w-auto"
         >
           <PlusCircle className="h-4 w-4" />
           Nuovo
@@ -60,17 +60,18 @@ export default function ArticleList() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="relative">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative w-full lg:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Cerca articolo..."
-            className="pl-9 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:border-juve-black w-60"
+            className="w-full border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-juve-black focus:outline-none lg:w-60"
           />
         </div>
-        <div className="flex items-center gap-1 border border-gray-300">
+        <div className="overflow-x-auto">
+          <div className="flex min-w-max items-center gap-1 border border-gray-300">
           {['all', 'published', 'draft'].map(s => (
             <button
               key={s}
@@ -82,6 +83,7 @@ export default function ArticleList() {
               {s === 'all' ? 'Tutti' : s === 'published' ? 'Pubblicati' : 'Bozze'}
             </button>
           ))}
+          </div>
         </div>
       </div>
 

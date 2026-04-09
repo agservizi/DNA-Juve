@@ -32,6 +32,7 @@ import {
   vapidPublicKey,
 } from '@/lib/supabase'
 import {
+  getPushSupportStatus,
   getCurrentPushSubscription,
   isPushSupported,
   subscribeToPush,
@@ -46,6 +47,7 @@ const LS = {
   history: 'fb-history',
   prefs: 'fb-preferences',
   pendingName: 'fb-reader-pending-name',
+  guestPushToken: 'fb-guest-push-token',
 }
 
 const GAMIFICATION_KEY = 'fb-gamification'
@@ -54,6 +56,18 @@ const CONFIRMATION_REMINDER_KEY = 'fb-confirmation-reminders'
 const DEFAULT_PREFS = { favoriteCategories: [] }
 const IS_MOCK = import.meta.env.VITE_SUPABASE_URL?.includes('your-project.supabase.co')
 const GUEST_SCOPE = 'guest'
+
+function getPushUnsupportedMessage(reason) {
+  if (reason === 'ios-standalone-required') {
+    return 'Su iPhone e iPad le notifiche push richiedono il sito aggiunto alla Home e aperto come app.'
+  }
+
+  if (reason === 'insecure-context') {
+    return 'Le notifiche push richiedono una connessione HTTPS sicura.'
+  }
+
+  return 'Il browser non supporta le notifiche push.'
+}
 
 function getStorageKeys(scope = GUEST_SCOPE) {
   return {
@@ -100,6 +114,20 @@ function markConfirmationReminderSent(email) {
   save(CONFIRMATION_REMINDER_KEY, reminders)
 }
 
+function getGuestPushToken() {
+  if (typeof window === 'undefined') return ''
+
+  const existing = window.localStorage.getItem(LS.guestPushToken)
+  if (existing) return existing
+
+  const nextToken = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  window.localStorage.setItem(LS.guestPushToken, nextToken)
+  return nextToken
+}
+
 function getLocalSnapshot(scope = GUEST_SCOPE) {
   const keys = getStorageKeys(scope)
   return {
@@ -132,6 +160,7 @@ function persistGamificationSnapshot(snapshot, scope = GUEST_SCOPE) {
 
 export function ReaderProvider({ children }) {
   const localSnapshot = useMemo(() => getLocalSnapshot(), [])
+  const guestPushToken = useMemo(() => getGuestPushToken(), [])
   const [reader, setReader] = useState(() => localSnapshot.reader)
   const [bookmarks, setBookmarks] = useState(() => localSnapshot.bookmarks)
   const [history, setHistory] = useState(() => localSnapshot.history)
@@ -321,13 +350,14 @@ export function ReaderProvider({ children }) {
   }, [])
 
   const enableNotifications = useCallback(async ({ userId = authUser?.id, prompt = true, silent = false } = {}) => {
-    if (!userId) {
-      return { enabled: false, reason: 'missing-user' }
-    }
+    const targetUserId = userId || null
+    const targetGuestToken = targetUserId ? null : guestPushToken
 
-    if (!isPushSupported()) {
+    const support = getPushSupportStatus()
+
+    if (!support.supported) {
       if (silent) return { enabled: false, reason: 'unsupported' }
-      throw new Error('Il browser non supporta le notifiche push.')
+      throw new Error(getPushUnsupportedMessage(support.reason))
     }
 
     if (!pushNotificationsConfigured) {
@@ -346,31 +376,68 @@ export function ReaderProvider({ children }) {
     }
 
     const subscription = await subscribeToPush(vapidPublicKey)
-    const result = await upsertPushSubscription(userId, subscription)
+    const result = await upsertPushSubscription({
+      userId: targetUserId,
+      guestToken: targetGuestToken,
+      subscription,
+    })
     if (result.error) throw result.error
 
     const nextNotifications = { enabled: true, lastCheck: new Date().toISOString() }
     setNotifications(nextNotifications)
-    await syncRemoteState({ id: userId }, { notificationsEnabled: true })
+    if (targetUserId) {
+      await syncRemoteState({ id: targetUserId }, { notificationsEnabled: true })
+    }
 
     return { enabled: true, reason: 'granted' }
-  }, [authUser?.id, syncRemoteState, vapidPublicKey])
+  }, [authUser?.id, guestPushToken, syncRemoteState, vapidPublicKey])
+
+  const primeNotificationPermission = useCallback(async () => {
+    const support = getPushSupportStatus()
+
+    if (!support.supported || !pushNotificationsConfigured || typeof Notification === 'undefined') {
+      return { permission: 'unsupported', reason: support.reason || 'unsupported' }
+    }
+
+    let permission = Notification.permission
+
+    if (permission === 'default') {
+      permission = await Notification.requestPermission()
+    }
+
+    return { permission, reason: permission }
+  }, [])
+
+  useEffect(() => {
+    if (!authReady || !authUser?.id || IS_MOCK || notifications.enabled) return
+    if (!pushNotificationsConfigured || !isPushSupported()) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+
+    enableNotifications({ userId: authUser.id, prompt: false, silent: true }).catch(() => {})
+  }, [authReady, authUser?.id, enableNotifications, notifications.enabled])
 
   const disableNotifications = useCallback(async ({ userId = authUser?.id } = {}) => {
-    if (!userId) return { enabled: false }
+    const targetUserId = userId || null
+    const targetGuestToken = targetUserId ? null : guestPushToken
 
     const subscription = await getCurrentPushSubscription()
     if (subscription?.endpoint) {
-      await deletePushSubscription(userId, subscription.endpoint)
+      await deletePushSubscription({
+        userId: targetUserId,
+        guestToken: targetGuestToken,
+        endpoint: subscription.endpoint,
+      })
     }
 
     await unsubscribeFromPush()
     const nextNotifications = { enabled: false, lastCheck: null }
     setNotifications(nextNotifications)
-    await syncRemoteState({ id: userId }, { notificationsEnabled: false })
+    if (targetUserId) {
+      await syncRemoteState({ id: targetUserId }, { notificationsEnabled: false })
+    }
 
     return { enabled: false }
-  }, [authUser?.id, syncRemoteState])
+  }, [authUser?.id, guestPushToken, syncRemoteState])
 
   const register = useCallback(async (name, email, password) => {
     if (IS_MOCK) {
@@ -681,6 +748,7 @@ export function ReaderProvider({ children }) {
       history,
       preferences,
       notifications,
+      guestPushToken,
       showLoginDialog,
       loginDialogMode,
       stats,
@@ -704,6 +772,7 @@ export function ReaderProvider({ children }) {
       clearHistory,
       setFavoriteCategories,
       enableNotifications,
+      primeNotificationPermission,
       disableNotifications,
       openLogin,
       closeLogin,

@@ -457,37 +457,34 @@ export const getPushSubscriptionsByUserId = (userId) => {
     .order('created_at', { ascending: false })
 }
 
-export const upsertPushSubscription = async (userId, subscription, metadata = {}) => {
-  if (!userId || !subscription?.endpoint) {
+export const upsertPushSubscription = async ({ userId = null, guestToken = null, subscription, metadata = {} } = {}) => {
+  if ((!userId && !guestToken) || !subscription?.endpoint) {
     return { data: null, error: new Error('Subscription push non valida.') }
   }
 
   const json = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
-  const keys = json?.keys || {}
 
-  return supabase
-    .from('push_subscriptions')
-    .upsert([{
-      user_id: userId,
-      endpoint: json.endpoint,
-      subscription: json,
-      p256dh: keys.p256dh || '',
-      auth: keys.auth || '',
-      user_agent: metadata.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : null),
-      is_active: true,
-      last_seen_at: new Date().toISOString(),
-      last_error: null,
-    }], { onConflict: 'endpoint' })
-    .select()
-    .single()
+  return invokePushNotifications({
+    action: 'upsert-subscription',
+    userId,
+    guestToken,
+    subscription: json,
+    userAgent: metadata.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+  }, { requireAuth: false })
 }
 
-export const deletePushSubscription = (userId, endpoint) =>
-  supabase
-    .from('push_subscriptions')
-    .delete()
-    .eq('user_id', userId)
-    .eq('endpoint', endpoint)
+export const deletePushSubscription = ({ userId = null, guestToken = null, endpoint } = {}) => {
+  if ((!userId && !guestToken) || !endpoint) {
+    return Promise.resolve({ data: null, error: new Error('Endpoint push non valido.') })
+  }
+
+  return invokePushNotifications({
+    action: 'delete-subscription',
+    userId,
+    guestToken,
+    endpoint,
+  }, { requireAuth: false })
+}
 
 export const getReaderNotifications = (userId, { limit = 20, unreadOnly = false } = {}) => {
   if (!userId) return Promise.resolve({ data: [], error: null })
@@ -611,7 +608,7 @@ export const getFollowedAuthors = (userId) => {
     .order('created_at', { ascending: false })
 }
 
-export const invokePushNotifications = async (payload) => {
+export const invokePushNotifications = async (payload, { requireAuth = true } = {}) => {
   let { data: { session } } = await supabase.auth.getSession()
   let accessToken = session?.access_token
   const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0
@@ -625,20 +622,24 @@ export const invokePushNotifications = async (payload) => {
     }
   }
 
-  if (!accessToken) {
+  if (!accessToken && requireAuth) {
     return { data: null, error: new Error('Sessione non valida per l’invio notifiche.') }
   }
 
-  const { data: validatedUser, error: userError } = await supabase.auth.getUser(accessToken)
-  if (userError || !validatedUser?.user?.id) {
-    return { data: null, error: new Error('Sessione scaduta. Effettua di nuovo l’accesso per inviare notifiche.') }
+  if (accessToken && requireAuth) {
+    const { data: validatedUser, error: userError } = await supabase.auth.getUser(accessToken)
+    if (userError || !validatedUser?.user?.id) {
+      return { data: null, error: new Error('Sessione scaduta. Effettua di nuovo l’accesso per inviare notifiche.') }
+    }
   }
 
-  let { data, error } = await supabase.functions.invoke('push-notifications', {
-    body: payload,
-  })
+  const invokeOptions = accessToken
+    ? { body: payload }
+    : { body: payload, headers: { apikey: supabaseAnonKey } }
 
-  if (error?.context?.status === 401 || error?.message?.toLowerCase().includes('unauthorized')) {
+  let { data, error } = await supabase.functions.invoke('push-notifications', invokeOptions)
+
+  if (requireAuth && (error?.context?.status === 401 || error?.message?.toLowerCase().includes('unauthorized'))) {
     const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
     accessToken = refreshed?.session?.access_token
 
@@ -658,8 +659,8 @@ export const invokePushNotifications = async (payload) => {
   return { data, error: null }
 }
 
-export const sendTestPushNotification = () =>
-  invokePushNotifications({ action: 'send-test' })
+export const sendTestPushNotification = ({ guestToken = null } = {}) =>
+  invokePushNotifications({ action: 'send-test', guestToken }, { requireAuth: !guestToken })
 
 export const sendArticlePushNotification = ({ article }) =>
   invokePushNotifications({ action: 'send-article', article })

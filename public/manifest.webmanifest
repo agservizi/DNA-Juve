@@ -1,7 +1,9 @@
 {
   "name": "BianconeriHub",
   "short_name": "BianconeriHub",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",

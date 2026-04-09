@@ -8,16 +8,18 @@ import {
   sendTestPushNotification,
 } from '@/lib/supabase'
 import {
+  getPushSupportStatus,
   getCurrentPushSubscription,
   isPushSupported,
 } from '@/lib/pushNotifications'
 
 export default function NotificationAlert() {
-  const { reader, preferences, notifications, enableNotifications, disableNotifications, isAuthenticated } = useReader()
+  const { reader, preferences, notifications, enableNotifications, disableNotifications, isAuthenticated, guestPushToken } = useReader()
   const [permission, setPermission] = useState('default')
   const [loading, setLoading] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const pushSupport = getPushSupportStatus()
   const pushSupported = isPushSupported()
   const enabled = Boolean(notifications?.enabled)
 
@@ -72,14 +74,10 @@ export default function NotificationAlert() {
 
   const handleSendTest = async () => {
     if (!enabled || sendingTest) return
-    if (!isAuthenticated) {
-      setErrorMessage('Sessione non valida. Accedi di nuovo prima di inviare un test push.')
-      return
-    }
     setSendingTest(true)
     setErrorMessage('')
     try {
-      const result = await sendTestPushNotification()
+      const result = await sendTestPushNotification(isAuthenticated ? {} : { guestToken: guestPushToken })
       if (result.error) throw result.error
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Invio test non riuscito.')
@@ -88,11 +86,9 @@ export default function NotificationAlert() {
     }
   }
 
-  if (!reader) return null
-
   const favCats = preferences?.favoriteCategories || []
   const hasFavs = favCats.length > 0
-  const disabled = loading || !pushSupported || !pushNotificationsConfigured || permission === 'denied' || !isAuthenticated
+  const disabled = loading || !pushSupported || !pushNotificationsConfigured || permission === 'denied'
 
   return (
     <motion.div
@@ -106,9 +102,11 @@ export default function NotificationAlert() {
       </div>
 
       <p className="mb-4 text-sm text-gray-500">
-        {hasFavs
-          ? 'Ricevi una notifica quando escono nuovi articoli nelle tue categorie preferite.'
-          : 'Attiva le notifiche e scegli delle categorie preferite per ricevere avvisi mirati.'}
+        {reader
+          ? hasFavs
+            ? 'Ricevi una notifica quando escono nuovi articoli nelle tue categorie preferite.'
+            : 'Attiva le notifiche e scegli delle categorie preferite per ricevere avvisi mirati.'
+          : 'Attiva le notifiche anche senza account per ricevere gli avvisi globali sui nuovi articoli.'}
       </p>
 
       <div className="flex items-center justify-between">
@@ -137,9 +135,11 @@ export default function NotificationAlert() {
       {enabled && (
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-200 pt-3">
           <p className="text-xs text-gray-500">
-            {hasFavs
-              ? 'Le push useranno anche le categorie preferite salvate in Area Bianconera.'
-              : 'Senza categorie preferite riceverai solo test e avvisi generali.'}
+            {reader
+              ? hasFavs
+                ? 'Le push useranno anche le categorie preferite salvate in Area Bianconera.'
+                : 'Senza categorie preferite riceverai solo test e avvisi generali.'
+              : 'Senza account riceverai i nuovi articoli pubblicati in modo generale, senza preferenze personalizzate.'}
           </p>
           <Button
             variant="outline"
@@ -159,7 +159,19 @@ export default function NotificationAlert() {
         </p>
       )}
 
-      {!pushSupported && (
+      {!pushSupported && pushSupport.reason === 'ios-standalone-required' && (
+        <p className="mt-2 text-xs text-red-500">
+          Su iPhone e iPad le push funzionano solo dopo aver aggiunto il sito alla Home e averlo aperto come app.
+        </p>
+      )}
+
+      {!pushSupported && pushSupport.reason === 'insecure-context' && (
+        <p className="mt-2 text-xs text-red-500">
+          Le notifiche push richiedono una connessione HTTPS sicura.
+        </p>
+      )}
+
+      {!pushSupported && !['ios-standalone-required', 'insecure-context'].includes(pushSupport.reason) && (
         <p className="mt-2 text-xs text-red-500">
           Questo browser non supporta le push notification.
         </p>
@@ -168,12 +180,6 @@ export default function NotificationAlert() {
       {pushSupported && !pushNotificationsConfigured && (
         <p className="mt-2 text-xs text-red-500">
           Configurazione push mancante: imposta la chiave pubblica VAPID nel frontend.
-        </p>
-      )}
-
-      {!isAuthenticated && (
-        <p className="mt-2 text-xs text-red-500">
-          Per usare le notifiche push serve una sessione attiva di Area Bianconera.
         </p>
       )}
 

@@ -1,12 +1,43 @@
 const SW_PATH = '/sw.js'
 
+function isIosDevice() {
+  if (typeof navigator === 'undefined') return false
+
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+}
+
+function isStandaloneDisplayMode() {
+  if (typeof window === 'undefined') return false
+
+  const standaloneMedia = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(display-mode: standalone)').matches
+    : false
+
+  return standaloneMedia || window.navigator.standalone === true
+}
+
+export function getPushSupportStatus() {
+  if (typeof window === 'undefined') {
+    return { supported: false, reason: 'server' }
+  }
+
+  if (!window.isSecureContext) {
+    return { supported: false, reason: 'insecure-context' }
+  }
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return { supported: false, reason: 'unsupported-browser' }
+  }
+
+  if (isIosDevice() && !isStandaloneDisplayMode()) {
+    return { supported: false, reason: 'ios-standalone-required' }
+  }
+
+  return { supported: true, reason: 'supported' }
+}
+
 export function isPushSupported() {
-  return (
-    typeof window !== 'undefined' &&
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window
-  )
+  return getPushSupportStatus().supported
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -22,9 +53,13 @@ function urlBase64ToUint8Array(base64String) {
 export async function registerPushServiceWorker() {
   if (!isPushSupported()) return null
 
-  const registration = await navigator.serviceWorker.register(SW_PATH)
-  await navigator.serviceWorker.ready
-  return registration
+  const existingRegistration = await navigator.serviceWorker.getRegistration(SW_PATH)
+
+  if (!existingRegistration) {
+    await navigator.serviceWorker.register(SW_PATH, { scope: '/' })
+  }
+
+  return navigator.serviceWorker.ready
 }
 
 export async function getCurrentPushSubscription() {
