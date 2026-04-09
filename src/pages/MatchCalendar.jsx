@@ -152,7 +152,8 @@ export default function MatchCalendar() {
   }
 
   const exportMatch = (match, mode) => {
-    const payload = buildMatchCalendarPayload(match, {
+    // buildMatchCalendarPayload si aspetta match.utcDate; mapApiMatches usa match.date
+    const payload = buildMatchCalendarPayload({ ...match, utcDate: match.utcDate ?? match.date }, {
       title: `${match.home} vs ${match.away}`,
       description: `${match.competition} · ${match.venue || 'Calendario Juventus'} · Orario locale ${formatMatchTime(match.date)}`,
       location: match.venue,
