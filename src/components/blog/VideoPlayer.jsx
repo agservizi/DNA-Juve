@@ -13,6 +13,8 @@ function extractYouTubeId(value) {
   if (!value) return ''
 
   const source = String(value)
+  const plainId = source.trim().match(/^[a-zA-Z0-9_-]{11}$/)
+  if (plainId) return plainId[0]
 
   try {
     const parsed = new URL(source)
