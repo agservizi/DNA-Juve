@@ -89,6 +89,14 @@ function getEmbedUrl(video) {
     if (vimeoId) return `https://player.vimeo.com/video/${vimeoId}?autoplay=1`
   }
 
+  // Fallback: convert raw YouTube watch/share URLs (e.g. from iframe[src] in article content)
+  if (youTubeId) {
+    if (playlistId) {
+      return `https://www.youtube.com/embed/${youTubeId}?list=${playlistId}&rel=0&modestbranding=1&playsinline=1`
+    }
+    return `https://www.youtube.com/embed/${youTubeId}?rel=0&modestbranding=1&playsinline=1`
+  }
+
   return video.video_url || null
 }
 
