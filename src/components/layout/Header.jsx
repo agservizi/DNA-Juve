@@ -99,10 +99,10 @@ export default function Header() {
         finalMatch: shouldShowFinalBadge(latestFinished) ? latestFinished : null,
       }
     },
-    staleTime: 15 * 1000,
-    refetchInterval: 30 * 1000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
     retry: shouldRetryFootballQuery,
   })
 

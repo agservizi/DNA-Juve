@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Calendar, MapPin, Trophy, Loader2, Activity, History } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { getNextMatch, getRecentFinishedMatches, getTeamMatches, getVenueLabel, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
+import { getNextMatch, getRecentFinishedMatches, getVenueLabel, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, getRelativeMatchKickoff } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 
 const NEXT_MATCH_SNAPSHOT_KEY = 'match-countdown:last-successful-bundle'
-const NEXT_MATCH_REFETCH_MS = 60 * 1000
+const NEXT_MATCH_REFETCH_MS = 5 * 60 * 1000
 
 function readStoredBundle() {
   if (typeof window === 'undefined') return null
@@ -208,7 +208,7 @@ export default function MatchCountdown() {
         const opponent = nextMatch.homeTeam?.id === JUVE_ID ? nextMatch.awayTeam : nextMatch.homeTeam
 
         const [juveMatches, opponentMatches] = await Promise.all([
-          getTeamMatches(),
+          getRecentFinishedMatches(JUVE_ID, 10),
           opponent?.id ? getRecentFinishedMatches(opponent.id, 5) : Promise.resolve([]),
         ])
 
@@ -240,8 +240,8 @@ export default function MatchCountdown() {
         }
       }
     },
-    staleTime: 60 * 1000,
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
     refetchInterval: NEXT_MATCH_REFETCH_MS,
     refetchIntervalInBackground: false,
     retry: shouldRetryFootballQuery,
