@@ -13,6 +13,7 @@ import {
 } from '@/lib/supabase'
 import { useToast } from '@/hooks/useToast'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { formatDate } from '@/lib/utils'
 
 const CATEGORIES = ['generale', 'calcio', 'mercato', 'champions', 'serie-a', 'formazione']
@@ -307,30 +308,16 @@ export default function SondaggiAdmin() {
       )}
 
       {/* Confirm delete */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white p-6 max-w-sm w-full mx-4">
-            <h3 className="font-display text-lg font-black mb-2">Elimina sondaggio?</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Questa azione elimina anche tutti i voti. Non è reversibile.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="danger"
-                size="sm"
-                className="flex-1"
-                onClick={() => deleteMutation.mutate(confirmDelete.id)}
-                disabled={deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Elimina'}
-              </Button>
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setConfirmDelete(null)}>
-                Annulla
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => deleteMutation.mutate(confirmDelete.id)}
+        title="Elimina sondaggio?"
+        description="Questa azione elimina anche tutti i voti. Non è reversibile."
+        confirmLabel="Elimina"
+        confirmVariant="danger"
+        loading={deleteMutation.isPending}
+      />
 
       {/* Filters */}
       <div className="flex gap-2 mb-4">

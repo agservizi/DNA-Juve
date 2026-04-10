@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { uploadImage } from '@/lib/supabase'
+import { useToast } from '@/hooks/useToast'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 
 function normalizeEditorHtml(value) {
@@ -84,6 +85,7 @@ function Separator() {
 }
 
 export default function RichEditor({ content = '', onChange }) {
+  const { toast } = useToast()
   const videoInputRef = useRef(null)
   const syncingFromPropsRef = useRef(false)
   const [uploadingVideo, setUploadingVideo] = useState(false)
@@ -148,11 +150,11 @@ export default function RichEditor({ content = '', onChange }) {
   const addVideo = async (file) => {
     if (!file) return
     if (!file.type.startsWith('video/')) {
-      window.alert('Seleziona un file video valido.')
+      toast({ title: 'Seleziona un file video valido.', variant: 'error' })
       return
     }
     if (file.size > 120 * 1024 * 1024) {
-      window.alert('Il video è troppo grande. Limite attuale: 120MB.')
+      toast({ title: 'Il video è troppo grande. Limite attuale: 120MB.', variant: 'error' })
       return
     }
 
@@ -162,7 +164,7 @@ export default function RichEditor({ content = '', onChange }) {
       const url = await uploadImage(file, path)
       editor.chain().focus().setVideo({ src: url }).run()
     } catch {
-      window.alert('Caricamento video non riuscito. Riprova.')
+      toast({ title: 'Caricamento video non riuscito. Riprova.', variant: 'error' })
     } finally {
       if (videoInputRef.current) videoInputRef.current.value = ''
       setUploadingVideo(false)

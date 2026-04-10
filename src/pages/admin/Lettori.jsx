@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Ban, Loader2, Search, Shield, UserCheck, Users } from 'lucide-react'
+import { Ban, Search, Shield, UserCheck, Users } from 'lucide-react'
 import { getReaderProfiles, updateReaderBan } from '@/lib/supabase'
 import { useToast } from '@/hooks/useToast'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export default function Lettori() {
   const qc = useQueryClient()
@@ -83,39 +84,20 @@ export default function Lettori() {
       </div>
 
       {/* Confirm dialog */}
-      {confirmBan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white p-6 max-w-sm w-full mx-4">
-            <h3 className="font-display text-lg font-black mb-2">
-              {confirmBan.isBanned ? 'Bannare' : 'Riabilitare'} utente?
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              {confirmBan.isBanned
-                ? `Vuoi bannare ${confirmBan.username}? Non potrà più partecipare alla community.`
-                : `Vuoi riabilitare ${confirmBan.username}?`}
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant={confirmBan.isBanned ? 'danger' : 'gold'}
-                size="sm"
-                className="flex-1"
-                onClick={() => banMutation.mutate(confirmBan)}
-                disabled={banMutation.isPending}
-              >
-                {banMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Conferma'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => setConfirmBan(null)}
-              >
-                Annulla
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirmBan}
+        onClose={() => setConfirmBan(null)}
+        onConfirm={() => banMutation.mutate(confirmBan)}
+        title={confirmBan ? (confirmBan.isBanned ? 'Bannare utente?' : 'Riabilitare utente?') : ''}
+        description={confirmBan
+          ? (confirmBan.isBanned
+              ? `Vuoi bannare ${confirmBan.username}? Non potrà più partecipare alla community.`
+              : `Vuoi riabilitare ${confirmBan.username}?`)
+          : ''}
+        confirmLabel={confirmBan?.isBanned ? 'Banna' : 'Riabilita'}
+        confirmVariant={confirmBan?.isBanned ? 'danger' : 'gold'}
+        loading={banMutation.isPending}
+      />
 
       {/* Table */}
       <motion.div

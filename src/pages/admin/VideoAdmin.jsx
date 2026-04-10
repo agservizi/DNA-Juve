@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit3, X, Eye, Upload, Link2, Loader2, Film, Play, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/hooks/useToast'
 
 const VIDEO_CATEGORIES = [
   { value: 'highlights', label: 'Highlights' },
@@ -73,6 +74,7 @@ const emptyVideo = {
 
 export default function VideoAdmin() {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [formData, setFormData] = useState({ ...emptyVideo })
@@ -168,7 +170,7 @@ export default function VideoAdmin() {
       const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(fileName)
       setFormData(p => ({ ...p, video_url: publicUrl, platform: 'custom', video_id: '' }))
     } catch (err) {
-      alert('Errore upload: ' + err.message)
+      toast({ title: 'Errore upload: ' + err.message, variant: 'error' })
     } finally {
       setUploading(false)
     }
