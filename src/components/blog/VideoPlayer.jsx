@@ -451,21 +451,6 @@ function EmbedPlayer({ video }) {
     }
   }
 
-  if (isYouTube && embedUrl) {
-    return (
-      <div ref={containerRef} className="relative aspect-video bg-black">
-        <iframe
-          src={embedUrl}
-          className="w-full h-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          title={video.title}
-        />
-      </div>
-    )
-  }
-
   if (!started) {
     return (
       <div className="relative aspect-video bg-black cursor-pointer group" onClick={() => setStarted(true)}>
