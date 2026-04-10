@@ -310,7 +310,7 @@ function EmbedPlayer({ video }) {
   const playlistId = extractYouTubePlaylistId(video.video_url)
   const isYouTube = !!youTubeId
   const isYouTubePlaylist = !!playlistId
-  const useYouTubeApiPlayer = isYouTube && !isYouTubePlaylist
+  const useYouTubeApiPlayer = false
   const thumbnail = video.thumbnail || (isYouTube ? `https://img.youtube.com/vi/${youTubeId}/maxresdefault.jpg` : null)
 
   const fmt = (seconds) => {
