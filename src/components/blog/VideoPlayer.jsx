@@ -61,7 +61,7 @@ function extractVimeoId(value) {
 }
 
 export function isNativeVideo(video) {
-  return video?.platform === 'custom' || video?.platform === 'native' || (!video?.video_id && !!video?.video_url)
+  return video?.platform === 'custom' || video?.platform === 'native'
 }
 
 function getEmbedUrl(video) {
@@ -308,8 +308,8 @@ function EmbedPlayer({ video }) {
   const hideTimer = useRef(null)
   const youTubeId = extractYouTubeId(video.video_id || video.video_url)
   const playlistId = extractYouTubePlaylistId(video.video_url)
-  const isYouTube = video.platform === 'youtube' && !!youTubeId
-  const isYouTubePlaylist = video.platform === 'youtube' && !!playlistId
+  const isYouTube = !!youTubeId
+  const isYouTubePlaylist = !!playlistId
   const useYouTubeApiPlayer = isYouTube && !isYouTubePlaylist
   const thumbnail = video.thumbnail || (isYouTube ? `https://img.youtube.com/vi/${youTubeId}/maxresdefault.jpg` : null)
 

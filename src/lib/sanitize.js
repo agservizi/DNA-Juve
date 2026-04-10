@@ -3,8 +3,12 @@ import DOMPurify from 'dompurify'
 let hooksRegistered = false
 
 function toYouTubeEmbedUrl(src) {
+  const normalizedSrc = String(src || '')
+    .replace(/&amp;/gi, '&')
+    .replace(/^\/\//, 'https://')
+
   try {
-    const url = new URL(src)
+    const url = new URL(normalizedSrc)
     const host = url.hostname.replace(/^www\./i, '').toLowerCase()
 
     if (host === 'youtu.be') {
@@ -14,10 +18,10 @@ function toYouTubeEmbedUrl(src) {
 
     if (host.endsWith('youtube.com')) {
       // Already an embed URL — leave it alone
-      if (url.pathname.startsWith('/embed/') || url.pathname.startsWith('/videoseries')) return src
+      if (url.pathname.startsWith('/embed/') || url.pathname.startsWith('/videoseries')) return normalizedSrc
 
-      const id = url.searchParams.get('v')
-      const list = url.searchParams.get('list')
+      const id = url.searchParams.get('v') || url.searchParams.get('amp;v')
+      const list = url.searchParams.get('list') || url.searchParams.get('amp;list')
       if (id && list) return `https://www.youtube.com/embed/${id}?list=${list}&rel=0&modestbranding=1`
       if (id) return `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1`
       if (list) return `https://www.youtube.com/embed/videoseries?list=${list}&rel=0&modestbranding=1`
@@ -25,7 +29,7 @@ function toYouTubeEmbedUrl(src) {
   } catch {
     // Not a valid URL — leave as-is
   }
-  return src
+  return normalizedSrc
 }
 
 function normalizeEmbeddedMediaUrls(html) {
