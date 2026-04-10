@@ -540,7 +540,7 @@ function EmbedPlayer({ video }) {
 
   return (
     <div ref={containerRef} className="relative aspect-video bg-black">
-      <iframe src={embedUrl} className="w-full h-full" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen title={video.title} />
+      <iframe src={embedUrl} className="w-full h-full" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" title={video.title} />
     </div>
   )
 }

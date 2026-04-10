@@ -29,8 +29,10 @@ const STADIUM_BY_TEAM_ID = {
 
 function getCacheTtl(endpoint) {
   if (endpoint.includes('status=LIVE')) return 15 * 1000
-  if (endpoint.includes('status=SCHEDULED')) return 60 * 1000
-  return 5 * 60 * 1000
+  if (endpoint.includes('status=SCHEDULED')) return 2 * 60 * 1000
+  if (endpoint.includes('status=FINISHED')) return 12 * 60 * 60 * 1000
+  if (endpoint.includes('/standings')) return 2 * 60 * 60 * 1000
+  return 15 * 60 * 1000
 }
 
 function getCacheKey(endpoint) {
