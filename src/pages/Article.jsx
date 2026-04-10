@@ -21,7 +21,7 @@ import ArticlePoll from '@/components/blog/ArticlePoll'
 import FaqSchema from '@/components/blog/FaqSchema'
 import { sanitizeHtml } from '@/lib/sanitize'
 import { useReader } from '@/hooks/useReader'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import ArticleVideoPlayer from '@/components/blog/ArticleVideoPlayer'
 
 const ARTICLE_VIEW_DELAY_MS = 12000
