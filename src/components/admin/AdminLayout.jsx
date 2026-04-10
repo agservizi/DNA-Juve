@@ -106,7 +106,7 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-neutral-950 dark:text-gray-100 flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col overflow-y-auto overflow-x-hidden bg-juve-black text-white transition-[width,transform] duration-200 ease-in-out lg:sticky ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col overflow-hidden bg-juve-black text-white transition-[width,transform] duration-200 ease-in-out lg:sticky ${`
           isDesktop
             ? (sidebarOpen ? 'w-64 translate-x-0' : 'w-0 translate-x-0')
             : (sidebarOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full')
@@ -123,7 +123,7 @@ export default function AdminLayout() {
             </div>
 
             {/* Nav */}
-            <nav className="flex-1 p-4 space-y-6">
+            <nav className="flex-1 overflow-y-auto p-4 space-y-6">
               {navGroups.map(group => (
                 <div key={group.label}>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 px-3 mb-2">
