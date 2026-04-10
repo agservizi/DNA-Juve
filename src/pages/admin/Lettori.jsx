@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Ban, Search, Shield, UserCheck, Users } from 'lucide-react'
+import { Ban, Loader2, Search, Shield, UserCheck, Users } from 'lucide-react'
 import { getReaderProfiles, updateReaderBan } from '@/lib/supabase'
 import { useToast } from '@/hooks/useToast'
 import { formatDate } from '@/lib/utils'
