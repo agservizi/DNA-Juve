@@ -1,5 +1,7 @@
 import DOMPurify from 'dompurify'
 
+let hooksRegistered = false
+
 function toYouTubeEmbedUrl(src) {
   try {
     const url = new URL(src)
@@ -26,17 +28,28 @@ function toYouTubeEmbedUrl(src) {
   return src
 }
 
+function normalizeEmbeddedMediaUrls(html) {
+  if (!html || typeof html !== 'string') return ''
+
+  return html.replace(/(<iframe\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi, (match, prefix, src, suffix) => {
+    return `${prefix}${toYouTubeEmbedUrl(src)}${suffix}`
+  })
+}
+
 // Rewrite YouTube watch/share URLs inside <iframe src> to /embed/ URLs before the
 // browser sees them, preventing X-Frame-Options errors.
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-  if (node.tagName === 'IFRAME' && node.hasAttribute('src')) {
-    node.setAttribute('src', toYouTubeEmbedUrl(node.getAttribute('src')))
-  }
-})
+if (!hooksRegistered) {
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'IFRAME' && node.hasAttribute('src')) {
+      node.setAttribute('src', toYouTubeEmbedUrl(node.getAttribute('src')))
+    }
+  })
+  hooksRegistered = true
+}
 
 export function sanitizeHtml(dirty) {
   if (!dirty) return ''
-  return DOMPurify.sanitize(dirty, {
+  return DOMPurify.sanitize(normalizeEmbeddedMediaUrls(dirty), {
     ADD_TAGS: ['iframe', 'video'],
     ADD_ATTR: ['allow', 'frameborder', 'scrolling', 'target', 'controls', 'playsinline', 'preload', 'class', 'src'],
   })
