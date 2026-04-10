@@ -67,18 +67,19 @@ export function isNativeVideo(video) {
 function getEmbedUrl(video) {
   const youTubeId = extractYouTubeId(video.video_id || video.video_url)
   const playlistId = extractYouTubePlaylistId(video.video_url)
+  const youTubeBaseUrl = 'https://www.youtube-nocookie.com/embed'
 
   if (video.platform === 'youtube') {
     if (playlistId && youTubeId) {
-      return `https://www.youtube.com/embed/${youTubeId}?list=${playlistId}&autoplay=1&rel=0&modestbranding=1&playsinline=1`
+      return `${youTubeBaseUrl}/${youTubeId}?list=${playlistId}&autoplay=1&rel=0&modestbranding=1&playsinline=1`
     }
 
     if (playlistId) {
-      return `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1&rel=0&modestbranding=1&playsinline=1`
+      return `https://www.youtube-nocookie.com/embed/videoseries?list=${playlistId}&autoplay=1&rel=0&modestbranding=1&playsinline=1`
     }
 
     if (youTubeId) {
-      return `https://www.youtube.com/embed/${youTubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
+      return `${youTubeBaseUrl}/${youTubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
     }
   }
 
@@ -92,9 +93,9 @@ function getEmbedUrl(video) {
   // Fallback: convert raw YouTube watch/share URLs (e.g. from iframe[src] in article content)
   if (youTubeId) {
     if (playlistId) {
-      return `https://www.youtube.com/embed/${youTubeId}?list=${playlistId}&rel=0&modestbranding=1&playsinline=1`
+      return `${youTubeBaseUrl}/${youTubeId}?list=${playlistId}&rel=0&modestbranding=1&playsinline=1`
     }
-    return `https://www.youtube.com/embed/${youTubeId}?rel=0&modestbranding=1&playsinline=1`
+    return `${youTubeBaseUrl}/${youTubeId}?rel=0&modestbranding=1&playsinline=1`
   }
 
   return video.video_url || null
@@ -312,6 +313,7 @@ function EmbedPlayer({ video }) {
   const isYouTubePlaylist = !!playlistId
   const useYouTubeApiPlayer = false
   const thumbnail = video.thumbnail || (isYouTube ? `https://img.youtube.com/vi/${youTubeId}/maxresdefault.jpg` : null)
+  const embedUrl = getEmbedUrl(video)
 
   const fmt = (seconds) => {
     if (!seconds || Number.isNaN(seconds)) return '0:00'
@@ -447,6 +449,21 @@ function EmbedPlayer({ video }) {
     }
   }
 
+  if (isYouTube && embedUrl) {
+    return (
+      <div ref={containerRef} className="relative aspect-video bg-black">
+        <iframe
+          src={embedUrl}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          title={video.title}
+        />
+      </div>
+    )
+  }
+
   if (!started) {
     return (
       <div className="relative aspect-video bg-black cursor-pointer group" onClick={() => setStarted(true)}>
@@ -536,11 +553,9 @@ function EmbedPlayer({ video }) {
     )
   }
 
-  const embedUrl = getEmbedUrl(video)
-
   return (
     <div ref={containerRef} className="relative aspect-video bg-black">
-      <iframe src={embedUrl} className="w-full h-full" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" title={video.title} />
+      <iframe src={embedUrl} className="w-full h-full" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" loading="lazy" referrerPolicy="strict-origin-when-cross-origin" title={video.title} />
     </div>
   )
 }
