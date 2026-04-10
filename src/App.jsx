@@ -55,6 +55,9 @@ const FanArticleSubmissions = lazy(() => import('@/pages/admin/FanArticleSubmiss
 const TransferAdmin = lazy(() => import('@/pages/admin/TransferAdmin'))
 const VideoAdmin    = lazy(() => import('@/pages/admin/VideoAdmin'))
 const ForumModeration = lazy(() => import('@/pages/admin/ForumModeration'))
+const Lettori       = lazy(() => import('@/pages/admin/Lettori'))
+const NotifichePush = lazy(() => import('@/pages/admin/NotifichePush'))
+const SondaggiAdmin = lazy(() => import('@/pages/admin/SondaggiAdmin'))
 const PRIMARY_ADMIN_EMAIL = 'admin@bianconerihub.com'
 
 function PageLoader() {
@@ -145,6 +148,9 @@ function AppRoutes() {
           <Route path="profilo" element={<Profile />} />
           <Route path="feed" element={<FeedManager />} />
           <Route path="impostazioni" element={<Settings />} />
+          <Route path="lettori" element={<Lettori />} />
+          <Route path="notifiche-push" element={<NotifichePush />} />
+          <Route path="sondaggi" element={<SondaggiAdmin />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

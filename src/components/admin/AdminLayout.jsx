@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
-  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield, Sun, Moon,
+  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield, Sun, Moon, Bell, BarChart3,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
@@ -26,9 +26,12 @@ const navGroups = [
     items: [
       { icon: BarChart2, label: 'Analytics', to: '/admin/analytics' },
       { icon: Users, label: 'Redattori', to: '/admin/redattori' },
+      { icon: UserCircle, label: 'Lettori', to: '/admin/lettori' },
       { icon: MessagesSquare, label: 'Commenti', to: '/admin/commenti' },
       { icon: Shield, label: 'Forum', to: '/admin/forum' },
       { icon: MessagesSquare, label: 'Proposte Tifosi', to: '/admin/proposte-tifosi' },
+      { icon: BarChart3, label: 'Sondaggi', to: '/admin/sondaggi' },
+      { icon: Bell, label: 'Notifiche Push', to: '/admin/notifiche-push' },
       { icon: ArrowUpDown, label: 'Trasferimenti', to: '/admin/mercato' },
       { icon: Film, label: 'Video', to: '/admin/video' },
       { icon: Rss, label: 'RSS / Sitemap', to: '/admin/feed' },

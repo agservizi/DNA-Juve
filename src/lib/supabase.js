@@ -902,6 +902,38 @@ export const deleteAdminAuthor = async ({ userId }) => {
   return { data, error: null }
 }
 
+// ─── READER MANAGEMENT (Admin) ────────────────────────────────────────────────
+export const getReaderProfiles = async ({ search = '', limit = 100, offset = 0 } = {}) => {
+  let query = supabase
+    .from('profiles')
+    .select('id, username, email, avatar_url, role, is_banned, created_at', { count: 'exact' })
+    .eq('role', 'reader')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (search.trim()) {
+    query = query.or(`username.ilike.%${search.trim()}%,email.ilike.%${search.trim()}%`)
+  }
+
+  return query
+}
+
+export const updateReaderBan = async (userId, isBanned) =>
+  supabase.from('profiles').update({ is_banned: isBanned }).eq('id', userId)
+
+export const sendBroadcastPushNotification = ({ title, body, url = '/' }) =>
+  invokePushNotifications({ action: 'send-broadcast', title, body, url })
+
+// ─── COMMUNITY POLLS ADMIN ────────────────────────────────────────────────────
+export const updateCommunityPoll = async (pollId, updates) =>
+  supabase.from('community_polls').update(updates).eq('id', pollId)
+
+export const deleteCommunityPoll = async (pollId) => {
+  await supabase.from('community_poll_votes').delete().eq('poll_id', pollId)
+  await supabase.from('community_poll_options').delete().eq('poll_id', pollId)
+  return supabase.from('community_polls').delete().eq('id', pollId)
+}
+
 export const getReaderLeaderboard = async ({ limit = 10 } = {}) => {
   const { data: { session } } = await supabase.auth.getSession()
   const response = await fetch(`${supabaseUrl}/functions/v1/reader-leaderboard?limit=${limit}`, {
