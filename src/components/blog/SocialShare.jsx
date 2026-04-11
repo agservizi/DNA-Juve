@@ -11,6 +11,8 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
 
   const fullUrl = url || window.location.href
   const shareTitle = title?.trim() || ''
+  const shareExcerpt = String(excerpt || '').replace(/\s+/g, ' ').trim()
+  const whatsappMessage = [shareTitle, shareExcerpt].filter(Boolean).join(' - ')
 
   const handleCopy = async () => {
     try {
@@ -39,7 +41,12 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
         </span>
       </FacebookShareButton>
 
-      <WhatsappShareButton url={fullUrl} className="shrink-0 align-middle">
+      <WhatsappShareButton
+        url={fullUrl}
+        title={whatsappMessage}
+        separator="\n"
+        className="shrink-0 align-middle"
+      >
         <span className="flex items-center justify-center w-8 h-8 bg-[#25D366] hover:bg-[#20bc5a] text-white transition-colors">
           <WhatsappIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
