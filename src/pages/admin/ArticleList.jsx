@@ -15,6 +15,12 @@ export default function ArticleList() {
   const { toast } = useToast()
   const qc = useQueryClient()
 
+  const isScheduledArticle = (article) => (
+    article.status === 'draft' &&
+    article.scheduled_at &&
+    new Date(article.scheduled_at).getTime() > Date.now()
+  )
+
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ['all-articles'],
     queryFn: async () => {
@@ -38,7 +44,11 @@ export default function ArticleList() {
 
   const filtered = articles.filter(a => {
     const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = filterStatus === 'all' || a.status === filterStatus
+    const scheduled = isScheduledArticle(a)
+    const matchStatus = filterStatus === 'all'
+      || (filterStatus === 'published' && a.status === 'published')
+      || (filterStatus === 'scheduled' && scheduled)
+      || (filterStatus === 'draft' && a.status === 'draft' && !scheduled)
     return matchSearch && matchStatus
   })
 
@@ -72,7 +82,7 @@ export default function ArticleList() {
         </div>
         <div className="overflow-x-auto">
           <div className="flex min-w-max items-center gap-1 border border-gray-300">
-          {['all', 'published', 'draft'].map(s => (
+          {['all', 'published', 'scheduled', 'draft'].map(s => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
@@ -80,7 +90,7 @@ export default function ArticleList() {
                 filterStatus === s ? 'bg-juve-black text-white' : 'hover:bg-gray-100'
               }`}
             >
-              {s === 'all' ? 'Tutti' : s === 'published' ? 'Pubblicati' : 'Bozze'}
+              {s === 'all' ? 'Tutti' : s === 'published' ? 'Pubblicati' : s === 'scheduled' ? 'Programmati' : 'Bozze'}
             </button>
           ))}
           </div>
@@ -109,6 +119,23 @@ export default function ArticleList() {
               <tbody className="divide-y divide-gray-50">
                 <AnimatePresence>
                   {filtered.map((article, i) => (
+                    (() => {
+                      const scheduled = isScheduledArticle(article)
+                      const statusClasses = article.status === 'published'
+                        ? 'bg-green-100 text-green-700'
+                        : scheduled
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-amber-100 text-amber-700'
+                      const statusLabel = article.status === 'published'
+                        ? 'Pubblicato'
+                        : scheduled
+                          ? 'Programmato'
+                          : 'Bozza'
+                      const articleDate = scheduled
+                        ? article.scheduled_at
+                        : (article.published_at || article.created_at)
+
+                      return (
                     <motion.tr
                       key={article.id}
                       initial={{ opacity: 0 }}
@@ -134,16 +161,12 @@ export default function ArticleList() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 font-bold uppercase tracking-wider ${
-                          article.status === 'published'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {article.status === 'published' ? 'Pubblicato' : 'Bozza'}
+                        <span className={`text-xs px-2 py-0.5 font-bold uppercase tracking-wider ${statusClasses}`}>
+                          {statusLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500 hidden lg:table-cell">
-                        {formatDateShort(article.published_at || article.created_at)}
+                        {formatDateShort(articleDate)}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-400 text-right hidden lg:table-cell">
                         {article.views ? formatViews(article.views) : '—'}
@@ -178,6 +201,8 @@ export default function ArticleList() {
                         </div>
                       </td>
                     </motion.tr>
+                      )
+                    })()
                   ))}
                 </AnimatePresence>
               </tbody>

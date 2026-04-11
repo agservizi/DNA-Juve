@@ -1175,7 +1175,7 @@ export const getAllArticles = () =>
   supabase
     .from('articles')
     .select(`
-      id, title, slug, status, published_at, created_at, featured, views,
+      id, title, slug, status, published_at, scheduled_at, created_at, featured, views,
       categories(name, slug, color)
     `)
     .order('created_at', { ascending: false })

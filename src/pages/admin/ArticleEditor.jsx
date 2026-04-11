@@ -556,16 +556,35 @@ export default function ArticleEditor() {
     if (!isEdit && titleValue && !slugValue) setValue('slug', slugify(titleValue))
   }, [titleValue, isEdit])
 
+  const getScheduledAtIso = (rawValue) => {
+    if (!showSchedule || !rawValue) return null
+    const parsed = new Date(rawValue)
+    if (Number.isNaN(parsed.getTime())) return null
+    return parsed.toISOString()
+  }
+
+  const resolveSubmissionState = (formData, requestedStatus) => {
+    const scheduledAt = getScheduledAtIso(formData.scheduled_at)
+    const isScheduledPublish = requestedStatus === 'published' && Boolean(scheduledAt)
+
+    return {
+      requestedStatus,
+      effectiveStatus: isScheduledPublish ? 'draft' : requestedStatus,
+      scheduledAt,
+      isScheduledPublish,
+    }
+  }
+
   const saveMutation = useMutation({
-    mutationFn: async ({ formData, status }) => {
+    mutationFn: async ({ formData, effectiveStatus, scheduledAt }) => {
       const payload = {
         ...formData,
-        status,
+        status: effectiveStatus,
         content,
         author_id: user?.id,
         updated_at: new Date().toISOString(),
-        published_at: status === 'published' ? (existing?.published_at || new Date().toISOString()) : null,
-        scheduled_at: showSchedule && formData.scheduled_at ? new Date(formData.scheduled_at).toISOString() : null,
+        published_at: effectiveStatus === 'published' ? (existing?.published_at || new Date().toISOString()) : null,
+        scheduled_at: scheduledAt,
       }
       if (!seoColumnsSupported) {
         delete payload.meta_title
@@ -613,7 +632,7 @@ export default function ArticleEditor() {
       }
       return articleResult
     },
-    onSuccess: (result, { status }) => {
+    onSuccess: (result, { effectiveStatus, isScheduledPublish }) => {
       if (typeof window !== 'undefined') {
         try {
           window.localStorage.removeItem(draftStorageKey)
@@ -629,7 +648,7 @@ export default function ArticleEditor() {
       qc.invalidateQueries(['article-revisions', id])
 
       const shouldSendPush =
-        status === 'published' &&
+        effectiveStatus === 'published' &&
         result?.data?.slug &&
         (!isEdit || existing?.status !== 'published')
 
@@ -654,7 +673,7 @@ export default function ArticleEditor() {
 
       toast({
         title: isEdit ? 'Articolo aggiornato!' : 'Articolo creato!',
-        description: status === 'published' ? 'Visibile sul sito.' : showSchedule ? 'Pubblicazione programmata.' : 'Salvato come bozza.',
+        description: isScheduledPublish ? 'Pubblicazione programmata.' : effectiveStatus === 'published' ? 'Visibile sul sito.' : 'Salvato come bozza.',
         variant: 'success',
       })
       if (!isEdit && result.data?.id) navigate(`/admin/articoli/${result.data.id}/modifica`)
@@ -662,10 +681,11 @@ export default function ArticleEditor() {
     onError: (err) => toast({ title: 'Errore', description: err.message, variant: 'destructive' }),
   })
 
-  const onSubmit = (formData, status) => {
-    if (status === 'published') {
+  const onSubmit = (formData, requestedStatus) => {
+    if (requestedStatus === 'published') {
       const plainContent = stripHtml(content || '').replace(/\s+/g, ' ').trim()
       const excerpt = (formData.excerpt || '').trim()
+      const scheduledAt = getScheduledAtIso(formData.scheduled_at)
 
       if (!formData.category_id) {
         toast({
@@ -693,9 +713,31 @@ export default function ArticleEditor() {
         })
         return
       }
+
+      if (showSchedule) {
+        if (!formData.scheduled_at || !scheduledAt) {
+          toast({
+            title: 'Data programmazione mancante',
+            description: 'Inserisci una data valida oppure disattiva Programma per pubblicare subito.',
+            variant: 'destructive',
+          })
+          return
+        }
+
+        if (new Date(scheduledAt).getTime() <= Date.now()) {
+          toast({
+            title: 'Data non valida',
+            description: 'La pubblicazione programmata deve essere nel futuro.',
+            variant: 'destructive',
+          })
+          return
+        }
+      }
     }
 
-    saveMutation.mutate({ formData, status })
+    const submissionState = resolveSubmissionState(formData, requestedStatus)
+    setValue('status', submissionState.effectiveStatus, { shouldDirty: true })
+    saveMutation.mutate({ formData, ...submissionState })
   }
 
   const coverImage = watch('cover_image')
@@ -707,6 +749,8 @@ export default function ArticleEditor() {
   const ogImage = watch('og_image')
   const noindex = watch('noindex')
   const selectedCategory = categories.find(c => c.id === selectedCategoryId)
+  const primaryActionLabel = showSchedule ? 'Programma' : 'Pubblica'
+  const PrimaryActionIcon = showSchedule ? Calendar : Globe
   const draftStatusLabel = draftSaving
     ? 'Salvataggio bozza...'
     : lastDraftSavedAt
@@ -981,8 +1025,8 @@ export default function ArticleEditor() {
           </button>
           <button type="button" onClick={handleSubmit(d => onSubmit(d, 'published'))} disabled={saveMutation.isPending}
             className="flex items-center gap-2 px-5 py-2 bg-juve-gold text-black text-sm font-black uppercase tracking-wider hover:bg-juve-gold-dark transition-colors disabled:opacity-60">
-            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-            Pubblica
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PrimaryActionIcon className="h-4 w-4" />}
+            {primaryActionLabel}
           </button>
         </div>
       </div>

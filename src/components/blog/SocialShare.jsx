@@ -4,11 +4,10 @@ import {
   TwitterShareButton, FacebookShareButton, WhatsappShareButton,
   TwitterIcon, FacebookIcon, WhatsappIcon,
 } from 'react-share'
-import { Link2, Check, Share2 } from 'lucide-react'
+import { Link2, Check } from 'lucide-react'
 
 export default function SocialShare({ url, title, excerpt, className = '' }) {
   const [copied, setCopied] = useState(false)
-  const [open, setOpen] = useState(false)
 
   const fullUrl = url || window.location.href
 
@@ -23,23 +22,23 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
   }
 
   return (
-    <div className={`relative inline-flex items-center gap-2 ${className}`}>
+    <div className={`relative inline-flex flex-nowrap items-center gap-2 whitespace-nowrap ${className}`}>
       {/* Always-visible inline buttons */}
-      <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-1">Condividi:</span>
+      <span className="mr-1 shrink-0 text-xs font-bold uppercase tracking-wider text-gray-500">Condividi:</span>
 
-      <TwitterShareButton url={fullUrl} title={title} via="BianconeriHub">
+      <TwitterShareButton url={fullUrl} title={title} via="BianconeriHub" className="shrink-0 align-middle">
         <span className="flex items-center justify-center w-8 h-8 bg-[#1DA1F2] hover:bg-[#1a8fd1] text-white transition-colors">
           <TwitterIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
       </TwitterShareButton>
 
-      <FacebookShareButton url={fullUrl} quote={excerpt}>
+      <FacebookShareButton url={fullUrl} quote={excerpt} className="shrink-0 align-middle">
         <span className="flex items-center justify-center w-8 h-8 bg-[#1877F2] hover:bg-[#166fe5] text-white transition-colors">
           <FacebookIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
       </FacebookShareButton>
 
-      <WhatsappShareButton url={fullUrl} title={title}>
+      <WhatsappShareButton url={fullUrl} title={title} className="shrink-0 align-middle">
         <span className="flex items-center justify-center w-8 h-8 bg-[#25D366] hover:bg-[#20bc5a] text-white transition-colors">
           <WhatsappIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
@@ -48,7 +47,7 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
       <button
         onClick={handleCopy}
         title="Copia link"
-        className="flex items-center justify-center w-8 h-8 bg-gray-200 hover:bg-juve-black hover:text-white transition-colors relative"
+        className="relative flex h-8 w-8 shrink-0 items-center justify-center bg-gray-200 transition-colors hover:bg-juve-black hover:text-white"
       >
         <AnimatePresence mode="wait">
           {copied ? (
