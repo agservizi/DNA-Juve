@@ -46,17 +46,20 @@ export default function NotificationAlert() {
   }, [enabled, pushSupported])
 
   const toggleNotifications = async () => {
-    if (!reader?.id || loading) return
-    if (!isAuthenticated) {
-      setErrorMessage('Devi accedere con il tuo account per attivare o testare le notifiche push.')
+    if (loading) return
+
+    const targetUserId = isAuthenticated ? reader?.id : null
+    if (isAuthenticated && !targetUserId) {
+      setErrorMessage('Profilo lettore non disponibile. Riprova tra qualche secondo.')
       return
     }
+
     setLoading(true)
     setErrorMessage('')
 
     try {
       if (!enabled) {
-        const result = await enableNotifications({ userId: reader.id, prompt: true })
+        const result = await enableNotifications({ userId: targetUserId, prompt: true })
         if (typeof Notification !== 'undefined') {
           setPermission(Notification.permission)
         }
@@ -64,7 +67,7 @@ export default function NotificationAlert() {
         return
       }
 
-      await disableNotifications({ userId: reader.id })
+      await disableNotifications({ userId: targetUserId })
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Operazione notifiche non riuscita.')
     } finally {
