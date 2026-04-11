@@ -899,6 +899,54 @@ export const submitSearchConsoleSitemap = async ({ sitemapUrl } = {}) =>
 export const inspectSearchConsoleUrl = async ({ inspectionUrl }) =>
   invokeSearchConsole({ action: 'inspect-url', inspectionUrl })
 
+export const invokeInstagramPublisher = async (payload = {}) => {
+  const call = async (accessToken) => {
+    const response = await fetch(`${supabaseUrl}/functions/v1/instagram-publisher`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    return { response, data }
+  }
+
+  let { data: { session } } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    return { data: null, error: new Error('Sessione admin non pronta.') }
+  }
+
+  let { response, data } = await call(session.access_token)
+
+  if (response.status === 401) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    const nextToken = refreshed?.session?.access_token
+
+    if (!refreshError && nextToken) {
+      const retry = await call(nextToken)
+      response = retry.response
+      data = retry.data
+    }
+  }
+
+  if (!response.ok) {
+    return { data: null, error: new Error(data?.error || 'Instagram publisher non disponibile.') }
+  }
+
+  return { data, error: null }
+}
+
+export const publishArticleToInstagram = async ({ articleId, force = false } = {}) =>
+  invokeInstagramPublisher({ action: 'publish-article', articleId, force })
+
+export const getInstagramPublisherStatus = async () =>
+  invokeInstagramPublisher({ action: 'status' })
+
 export const getAdminAuthors = async () =>
   invokeAdminAuthors({ action: 'list' })
 
@@ -1291,6 +1339,7 @@ export const deleteArticle = (id) =>
 
 let articleSeoSupportPromise
 let articleExtraSupportPromise
+let articleInstagramSupportPromise
 
 export const checkArticleSeoSupport = async () => {
   if (!articleSeoSupportPromise) {
@@ -1329,6 +1378,26 @@ export const checkArticleExtraColumnsSupport = async () => {
       .catch(() => false)
   }
   return articleExtraSupportPromise
+}
+
+export const checkArticleInstagramSupport = async () => {
+  if (!articleInstagramSupportPromise) {
+    articleInstagramSupportPromise = supabase
+      .from('articles')
+      .select('instagram_image')
+      .limit(1)
+      .then(({ error }) => {
+        if (!error) return true
+        const message = String(error.message || '').toLowerCase()
+        if (error.code === '42703' || message.includes('instagram_image') || message.includes('column')) {
+          return false
+        }
+        return false
+      })
+      .catch(() => false)
+  }
+
+  return articleInstagramSupportPromise
 }
 
 // ─── ARTICLE REVISIONS ──────────────────────────────────────────────────────
@@ -1404,6 +1473,9 @@ export const duplicateArticle = async (articleId) => {
     meta_description: original.meta_description || '',
     canonical_url: '',
     og_image: original.og_image || '',
+    instagram_image: original.instagram_image || '',
+    instagram_caption_override: original.instagram_caption_override || '',
+    instagram_publish_enabled: original.instagram_publish_enabled ?? true,
     noindex: false,
   }
 

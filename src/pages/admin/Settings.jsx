@@ -16,7 +16,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { getSearchConsoleStatus, supabase } from '@/lib/supabase'
+import { getInstagramPublisherStatus, getSearchConsoleStatus, supabase } from '@/lib/supabase'
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -130,6 +130,16 @@ export default function Settings() {
     },
     retry: false,
     staleTime: 15 * 60 * 1000,
+  })
+  const { data: instagramStatus } = useQuery({
+    queryKey: ['instagram-publisher-status'],
+    queryFn: async () => {
+      const { data, error } = await getInstagramPublisherStatus()
+      if (error) throw error
+      return data
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   })
 
   return (
@@ -246,6 +256,18 @@ export default function Settings() {
               </div>
               <StatusBadge ok={Boolean(searchConsoleStatus?.configured)} readyLabel="Connesso" fallbackLabel="Da configurare" />
             </div>
+
+            <div className="flex items-center justify-between gap-3 border border-gray-200 px-4 py-3">
+              <div>
+                <p className="font-bold text-sm">Automazione Instagram</p>
+                <p className="text-xs text-gray-500">
+                  {instagramStatus?.configured
+                    ? `${instagramStatus.provider === 'n8n' ? 'n8n self-hosted' : 'Meta diretta'} · ${instagramStatus.pendingCount || 0} articoli in coda`
+                    : 'Webhook n8n o credenziali Meta non configurati'}
+                </p>
+              </div>
+              <StatusBadge ok={Boolean(instagramStatus?.configured)} readyLabel="Connessa" fallbackLabel="Da configurare" />
+            </div>
           </div>
         </InfoCard>
 
@@ -303,6 +325,12 @@ export default function Settings() {
               label="Google Search Console"
               hint="Indicizzazione, sitemap e performance SEO"
             />
+            <QuickLink
+              to="https://docs.n8n.io/hosting/installation/docker/"
+              icon={SettingsIcon}
+              label="n8n Self-Hosted"
+              hint="Installazione Docker e webhook pubblici"
+            />
           </div>
         </InfoCard>
 
@@ -324,6 +352,10 @@ export default function Settings() {
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
               Tieni d’occhio commenti e proposte tifosi: sono i due moduli piu esposti all’uso reale.
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
+              Per Instagram via n8n serve un endpoint HTTPS pubblico: senza quello Supabase non puo consegnare i post al workflow.
             </li>
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />

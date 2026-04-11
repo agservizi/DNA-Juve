@@ -127,6 +127,28 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS internal_notes TEXT;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS co_author_ids UUID[] DEFAULT '{}';
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS related_article_ids UUID[] DEFAULT '{}';
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_image TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_caption_override TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_publish_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_post_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_post_error TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_posted_at TIMESTAMPTZ;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_media_id TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_post_id TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS instagram_post_permalink TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'articles_instagram_post_status_check'
+  ) THEN
+    ALTER TABLE articles
+      ADD CONSTRAINT articles_instagram_post_status_check
+      CHECK (instagram_post_status IN ('pending', 'processing', 'published', 'failed', 'disabled'));
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -1180,6 +1202,89 @@ CREATE INDEX IF NOT EXISTS author_follows_user_idx ON author_follows(user_id, cr
 CREATE INDEX IF NOT EXISTS match_polls_kickoff_idx ON match_polls(kickoff_at DESC);
 CREATE INDEX IF NOT EXISTS match_polls_active_idx ON match_polls(is_active, expires_at DESC);
 CREATE INDEX IF NOT EXISTS match_poll_votes_poll_idx ON match_poll_votes(poll_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS articles_instagram_queue_idx ON articles(instagram_post_status, published_at DESC) WHERE status = 'published' AND instagram_publish_enabled = TRUE;
+
+CREATE OR REPLACE FUNCTION public.configure_instagram_publisher_cron(job_schedule TEXT DEFAULT '*/5 * * * *')
+RETURNS void AS $$
+DECLARE
+  target_job_name CONSTANT TEXT := 'publish-instagram-articles';
+  project_url_secret TEXT;
+  anon_key_secret TEXT;
+  cron_secret_value TEXT;
+  existing_job_id BIGINT;
+BEGIN
+  SELECT decrypted_secret
+  INTO project_url_secret
+  FROM vault.decrypted_secrets
+  WHERE name = 'project_url'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  SELECT decrypted_secret
+  INTO anon_key_secret
+  FROM vault.decrypted_secrets
+  WHERE name = 'anon_key'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  SELECT decrypted_secret
+  INTO cron_secret_value
+  FROM vault.decrypted_secrets
+  WHERE name = 'cron_secret'
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  IF COALESCE(project_url_secret, '') = '' THEN
+    RAISE EXCEPTION 'Missing Vault secret: project_url';
+  END IF;
+
+  IF COALESCE(anon_key_secret, '') = '' THEN
+    RAISE EXCEPTION 'Missing Vault secret: anon_key';
+  END IF;
+
+  IF COALESCE(cron_secret_value, '') = '' THEN
+    RAISE EXCEPTION 'Missing Vault secret: cron_secret';
+  END IF;
+
+  SELECT jobid
+  INTO existing_job_id
+  FROM cron.job
+  WHERE jobname = target_job_name
+  LIMIT 1;
+
+  IF existing_job_id IS NOT NULL THEN
+    PERFORM cron.unschedule(existing_job_id);
+  END IF;
+
+  PERFORM cron.schedule(
+    target_job_name,
+    job_schedule,
+    format(
+      $request$
+      select
+        net.http_post(
+          url := %L,
+          headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'Authorization', 'Bearer ' || %L
+          ),
+          body := jsonb_build_object(
+            'action', 'process-pending',
+            'cronSecret', %L
+          ),
+          timeout_milliseconds := 10000
+        ) as request_id;
+      $request$,
+      project_url_secret || '/functions/v1/instagram-publisher',
+      anon_key_secret,
+      cron_secret_value
+    )
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, vault, cron, net;
+
+REVOKE ALL ON FUNCTION public.configure_instagram_publisher_cron(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.configure_instagram_publisher_cron(TEXT) TO postgres;
 
 -- ─── OPTIONAL: pg_cron per scheduled publish ─────────────────
 -- Se il tuo piano Supabase supporta pg_cron:

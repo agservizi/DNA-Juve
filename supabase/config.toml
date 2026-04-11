@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.search-console]
 verify_jwt = false
+
+[functions.instagram-publisher]
+verify_jwt = false

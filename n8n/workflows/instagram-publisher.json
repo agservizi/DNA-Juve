@@ -1,0 +1,220 @@
+{
+  "name": "BianconeriHub Instagram Publisher",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bianconerihub-instagram",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "WebhookNode",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "bianconerihub-instagram"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body ?? $json;\nconst headers = $json.headers ?? {};\nconst headerSecret = headers['x-bianconerihub-secret'] ?? headers['X-BianconeriHub-Secret'];\nconst expectedSecret = $env.N8N_INSTAGRAM_WEBHOOK_SECRET || '';\nconst providedSecret = headerSecret || payload.secret || '';\n\nif (!payload.imageUrl) {\n  throw new Error('imageUrl mancante');\n}\n\nif (!payload.caption) {\n  throw new Error('caption mancante');\n}\n\nif (expectedSecret && providedSecret !== expectedSecret) {\n  throw new Error('Secret webhook non valido');\n}\n\nreturn [{\n  json: {\n    ...payload,\n    imageUrl: String(payload.imageUrl).trim(),\n    caption: String(payload.caption).trim(),\n  },\n}];"
+      },
+      "id": "ValidateRequestNode",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/{{$env.INSTAGRAM_BUSINESS_ACCOUNT_ID}}/media",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{$json.imageUrl}}"
+            },
+            {
+              "name": "caption",
+              "value": "={{$json.caption}}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{$env.INSTAGRAM_ACCESS_TOKEN}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "CreateMediaNode",
+      "name": "Create Media Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "WaitNode",
+      "name": "Wait 3 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        300
+      ],
+      "webhookId": "bianconerihub-instagram-wait"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/{{$env.INSTAGRAM_BUSINESS_ACCOUNT_ID}}/media_publish",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{$node['Create Media Container'].json['id']}}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{$env.INSTAGRAM_ACCESS_TOKEN}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "PublishMediaNode",
+      "name": "Publish Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1290,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{'https://graph.facebook.com/v23.0/' + $node['Publish Media'].json['id'] + '?fields=id,permalink,timestamp&access_token=' + $env.INSTAGRAM_ACCESS_TOKEN}}",
+        "options": {}
+      },
+      "id": "FetchDetailsNode",
+      "name": "Fetch Media Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1550,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"postId\": $node['Publish Media'].json['id'],\n  \"mediaId\": $node['Create Media Container'].json['id'],\n  \"permalink\": $json['permalink'] || null,\n  \"publishedAt\": $json['timestamp'] || $now.toISO()\n}",
+        "options": {}
+      },
+      "id": "RespondSuccessNode",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1800,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Create Media Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Media Container": {
+      "main": [
+        [
+          {
+            "node": "Wait 3 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Publish Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Media": {
+      "main": [
+        [
+          {
+            "node": "Fetch Media Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Media Details": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "active": false,
+  "versionId": "bianconerihub-instagram-publisher-v1",
+  "id": "BianconeriHubInstagramPublisher",
+  "tags": []
+}

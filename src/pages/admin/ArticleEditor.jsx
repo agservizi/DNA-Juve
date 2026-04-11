@@ -2,17 +2,18 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock, ChevronDown, Film } from 'lucide-react'
+import { Save, Eye, ArrowLeft, Loader2, Star, Globe, FileText, Calendar, Copy, Link2, StickyNote, Image as ImageIcon, Users, Sparkles, History, Search, X, Plus, Trash2, ExternalLink, Clock, ChevronDown, Film, Instagram } from 'lucide-react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   getArticleById, createArticle, updateArticle,
   getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, checkArticleExtraColumnsSupport,
+  checkArticleInstagramSupport,
   sendArticlePushNotification, getArticlePoll, upsertArticlePoll,
   duplicateArticle, searchArticlesForRelated, getProfiles,
   getArticleRevisions, getArticleRevisionById, createArticleRevision, getSeoArticleConflicts,
-  getVideos,
+  getVideos, publishArticleToInstagram,
 } from '@/lib/supabase'
 import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, slugify, stripHtml, readingTime } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -34,6 +35,9 @@ const schema = z.object({
   meta_description: z.string().max(170, 'Max 170 caratteri').optional(),
   canonical_url: z.string().optional(),
   og_image: z.string().optional(),
+  instagram_image: z.string().optional(),
+  instagram_caption_override: z.string().max(2200, 'Max 2200 caratteri').optional(),
+  instagram_publish_enabled: z.boolean(),
   noindex: z.boolean(),
   scheduled_at: z.string().optional(),
   source_url: z.string().optional(),
@@ -77,6 +81,9 @@ function hasMeaningfulDraftChanges(draft, existing) {
     'meta_description',
     'canonical_url',
     'og_image',
+    'instagram_image',
+    'instagram_caption_override',
+    'instagram_publish_enabled',
     'noindex',
     'scheduled_at',
     'source_url',
@@ -167,6 +174,20 @@ function buildSeoHints({ title, excerpt, content, categoryName, coverImage, meta
   }
 }
 
+function buildInstagramCaptionPreview({ title, excerpt, slug, captionOverride }) {
+  const articleUrl = `${SITE_URL}/articolo/${slug || 'slug-articolo'}`
+  const intro = String(captionOverride || '').trim()
+  const summary = String(excerpt || '').trim()
+  const pieces = [intro || title, !intro && summary ? summary : null].filter(Boolean)
+  const cta = [
+    'Segui @BianconeriHub.Magazine per restare aggiornato sul mondo bianconero.',
+    'Iscriviti a BianconeriHub per non perderti i nuovi contenuti e per scrivere articoli con la community.',
+    `Leggi l\'articolo completo su ${articleUrl}`,
+  ]
+
+  return [...pieces, ...cta].join('\n\n').slice(0, 2200)
+}
+
 export default function ArticleEditor() {
   const { id } = useParams()
   const isEdit = !!id
@@ -253,6 +274,11 @@ export default function ArticleEditor() {
     queryFn: checkArticleExtraColumnsSupport,
     staleTime: 60 * 60 * 1000,
   })
+  const { data: instagramColumnsSupported = false } = useQuery({
+    queryKey: ['article-instagram-columns-support'],
+    queryFn: checkArticleInstagramSupport,
+    staleTime: 60 * 60 * 1000,
+  })
   const { data: revisions = [] } = useQuery({
     queryKey: ['article-revisions', id],
     queryFn: async () => {
@@ -310,6 +336,9 @@ export default function ArticleEditor() {
       meta_description: '',
       canonical_url: '',
       og_image: '',
+      instagram_image: '',
+      instagram_caption_override: '',
+      instagram_publish_enabled: true,
       noindex: false,
       scheduled_at: '',
       source_url: '',
@@ -346,6 +375,9 @@ export default function ArticleEditor() {
       meta_description: '',
       canonical_url: '',
       og_image: '',
+      instagram_image: '',
+      instagram_caption_override: '',
+      instagram_publish_enabled: true,
       noindex: false,
       scheduled_at: '',
       source_url: '',
@@ -377,6 +409,9 @@ export default function ArticleEditor() {
       setValue('meta_description', existing.meta_description || '')
       setValue('canonical_url', existing.canonical_url || '')
       setValue('og_image', existing.og_image || '')
+      setValue('instagram_image', existing.instagram_image || '')
+      setValue('instagram_caption_override', existing.instagram_caption_override || '')
+      setValue('instagram_publish_enabled', existing.instagram_publish_enabled ?? true)
       setValue('noindex', existing.noindex || false)
       setValue('source_url', existing.source_url || '')
       setValue('internal_notes', existing.internal_notes || '')
@@ -402,6 +437,9 @@ export default function ArticleEditor() {
         meta_description: '',
         canonical_url: '',
         og_image: '',
+        instagram_image: '',
+        instagram_caption_override: '',
+        instagram_publish_enabled: true,
         noindex: false,
         scheduled_at: '',
         source_url: '',
@@ -585,7 +623,7 @@ export default function ArticleEditor() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: async ({ formData, effectiveStatus, scheduledAt }) => {
+    mutationFn: async ({ formData, effectiveStatus, scheduledAt, isScheduledPublish }) => {
       const payload = {
         ...formData,
         status: effectiveStatus,
@@ -601,6 +639,29 @@ export default function ArticleEditor() {
         delete payload.canonical_url
         delete payload.og_image
         delete payload.noindex
+      }
+      if (!instagramColumnsSupported) {
+        delete payload.instagram_image
+        delete payload.instagram_caption_override
+        delete payload.instagram_publish_enabled
+      } else {
+        const instagramEnabled = formData.instagram_publish_enabled !== false
+        const shouldQueueInstagram = instagramEnabled && (
+          isScheduledPublish ||
+          (effectiveStatus === 'published' && (!isEdit || existing?.status !== 'published' || ['failed', 'disabled'].includes(existing?.instagram_post_status || '')))
+        )
+
+        if (!instagramEnabled) {
+          payload.instagram_post_status = 'disabled'
+          payload.instagram_post_error = null
+        } else if (shouldQueueInstagram) {
+          payload.instagram_post_status = 'pending'
+          payload.instagram_post_error = null
+          payload.instagram_posted_at = null
+          payload.instagram_media_id = null
+          payload.instagram_post_id = null
+          payload.instagram_post_permalink = null
+        }
       }
       if (extraColumnsSupported) {
         payload.gallery = gallery
@@ -641,7 +702,7 @@ export default function ArticleEditor() {
       }
       return articleResult
     },
-    onSuccess: (result, { effectiveStatus, isScheduledPublish }) => {
+    onSuccess: (result, { formData, effectiveStatus, isScheduledPublish }) => {
       if (typeof window !== 'undefined') {
         try {
           window.localStorage.removeItem(draftStorageKey)
@@ -653,6 +714,7 @@ export default function ArticleEditor() {
 
       qc.invalidateQueries(['all-articles'])
       qc.invalidateQueries(['dashboard-stats'])
+      qc.invalidateQueries(['article-edit', id])
       qc.invalidateQueries(['article-tags-edit', id])
       qc.invalidateQueries(['article-revisions', id])
 
@@ -660,6 +722,13 @@ export default function ArticleEditor() {
         effectiveStatus === 'published' &&
         result?.data?.slug &&
         (!isEdit || existing?.status !== 'published')
+
+      const shouldSendInstagram =
+        instagramColumnsSupported &&
+        formData.instagram_publish_enabled !== false &&
+        effectiveStatus === 'published' &&
+        result?.data?.id &&
+        (!isEdit || existing?.status !== 'published' || ['failed', 'disabled'].includes(existing?.instagram_post_status || ''))
 
       const canSendPush = profile?.role === 'admin' || user?.email === PRIMARY_ADMIN_EMAIL
 
@@ -680,6 +749,16 @@ export default function ArticleEditor() {
         })
       }
 
+      if (shouldSendInstagram && canSendPush) {
+        publishArticleToInstagram({ articleId: result.data.id }).catch((error) => {
+          toast({
+            title: 'Articolo pubblicato, Instagram da verificare',
+            description: error?.message || 'Il post Instagram non e partito subito. Puoi ritentare nella sezione Instagram.',
+            variant: 'destructive',
+          })
+        })
+      }
+
       toast({
         title: isEdit ? 'Articolo aggiornato!' : 'Articolo creato!',
         description: isScheduledPublish ? 'Pubblicazione programmata.' : effectiveStatus === 'published' ? 'Visibile sul sito.' : 'Salvato come bozza.',
@@ -695,6 +774,7 @@ export default function ArticleEditor() {
       const plainContent = stripHtml(content || '').replace(/\s+/g, ' ').trim()
       const excerpt = (formData.excerpt || '').trim()
       const scheduledAt = getScheduledAtIso(formData.scheduled_at)
+      const instagramImage = String(formData.instagram_image || formData.cover_image || '').trim()
 
       if (!formData.category_id) {
         toast({
@@ -718,6 +798,15 @@ export default function ArticleEditor() {
         toast({
           title: 'Occhiello troppo breve',
           description: "Aggiungi un sommario piu chiaro prima di pubblicare l'articolo.",
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (instagramColumnsSupported && formData.instagram_publish_enabled !== false && !instagramImage) {
+        toast({
+          title: 'Immagine Instagram mancante',
+          description: 'Per pubblicare anche su Instagram serve almeno la cover articolo o un\'immagine Instagram dedicata.',
           variant: 'destructive',
         })
         return
@@ -752,10 +841,14 @@ export default function ArticleEditor() {
   const coverImage = watch('cover_image')
   const currentStatus = watch('status')
   const selectedCategoryId = watch('category_id')
+  const excerptValue = watch('excerpt')
   const metaTitle = watch('meta_title')
   const metaDescription = watch('meta_description')
   const canonicalUrl = watch('canonical_url')
   const ogImage = watch('og_image')
+  const instagramImage = watch('instagram_image')
+  const instagramCaptionOverride = watch('instagram_caption_override')
+  const instagramPublishEnabled = watch('instagram_publish_enabled')
   const noindex = watch('noindex')
   const selectedCategory = categories.find(c => c.id === selectedCategoryId)
   const primaryActionLabel = showSchedule ? 'Programma' : 'Pubblica'
@@ -767,7 +860,7 @@ export default function ArticleEditor() {
       : 'Bozza locale attiva'
   const seoHints = buildSeoHints({
     title: titleValue,
-    excerpt: watch('excerpt'),
+    excerpt: excerptValue,
     content,
     categoryName: selectedCategory?.name,
     coverImage,
@@ -796,6 +889,13 @@ export default function ArticleEditor() {
       hasConflicts: titleMatches.length > 0 || slugMatches.length > 0,
     }
   }, [metaTitle, seoConflictArticles, slugValue, titleValue])
+  const instagramCaptionPreview = useMemo(() => buildInstagramCaptionPreview({
+    title: titleValue,
+    excerpt: excerptValue,
+    slug: slugValue,
+    captionOverride: instagramCaptionOverride,
+  }), [excerptValue, instagramCaptionOverride, slugValue, titleValue])
+  const instagramStatus = existing?.instagram_post_status || (instagramPublishEnabled === false ? 'disabled' : 'pending')
   const scheduledSummary = useMemo(() => {
     const value = formValues.scheduled_at
     if (!showSchedule || !value) return null
@@ -853,6 +953,22 @@ export default function ArticleEditor() {
       }
     },
     onError: (err) => toast({ title: 'Errore duplicazione', description: err.message, variant: 'destructive' }),
+  })
+
+  const instagramPublishMutation = useMutation({
+    mutationFn: async ({ force = false } = {}) => {
+      const { data, error } = await publishArticleToInstagram({ articleId: id, force })
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(['article-edit', id])
+      qc.invalidateQueries(['all-articles'])
+      toast({ title: 'Instagram aggiornato', description: 'Il post e stato inviato su Instagram.', variant: 'success' })
+    },
+    onError: (err) => {
+      toast({ title: 'Invio Instagram fallito', description: err.message, variant: 'destructive' })
+    },
   })
 
   // ─── Copy URL ─────────────────────────────────────────────────
@@ -1126,6 +1242,92 @@ export default function ArticleEditor() {
           <SidebarAccordion id="cover" title="Copertina" openSections={openSections} toggleSection={toggleSection}>
             <Controller name="cover_image" control={control}
               render={({ field }) => <ImageUpload value={field.value} onChange={field.onChange} />} />
+          </SidebarAccordion>
+
+          <SidebarAccordion id="instagram" title="Instagram" icon={<Instagram className="h-3.5 w-3.5" />} badge={instagramPublishEnabled ? 'auto' : 'off'} openSections={openSections} toggleSection={toggleSection}>
+            {!instagramColumnsSupported ? (
+              <div className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2">
+                <p className="text-xs text-amber-800">
+                  I campi Instagram sono pronti lato UI, ma il database remoto non risulta ancora aggiornato.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <div>
+                    <p className="text-sm font-medium">Pubblica automaticamente su Instagram</p>
+                    <p className="text-[11px] text-gray-400">Usa l'immagine dedicata se presente, altrimenti la cover articolo.</p>
+                  </div>
+                  <Controller
+                    name="instagram_publish_enabled"
+                    control={control}
+                    render={({ field }) => (
+                      <button
+                        type="button"
+                        onClick={() => field.onChange(!field.value)}
+                        className={`relative h-5 w-10 transition-colors ${field.value ? 'bg-juve-gold' : 'bg-gray-300'}`}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 bg-white transition-transform ${field.value ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </button>
+                    )}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Immagine dedicata Instagram</label>
+                  <Controller
+                    name="instagram_image"
+                    control={control}
+                    render={({ field }) => <ImageUpload value={field.value} onChange={field.onChange} />}
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">Se la lasci vuota verrà usata la copertina articolo.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Testo iniziale personalizzato</label>
+                  <textarea
+                    {...register('instagram_caption_override')}
+                    rows={4}
+                    placeholder="Aggiungi una frase iniziale diversa per Instagram. Il CTA finale del blog viene aggiunto in automatico."
+                    className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-juve-black resize-none"
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">{(instagramCaptionOverride || '').length}/2200</p>
+                </div>
+
+                <div className="rounded-sm border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Preview caption</p>
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-gray-700 font-sans">{instagramCaptionPreview}</pre>
+                </div>
+
+                <div className="rounded-sm border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600">
+                  <p className="font-bold uppercase tracking-widest text-gray-500">Stato Instagram</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${instagramStatus === 'published' ? 'bg-emerald-100 text-emerald-700' : instagramStatus === 'failed' ? 'bg-red-100 text-red-700' : instagramStatus === 'disabled' ? 'bg-gray-200 text-gray-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {instagramStatus === 'published' ? 'Pubblicato' : instagramStatus === 'failed' ? 'Errore' : instagramStatus === 'disabled' ? 'Disattivato' : instagramStatus === 'processing' ? 'In lavorazione' : 'In coda'}
+                    </span>
+                    {existing?.instagram_posted_at && <span>Ultimo invio: {formatDate(existing.instagram_posted_at)}</span>}
+                    {existing?.instagram_post_permalink && (
+                      <a href={existing.instagram_post_permalink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-juve-gold hover:underline">
+                        <ExternalLink className="h-3 w-3" />
+                        Apri post
+                      </a>
+                    )}
+                  </div>
+                  {existing?.instagram_post_error && <p className="mt-2 text-red-600">{existing.instagram_post_error}</p>}
+                  {isEdit && currentStatus === 'published' && instagramPublishEnabled && instagramStatus !== 'published' && (
+                    <button
+                      type="button"
+                      onClick={() => instagramPublishMutation.mutate({ force: instagramStatus === 'failed' })}
+                      disabled={instagramPublishMutation.isPending}
+                      className="mt-3 inline-flex items-center gap-2 border border-gray-300 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black disabled:opacity-60"
+                    >
+                      {instagramPublishMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Instagram className="h-3.5 w-3.5" />}
+                      {instagramStatus === 'failed' ? 'Riprova invio' : 'Pubblica ora su Instagram'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </SidebarAccordion>
 
           {/* Settings */}
