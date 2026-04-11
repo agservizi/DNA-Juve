@@ -16,7 +16,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { getSearchConsoleStatus, supabase } from '@/lib/supabase'
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -121,6 +121,16 @@ export default function Settings() {
     queryKey: ['admin-operational-snapshot'],
     queryFn: getOperationalSnapshot,
   })
+  const { data: searchConsoleStatus } = useQuery({
+    queryKey: ['search-console-status'],
+    queryFn: async () => {
+      const { data, error } = await getSearchConsoleStatus()
+      if (error) throw error
+      return data
+    },
+    retry: false,
+    staleTime: 15 * 60 * 1000,
+  })
 
   return (
     <div className="space-y-8">
@@ -223,6 +233,18 @@ export default function Settings() {
                 <p className="text-xs text-gray-500">Calendario e match data</p>
               </div>
               <StatusBadge ok={HAS_FOOTBALL_API} readyLabel="Chiave ok" fallbackLabel="Da verificare" />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border border-gray-200 px-4 py-3">
+              <div>
+                <p className="font-bold text-sm">Google Search Console</p>
+                <p className="text-xs text-gray-500">
+                  {searchConsoleStatus?.configured
+                    ? `${searchConsoleStatus.siteUrl || 'Property configurata'} · ${searchConsoleStatus.sitemapCount || 0} sitemap rilevate`
+                    : 'Performance organica reale nella dashboard SEO'}
+                </p>
+              </div>
+              <StatusBadge ok={Boolean(searchConsoleStatus?.configured)} readyLabel="Connesso" fallbackLabel="Da configurare" />
             </div>
           </div>
         </InfoCard>

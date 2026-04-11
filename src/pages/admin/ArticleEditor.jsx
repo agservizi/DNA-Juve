@@ -11,7 +11,7 @@ import {
   getCategories, getArticleTags, upsertArticleTags, checkArticleSeoSupport, checkArticleExtraColumnsSupport,
   sendArticlePushNotification, getArticlePoll, upsertArticlePoll,
   duplicateArticle, searchArticlesForRelated, getProfiles,
-  getArticleRevisions, getArticleRevisionById, createArticleRevision,
+  getArticleRevisions, getArticleRevisionById, createArticleRevision, getSeoArticleConflicts,
   getVideos,
 } from '@/lib/supabase'
 import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, slugify, stripHtml, readingTime } from '@/lib/utils'
@@ -238,6 +238,15 @@ export default function ArticleEditor() {
     queryKey: ['article-seo-columns-support'],
     queryFn: checkArticleSeoSupport,
     staleTime: 60 * 60 * 1000,
+  })
+  const { data: seoConflictArticles = [] } = useQuery({
+    queryKey: ['article-seo-conflicts', id || 'new'],
+    queryFn: async () => {
+      const { data, error } = await getSeoArticleConflicts(id || null)
+      if (error) throw error
+      return data || []
+    },
+    staleTime: 5 * 60 * 1000,
   })
   const { data: extraColumnsSupported = false } = useQuery({
     queryKey: ['article-extra-columns-support'],
@@ -768,6 +777,25 @@ export default function ArticleEditor() {
     ogImage,
     noindex,
   })
+  const seoConflicts = useMemo(() => {
+    const normalizedTitle = String(metaTitle || titleValue || '').trim().toLowerCase()
+    const normalizedSlug = String(slugValue || '').trim().toLowerCase()
+    const titleMatches = normalizedTitle
+      ? seoConflictArticles.filter((article) => {
+          const comparisonTitle = String(article.meta_title || article.title || '').trim().toLowerCase()
+          return comparisonTitle && comparisonTitle === normalizedTitle
+        })
+      : []
+    const slugMatches = normalizedSlug
+      ? seoConflictArticles.filter((article) => String(article.slug || '').trim().toLowerCase() === normalizedSlug)
+      : []
+
+    return {
+      titleMatches,
+      slugMatches,
+      hasConflicts: titleMatches.length > 0 || slugMatches.length > 0,
+    }
+  }, [metaTitle, seoConflictArticles, slugValue, titleValue])
   const scheduledSummary = useMemo(() => {
     const value = formValues.scheduled_at
     if (!showSchedule || !value) return null
@@ -1326,6 +1354,38 @@ export default function ArticleEditor() {
                 )}
               </div>
             </div>
+
+            {seoConflicts.hasConflicts && (
+              <div className="rounded-sm border border-red-200 bg-red-50 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-red-700">Conflitti reali</p>
+                <div className="mt-2 space-y-2 text-xs text-red-800">
+                  {seoConflicts.titleMatches.length > 0 && (
+                    <div>
+                      <p className="font-bold">Titolo SEO già presente:</p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {seoConflicts.titleMatches.slice(0, 4).map((article) => (
+                          <Link key={article.id} to={`/admin/articoli/${article.id}/modifica`} className="border border-red-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-red-700 hover:border-red-400">
+                            {article.title}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {seoConflicts.slugMatches.length > 0 && (
+                    <div>
+                      <p className="font-bold">Slug già occupato:</p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {seoConflicts.slugMatches.slice(0, 4).map((article) => (
+                          <Link key={article.id} to={`/admin/articoli/${article.id}/modifica`} className="border border-red-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-red-700 hover:border-red-400">
+                            /{article.slug}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <button type="button" onClick={generateSeoSuggestions}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-xs font-bold uppercase tracking-wider hover:border-juve-gold hover:text-juve-gold transition-colors">

@@ -845,6 +845,54 @@ export const invokeAdminAuthors = async (payload = {}) => {
   return { data, error: null }
 }
 
+export const invokeSearchConsole = async (payload = {}) => {
+  const call = async (accessToken) => {
+    const response = await fetch(`${supabaseUrl}/functions/v1/search-console`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    return { response, data }
+  }
+
+  let { data: { session } } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    return { data: null, error: new Error('Sessione admin non pronta.') }
+  }
+
+  let { response, data } = await call(session.access_token)
+
+  if (response.status === 401) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+    const nextToken = refreshed?.session?.access_token
+
+    if (!refreshError && nextToken) {
+      const retry = await call(nextToken)
+      response = retry.response
+      data = retry.data
+    }
+  }
+
+  if (!response.ok) {
+    return { data: null, error: new Error(data?.error || 'Search Console non disponibile.') }
+  }
+
+  return { data, error: null }
+}
+
+export const getSearchConsoleStatus = async () =>
+  invokeSearchConsole({ action: 'status' })
+
+export const getSearchConsoleOverview = async ({ rangeDays = 28, rowLimit = 10 } = {}) =>
+  invokeSearchConsole({ action: 'overview', rangeDays, rowLimit })
+
 export const getAdminAuthors = async () =>
   invokeAdminAuthors({ action: 'list' })
 
@@ -1179,6 +1227,42 @@ export const getAllArticles = () =>
       categories(name, slug, color)
     `)
     .order('created_at', { ascending: false })
+
+export const getSeoDashboardArticles = () =>
+  supabase
+    .from('articles')
+    .select(`
+      id,
+      title,
+      slug,
+      status,
+      excerpt,
+      content,
+      cover_image,
+      meta_title,
+      meta_description,
+      canonical_url,
+      og_image,
+      noindex,
+      views,
+      created_at,
+      updated_at,
+      published_at,
+      scheduled_at,
+      categories(name, slug, color)
+    `)
+    .order('created_at', { ascending: false })
+
+export const getSeoArticleConflicts = (excludeId = null) => {
+  let query = supabase
+    .from('articles')
+    .select('id, title, slug, status, meta_title, published_at, updated_at, noindex')
+    .order('updated_at', { ascending: false })
+
+  if (excludeId) query = query.neq('id', excludeId)
+
+  return query
+}
 
 export const getArticleById = (id) =>
   supabase

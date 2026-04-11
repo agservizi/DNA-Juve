@@ -48,6 +48,7 @@ const Categories    = lazy(() => import('@/pages/admin/Categories'))
 const Settings      = lazy(() => import('@/pages/admin/Settings'))
 const Profile       = lazy(() => import('@/pages/admin/Profile'))
 const Analytics     = lazy(() => import('@/pages/admin/Analytics'))
+const SeoDashboard  = lazy(() => import('@/pages/admin/SeoDashboard'))
 const Authors       = lazy(() => import('@/pages/admin/Authors'))
 const CommentsAdmin = lazy(() => import('@/pages/admin/Comments'))
 const FeedManager   = lazy(() => import('@/pages/admin/FeedManager'))
@@ -139,6 +140,7 @@ function AppRoutes() {
           <Route path="articoli/:id/modifica" element={<ArticleEditor />} />
           <Route path="categorie" element={<Categories />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="seo" element={<SeoDashboard />} />
           <Route path="redattori" element={<Authors />} />
           <Route path="commenti" element={<CommentsAdmin />} />
           <Route path="forum" element={<ForumModeration />} />

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { NavLink, Outlet, matchPath, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, PlusCircle, Tag, LogOut, Menu, X,
-  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield, Sun, Moon, Bell, BarChart3,
+  ChevronRight, Settings, BarChart2, Users, UserCircle, Rss, MessagesSquare, ArrowUpDown, Film, Shield, Sun, Moon, Bell, BarChart3, Search,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
@@ -25,6 +25,7 @@ const navGroups = [
     label: 'Gestione',
     items: [
       { icon: BarChart2, label: 'Analytics', to: '/admin/analytics' },
+      { icon: Search, label: 'SEO', to: '/admin/seo' },
       { icon: Users, label: 'Redattori', to: '/admin/redattori' },
       { icon: UserCircle, label: 'Lettori', to: '/admin/lettori' },
       { icon: MessagesSquare, label: 'Commenti', to: '/admin/commenti' },
