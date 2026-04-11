@@ -96,6 +96,13 @@ function buildSiteVariants(siteUrl: string) {
   return variants
 }
 
+function getPublicSiteBaseUrl(siteUrl: string) {
+  const variants = buildSiteVariants(siteUrl)
+  const urlVariant = variants.find((variant) => variant.value.startsWith('http'))
+  if (urlVariant) return urlVariant.value.replace(/\/+$/, '')
+  return 'https://bianconerihub.com'
+}
+
 function toBase64Url(input: Uint8Array | string) {
   const raw = typeof input === 'string'
     ? new TextEncoder().encode(input)
@@ -128,7 +135,7 @@ async function createGoogleAccessToken() {
   const header = { alg: 'RS256', typ: 'JWT' }
   const payload = {
     iss: gscClientEmail,
-    scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+    scope: 'https://www.googleapis.com/auth/webmasters',
     aud: 'https://oauth2.googleapis.com/token',
     exp: nowSeconds + 3600,
     iat: nowSeconds,
@@ -243,6 +250,47 @@ async function getSitemaps(accessToken: string, siteUrl: string) {
   return data.sitemap || []
 }
 
+async function submitSitemap(accessToken: string, siteUrl: string, sitemapUrl: string) {
+  const endpoint = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(sitemapUrl)}`
+  const response = await fetch(endpoint, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(data?.error?.message || 'Invio sitemap a Search Console fallito.')
+  }
+
+  return { submitted: true, sitemapUrl }
+}
+
+async function inspectUrl(accessToken: string, siteUrl: string, inspectionUrl: string) {
+  const response = await fetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inspectionUrl,
+      siteUrl,
+      languageCode: 'it-IT',
+    }),
+  })
+
+  const data = await response.json().catch(() => ({})) as {
+    error?: { message?: string }
+    inspectionResult?: Record<string, unknown>
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || 'URL Inspection fallita.')
+  }
+
+  return data.inspectionResult || null
+}
+
 async function requireAdmin(req: Request) {
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -281,6 +329,7 @@ async function resolveWorkingSite(accessToken: string) {
         configuredSiteUrl: gscSiteUrl,
         siteUrl: variant.value,
         siteVariant: variant.label,
+        publicSiteBaseUrl: getPublicSiteBaseUrl(gscSiteUrl),
         sitemaps,
       }
     } catch (error) {
@@ -321,6 +370,8 @@ Deno.serve(async (req) => {
         configuredSiteUrl: resolvedSite.configuredSiteUrl,
         siteUrl: resolvedSite.siteUrl,
         siteVariant: resolvedSite.siteVariant,
+        publicSiteBaseUrl: resolvedSite.publicSiteBaseUrl,
+        defaultSitemapUrl: `${resolvedSite.publicSiteBaseUrl}/sitemap.xml`,
         sitemapCount: resolvedSite.sitemaps.length,
         sitemaps: resolvedSite.sitemaps.map((item) => ({
           path: item.path || null,
@@ -330,6 +381,49 @@ Deno.serve(async (req) => {
           warnings: item.warnings || 0,
           errors: item.errors || 0,
         })),
+      })
+    }
+
+    if (action === 'submit-sitemap') {
+      const rawSitemapUrl = String(body?.sitemapUrl || '').trim()
+      const sitemapUrl = rawSitemapUrl || `${resolvedSite.publicSiteBaseUrl}/sitemap.xml`
+      const result = await submitSitemap(accessToken, resolvedSite.siteUrl, sitemapUrl)
+      const sitemaps = await getSitemaps(accessToken, resolvedSite.siteUrl)
+
+      return jsonResponse({
+        configured: true,
+        configuredSiteUrl: resolvedSite.configuredSiteUrl,
+        siteUrl: resolvedSite.siteUrl,
+        siteVariant: resolvedSite.siteVariant,
+        publicSiteBaseUrl: resolvedSite.publicSiteBaseUrl,
+        defaultSitemapUrl: `${resolvedSite.publicSiteBaseUrl}/sitemap.xml`,
+        ...result,
+        sitemapCount: sitemaps.length,
+        sitemaps: sitemaps.map((item) => ({
+          path: item.path || null,
+          lastSubmitted: item.lastSubmitted || null,
+          lastDownloaded: item.lastDownloaded || null,
+          isPending: item.isPending || false,
+          warnings: item.warnings || 0,
+          errors: item.errors || 0,
+        })),
+      })
+    }
+
+    if (action === 'inspect-url') {
+      const inspectionUrl = String(body?.inspectionUrl || '').trim()
+      if (!inspectionUrl) {
+        return jsonResponse({ error: 'Serve una URL da ispezionare.' }, 400)
+      }
+
+      const inspection = await inspectUrl(accessToken, resolvedSite.siteUrl, inspectionUrl)
+      return jsonResponse({
+        configured: true,
+        configuredSiteUrl: resolvedSite.configuredSiteUrl,
+        siteUrl: resolvedSite.siteUrl,
+        siteVariant: resolvedSite.siteVariant,
+        inspectionUrl,
+        inspection,
       })
     }
 
@@ -356,6 +450,8 @@ Deno.serve(async (req) => {
       configuredSiteUrl: resolvedSite.configuredSiteUrl,
       siteUrl: resolvedSite.siteUrl,
       siteVariant: resolvedSite.siteVariant,
+      publicSiteBaseUrl: resolvedSite.publicSiteBaseUrl,
+      defaultSitemapUrl: `${resolvedSite.publicSiteBaseUrl}/sitemap.xml`,
       dateRange: window.current,
       previousDateRange: window.previous,
       summary: {

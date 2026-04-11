@@ -893,6 +893,12 @@ export const getSearchConsoleStatus = async () =>
 export const getSearchConsoleOverview = async ({ rangeDays = 28, rowLimit = 10 } = {}) =>
   invokeSearchConsole({ action: 'overview', rangeDays, rowLimit })
 
+export const submitSearchConsoleSitemap = async ({ sitemapUrl } = {}) =>
+  invokeSearchConsole({ action: 'submit-sitemap', sitemapUrl })
+
+export const inspectSearchConsoleUrl = async ({ inspectionUrl }) =>
+  invokeSearchConsole({ action: 'inspect-url', inspectionUrl })
+
 export const getAdminAuthors = async () =>
   invokeAdminAuthors({ action: 'list' })
 
@@ -1233,6 +1239,7 @@ export const getSeoDashboardArticles = () =>
     .from('articles')
     .select(`
       id,
+      author_id,
       title,
       slug,
       status,
@@ -1249,7 +1256,9 @@ export const getSeoDashboardArticles = () =>
       updated_at,
       published_at,
       scheduled_at,
-      categories(name, slug, color)
+      categories(name, slug, color),
+      profiles:author_id(id, username, avatar_url),
+      article_tags(tags(id, name, slug))
     `)
     .order('created_at', { ascending: false })
 

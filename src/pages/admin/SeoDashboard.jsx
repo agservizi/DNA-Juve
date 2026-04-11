@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   ResponsiveContainer,
@@ -31,10 +31,22 @@ import {
   Download,
   Filter,
   X,
+  RefreshCw,
+  Send,
+  CalendarClock,
+  Smartphone,
+  MapPinned,
+  Link2,
 } from 'lucide-react'
-import { getSeoDashboardArticles, getSearchConsoleOverview } from '@/lib/supabase'
+import {
+  getSeoDashboardArticles,
+  getSearchConsoleOverview,
+  inspectSearchConsoleUrl,
+  submitSearchConsoleSitemap,
+} from '@/lib/supabase'
 import { generateSitemap } from '@/lib/feeds'
 import { formatDate, formatViews, stripHtml } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 const SCORE_BUCKET_COLORS = ['#16A34A', '#D97706', '#DC2626', '#475569']
 const ISSUE_BAR_COLOR = '#111111'
@@ -64,6 +76,91 @@ function formatSignedDelta(value, suffix = '%') {
   const numeric = Number(value || 0)
   const sign = numeric > 0 ? '+' : ''
   return `${sign}${numeric.toFixed(1)}${suffix}`
+}
+
+function normalizeArticleTags(article) {
+  return (article.article_tags || [])
+    .map((entry) => entry?.tags)
+    .filter(Boolean)
+}
+
+function buildSeoActionQueue(entries = [], searchConsole = null) {
+  const queue = []
+
+  entries.forEach((entry) => {
+    if (entry.score < 60) {
+      queue.push({
+        id: `score-${entry.id}`,
+        type: 'critical',
+        title: entry.title,
+        slug: entry.slug,
+        articleId: entry.id,
+        score: entry.score,
+        label: 'Score SEO critico',
+        detail: `${entry.score}/100 con ${entry.issueCount} issue aperte`,
+      })
+    }
+
+    if (!entry.inSitemap) {
+      queue.push({
+        id: `sitemap-${entry.id}`,
+        type: 'warning',
+        title: entry.title,
+        slug: entry.slug,
+        articleId: entry.id,
+        score: entry.score,
+        label: 'Articolo fuori sitemap',
+        detail: 'URL pubblicata ma non presente nella sitemap operativa',
+      })
+    }
+
+    if (entry.noindex) {
+      queue.push({
+        id: `noindex-${entry.id}`,
+        type: 'warning',
+        title: entry.title,
+        slug: entry.slug,
+        articleId: entry.id,
+        score: entry.score,
+        label: 'Noindex attivo',
+        detail: 'La pagina non e indicizzabile da Google',
+      })
+    }
+  })
+
+  ;(searchConsole?.topPages || []).forEach((page, index) => {
+    const impressions = Number(page.impressions || 0)
+    const ctr = Number(page.ctr || 0)
+    const position = Number(page.position || 0)
+
+    if (impressions >= 50 && ctr < 0.02) {
+      queue.push({
+        id: `ctr-${index}`,
+        type: 'opportunity',
+        title: page.page,
+        slug: '',
+        articleId: null,
+        score: null,
+        label: 'CTR basso su URL con impression',
+        detail: `${formatMetricNumber(impressions)} impression e CTR ${formatCtrValue(ctr)}`,
+      })
+    }
+
+    if (impressions >= 50 && position > 8 && position < 20) {
+      queue.push({
+        id: `position-${index}`,
+        type: 'opportunity',
+        title: page.page,
+        slug: '',
+        articleId: null,
+        score: null,
+        label: 'URL in seconda pagina',
+        detail: `Posizione media ${position.toFixed(1)} con ${formatMetricNumber(impressions)} impression`,
+      })
+    }
+  })
+
+  return queue.slice(0, 12)
 }
 
 function formatMonthKey(date) {
@@ -208,9 +305,17 @@ function SectionLabel({ icon: Icon, title, subtitle }) {
 }
 
 export default function SeoDashboard() {
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [authorFilter, setAuthorFilter] = useState('all')
+  const [tagFilter, setTagFilter] = useState('all')
+  const [dateRange, setDateRange] = useState(28)
+  const [inspectionUrl, setInspectionUrl] = useState('')
+  const [inspectionResult, setInspectionResult] = useState(null)
+  const [sitemapSubmitUrl, setSitemapSubmitUrl] = useState('')
 
   const { data: articles = [], isLoading: articlesLoading } = useQuery({
     queryKey: ['seo-dashboard-articles'],
@@ -231,14 +336,57 @@ export default function SeoDashboard() {
     isLoading: searchConsoleLoading,
     error: searchConsoleError,
   } = useQuery({
-    queryKey: ['search-console-overview', 28],
+    queryKey: ['search-console-overview', dateRange],
     queryFn: async () => {
-      const { data, error } = await getSearchConsoleOverview({ rangeDays: 28, rowLimit: 10 })
+      const { data, error } = await getSearchConsoleOverview({ rangeDays: dateRange, rowLimit: 10 })
       if (error) throw error
       return data
     },
     retry: false,
     staleTime: 15 * 60 * 1000,
+  })
+
+  const submitSitemapMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await submitSearchConsoleSitemap({ sitemapUrl: sitemapSubmitUrl.trim() || undefined })
+      if (error) throw error
+      return data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['search-console-overview'] })
+      toast({
+        title: 'Sitemap inviata',
+        description: data?.submitted ? 'Search Console ha ricevuto la sitemap aggiornata.' : 'Invio sitemap completato.',
+        variant: 'success',
+      })
+    },
+    onError: (error) => {
+      toast({
+        title: 'Invio sitemap fallito',
+        description: error instanceof Error ? error.message : 'Search Console non ha accettato la sitemap.',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const inspectUrlMutation = useMutation({
+    mutationFn: async (url) => {
+      const { data, error } = await inspectSearchConsoleUrl({ inspectionUrl: url })
+      if (error) throw error
+      return data
+    },
+    onSuccess: (data) => {
+      setInspectionResult(data?.inspection || null)
+      toast({ title: 'URL ispezionata', description: 'Esito URL Inspection aggiornato.', variant: 'success' })
+    },
+    onError: (error) => {
+      setInspectionResult(null)
+      toast({
+        title: 'URL Inspection fallita',
+        description: error instanceof Error ? error.message : 'Impossibile leggere lo stato della URL.',
+        variant: 'destructive',
+      })
+    },
   })
 
   const effectiveSitemap = useMemo(() => {
@@ -304,6 +452,7 @@ export default function SeoDashboard() {
     }, new Map())
 
     const entries = publishedArticles.map((article) => {
+      const tags = normalizeArticleTags(article)
       const resolvedTitle = getResolvedTitle(article)
       const resolvedDescription = getResolvedDescription(article)
       const resolvedImage = getResolvedImage(article)
@@ -346,6 +495,8 @@ export default function SeoDashboard() {
         titleLength,
         descriptionLength,
         contentLength,
+        tags,
+        authorName: article.profiles?.username || 'Redazione',
         inSitemap,
         duplicateTitle,
         issues,
@@ -461,13 +612,26 @@ export default function SeoDashboard() {
       categoryPerformance,
       criticalPages,
       bestPages,
+      actionQueue: buildSeoActionQueue(entries, searchConsole),
     }
-  }, [articles, effectiveSitemap])
+  }, [articles, effectiveSitemap, searchConsole])
 
   const loading = articlesLoading || sitemapLoading
 
   const categoryOptions = useMemo(() => {
     const values = Array.from(new Set(model.entries.map((entry) => entry.categories?.name || 'Senza categoria')))
+      .sort((left, right) => left.localeCompare(right, 'it'))
+    return ['all', ...values]
+  }, [model.entries])
+
+  const authorOptions = useMemo(() => {
+    const values = Array.from(new Set(model.entries.map((entry) => entry.authorName || 'Redazione')))
+      .sort((left, right) => left.localeCompare(right, 'it'))
+    return ['all', ...values]
+  }, [model.entries])
+
+  const tagOptions = useMemo(() => {
+    const values = Array.from(new Set(model.entries.flatMap((entry) => entry.tags.map((tag) => tag.name))))
       .sort((left, right) => left.localeCompare(right, 'it'))
     return ['all', ...values]
   }, [model.entries])
@@ -481,6 +645,8 @@ export default function SeoDashboard() {
         || entry.slug.toLowerCase().includes(normalizedSearch)
       const categoryName = entry.categories?.name || 'Senza categoria'
       const matchesCategory = categoryFilter === 'all' || categoryName === categoryFilter
+      const matchesAuthor = authorFilter === 'all' || entry.authorName === authorFilter
+      const matchesTag = tagFilter === 'all' || entry.tags.some((tag) => tag.name === tagFilter)
 
       let matchesStatus = true
       if (statusFilter === 'critical') matchesStatus = entry.score < 60 || entry.issueCount >= 3
@@ -490,9 +656,9 @@ export default function SeoDashboard() {
       if (statusFilter === 'missing-meta') matchesStatus = !entry.meta_title || !entry.meta_description
       if (statusFilter === 'out-of-sitemap') matchesStatus = !entry.inSitemap
 
-      return matchesSearch && matchesCategory && matchesStatus
+      return matchesSearch && matchesCategory && matchesAuthor && matchesTag && matchesStatus
     })
-  }, [categoryFilter, model.entries, searchTerm, statusFilter])
+  }, [authorFilter, categoryFilter, model.entries, searchTerm, statusFilter, tagFilter])
 
   const exportFilteredEntries = () => {
     const header = ['Titolo', 'Slug', 'Categoria', 'SEO Score', 'Views', 'Noindex', 'In Sitemap', 'Meta Title', 'Meta Description', 'Issue', 'Pubblicato']
@@ -555,7 +721,107 @@ export default function SeoDashboard() {
         </div>
       ) : searchConsole?.configured ? (
         <section className="space-y-6 border border-gray-200 bg-white p-6">
-          <SectionLabel icon={Globe2} title="Google Search Console" subtitle={`Property: ${searchConsole.siteUrl}`} />
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <SectionLabel icon={Globe2} title="Google Search Console" subtitle={`Property: ${searchConsole.siteUrl} · finestra ${dateRange} giorni`} />
+            <div className="flex flex-wrap gap-2">
+              {[7, 28, 90].map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  onClick={() => setDateRange(range)}
+                  className={`border px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${dateRange === range ? 'border-juve-black bg-juve-black text-white' : 'border-gray-300 text-gray-700 hover:border-juve-black hover:text-juve-black'}`}
+                >
+                  {range}g
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['search-console-overview'] })}
+                className="inline-flex items-center gap-2 border border-gray-300 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Aggiorna
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="border border-gray-200 p-5">
+              <SectionLabel icon={Send} title="Azioni Search Console" subtitle="Invia sitemap e ispeziona URL senza uscire dal pannello" />
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Sitemap da inviare</label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={sitemapSubmitUrl || searchConsole.defaultSitemapUrl || ''}
+                      onChange={(event) => setSitemapSubmitUrl(event.target.value)}
+                      placeholder={searchConsole.defaultSitemapUrl || 'https://bianconerihub.com/sitemap.xml'}
+                      className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-black focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => submitSitemapMutation.mutate()}
+                      disabled={submitSitemapMutation.isPending}
+                      className="inline-flex items-center justify-center gap-2 bg-juve-gold px-4 py-2 text-xs font-bold uppercase tracking-wider text-black transition-colors hover:bg-juve-gold-dark disabled:opacity-60"
+                    >
+                      {submitSitemapMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      Invia sitemap
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">URL inspection</label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={inspectionUrl}
+                      onChange={(event) => setInspectionUrl(event.target.value)}
+                      placeholder={`${searchConsole.publicSiteBaseUrl || 'https://bianconerihub.com'}/articolo/slug`}
+                      className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-black focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => inspectUrlMutation.mutate(inspectionUrl.trim())}
+                      disabled={inspectUrlMutation.isPending || !inspectionUrl.trim()}
+                      className="inline-flex items-center justify-center gap-2 border border-gray-300 px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black disabled:opacity-60"
+                    >
+                      {inspectUrlMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                      Ispeziona
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 p-5">
+              <SectionLabel icon={Link2} title="Esito URL inspection" subtitle="Stato indicizzazione della URL appena interrogata" />
+              {inspectionResult ? (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Copertura</p>
+                      <p className="mt-2 font-bold text-juve-black">{inspectionResult.indexStatusResult?.coverageState || 'n/d'}</p>
+                    </div>
+                    <div className="border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Robots / indicizzazione</p>
+                      <p className="mt-2 font-bold text-juve-black">{inspectionResult.indexStatusResult?.robotsTxtState || 'n/d'} · {inspectionResult.indexStatusResult?.indexingState || 'n/d'}</p>
+                    </div>
+                    <div className="border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Canonical Google</p>
+                      <p className="mt-2 break-all font-bold text-juve-black">{inspectionResult.indexStatusResult?.googleCanonical || 'n/d'}</p>
+                    </div>
+                    <div className="border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">Ultimo crawl</p>
+                      <p className="mt-2 font-bold text-juve-black">{inspectionResult.indexStatusResult?.lastCrawlTime ? formatDate(inspectionResult.indexStatusResult.lastCrawlTime) : 'n/d'}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Verdetto: {inspectionResult.indexStatusResult?.verdict || 'n/d'}</p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">Inserisci una URL del sito e lancia l'ispezione per leggere copertura, canonical e ultimo crawl.</p>
+              )}
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
@@ -666,6 +932,34 @@ export default function SeoDashboard() {
               </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="border border-gray-200 p-5">
+              <SectionLabel icon={Smartphone} title="Device mix" subtitle="Distribuzione performance per dispositivo" />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={searchConsole.devices || []} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="#f3f4f6" strokeDasharray="3 3" />
+                  <XAxis dataKey="device" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, border: '1px solid #e5e7eb' }} formatter={(value) => [formatMetricNumber(value), 'Click']} />
+                  <Bar dataKey="clicks" fill="#111111" radius={[2, 2, 0, 0]} maxBarSize={42} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="border border-gray-200 p-5">
+              <SectionLabel icon={MapPinned} title="Paesi" subtitle="Mercati reali che stanno generando traffico organico" />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={(searchConsole.countries || []).slice(0, 6)} layout="vertical" margin={{ top: 0, right: 10, left: 30, bottom: 0 }}>
+                  <CartesianGrid stroke="#f3f4f6" strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="country" width={80} tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12, border: '1px solid #e5e7eb' }} formatter={(value) => [formatMetricNumber(value), 'Click']} />
+                  <Bar dataKey="clicks" fill="#F5A623" radius={[0, 2, 2, 0]} maxBarSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </section>
       ) : (
         <div className="border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
@@ -691,14 +985,14 @@ export default function SeoDashboard() {
               <Download className="h-3.5 w-3.5" />
               Export CSV
             </button>
-            <button type="button" onClick={() => { setSearchTerm(''); setStatusFilter('all'); setCategoryFilter('all') }} className="inline-flex items-center gap-2 border border-gray-300 px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black">
+            <button type="button" onClick={() => { setSearchTerm(''); setStatusFilter('all'); setCategoryFilter('all'); setAuthorFilter('all'); setTagFilter('all') }} className="inline-flex items-center gap-2 border border-gray-300 px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black">
               <X className="h-3.5 w-3.5" />
               Reset
             </button>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-5">
           <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Cerca titolo o slug..." className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-black focus:outline-none" />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-black focus:outline-none">
             <option value="all">Tutti gli articoli</option>
@@ -714,10 +1008,54 @@ export default function SeoDashboard() {
               <option key={option} value={option}>{option === 'all' ? 'Tutte le categorie' : option}</option>
             ))}
           </select>
+          <select value={authorFilter} onChange={(event) => setAuthorFilter(event.target.value)} className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-black focus:outline-none">
+            {authorOptions.map((option) => (
+              <option key={option} value={option}>{option === 'all' ? 'Tutti gli autori' : option}</option>
+            ))}
+          </select>
+          <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="w-full border border-gray-300 px-3 py-2 text-sm focus:border-juve-black focus:outline-none">
+            {tagOptions.map((option) => (
+              <option key={option} value={option}>{option === 'all' ? 'Tutti i tag' : option}</option>
+            ))}
+          </select>
         </div>
 
         <p className="mt-3 text-xs text-gray-500">{filteredEntries.length} articoli nel filtro corrente.</p>
       </section>
+
+      <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }} className="border border-gray-200 bg-white p-6">
+        <SectionLabel icon={CalendarClock} title="Queue operativa" subtitle="Interventi da eseguire adesso tra criticità editoriali e opportunità Search Console" />
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {model.actionQueue.map((item) => (
+            <div key={item.id} className="border border-gray-100 bg-gray-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${item.type === 'critical' ? 'bg-red-100 text-red-700' : item.type === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {item.type === 'critical' ? 'Critico' : item.type === 'warning' ? 'Warning' : 'Opportunity'}
+                    </span>
+                    <span className="text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">{item.label}</span>
+                  </div>
+                  <p className="mt-2 truncate text-sm font-bold text-juve-black">{item.title}</p>
+                  <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
+                </div>
+                {item.articleId ? (
+                  <Link to={`/admin/articoli/${item.articleId}/modifica`} className="inline-flex items-center justify-center gap-1.5 border border-gray-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black">
+                    <Pencil className="h-3.5 w-3.5" />
+                    Apri
+                  </Link>
+                ) : (
+                  <a href={item.title} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-1.5 border border-gray-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black">
+                    <Globe2 className="h-3.5 w-3.5" />
+                    URL
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+          {model.actionQueue.length === 0 && <p className="py-8 text-sm text-gray-400">Nessuna azione urgente rilevata.</p>}
+        </div>
+      </motion.section>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="border border-gray-200 bg-white p-6">
@@ -776,6 +1114,7 @@ export default function SeoDashboard() {
             <thead>
               <tr className="border-b border-gray-200 text-left text-[11px] font-black uppercase tracking-[0.16em] text-gray-500">
                 <th className="px-3 py-3">Articolo</th>
+                <th className="px-3 py-3">Autore</th>
                 <th className="px-3 py-3">Categoria</th>
                 <th className="px-3 py-3">SEO</th>
                 <th className="px-3 py-3">Views</th>
@@ -790,6 +1129,10 @@ export default function SeoDashboard() {
                   <td className="px-3 py-3">
                     <p className="font-bold text-juve-black">{entry.title}</p>
                     <p className="mt-1 text-xs text-gray-500">/{entry.slug} · {formatDate(entry.published_at)}</p>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-gray-600">
+                    <p>{entry.authorName}</p>
+                    {entry.tags.length > 0 && <p className="mt-1 text-[11px] text-gray-400">{entry.tags.slice(0, 2).map((tag) => tag.name).join(' · ')}</p>}
                   </td>
                   <td className="px-3 py-3 text-xs text-gray-600">{entry.categories?.name || 'Senza categoria'}</td>
                   <td className="px-3 py-3">

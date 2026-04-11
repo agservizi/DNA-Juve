@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -52,6 +52,21 @@ export default function ArticleList() {
     return matchSearch && matchStatus
   })
 
+  const scheduledOverview = useMemo(() => {
+    const groups = articles
+      .filter(isScheduledArticle)
+      .sort((left, right) => new Date(left.scheduled_at).getTime() - new Date(right.scheduled_at).getTime())
+      .reduce((acc, article) => {
+        const dayKey = new Date(article.scheduled_at).toISOString().slice(0, 10)
+        const current = acc.get(dayKey) || { dayKey, items: [] }
+        current.items.push(article)
+        acc.set(dayKey, current)
+        return acc
+      }, new Map())
+
+    return Array.from(groups.values()).slice(0, 6)
+  }, [articles])
+
   return (
     <div>
       {/* Header */}
@@ -96,6 +111,37 @@ export default function ArticleList() {
           </div>
         </div>
       </div>
+
+      {scheduledOverview.length > 0 && (
+        <div className="mb-6 border border-blue-200 bg-blue-50 p-5">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wider text-blue-900">Calendario pubblicazioni</h2>
+              <p className="mt-1 text-xs text-blue-800">Prossime uscite programmate nei prossimi slot editoriali.</p>
+            </div>
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-700">{articles.filter(isScheduledArticle).length} programmati</p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+            {scheduledOverview.map((group) => (
+              <div key={group.dayKey} className="border border-blue-100 bg-white p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-blue-700">{formatDateShort(group.dayKey)}</p>
+                <div className="mt-3 space-y-3">
+                  {group.items.map((article) => (
+                    <div key={article.id} className="border-l-2 border-juve-gold pl-3">
+                      <p className="line-clamp-2 text-sm font-bold text-juve-black">{article.title}</p>
+                      <p className="mt-1 text-xs text-gray-500">{new Date(article.scheduled_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · {article.categories?.name || 'Senza categoria'}</p>
+                      <Link to={`/admin/articoli/${article.id}/modifica`} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-blue-700 hover:underline">
+                        Modifica slot
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       {isLoading ? (
