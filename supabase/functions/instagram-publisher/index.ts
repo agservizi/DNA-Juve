@@ -81,6 +81,23 @@ function truncateText(value: string, maxLength: number) {
   return `${value.slice(0, Math.max(0, maxLength - 1)).trim()}…`
 }
 
+function createHttpError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status?: number }
+  error.status = status
+  return error
+}
+
+function isRateLimitMessage(message: string) {
+  const normalized = String(message || '').toLowerCase()
+  return normalized.includes('too many requests')
+    || normalized.includes('rate limit')
+    || normalized.includes('try again later')
+}
+
+function getPublicRateLimitMessage() {
+  return 'Provider Instagram temporaneamente limitato: riprova tra qualche minuto.'
+}
+
 function buildInstagramCaption(article: ArticleRow) {
   const intro = String(article.instagram_caption_override || '').trim()
   const title = String(article.title || '').trim()
@@ -164,6 +181,9 @@ async function createInstagramMedia(imageUrl: string, caption: string) {
   })
 
   const data = await response.json().catch(() => ({})) as { id?: string, error?: { message?: string } }
+  if (response.status === 429) {
+    throw createHttpError(getPublicRateLimitMessage(), 429)
+  }
   if (!response.ok || !data.id) {
     throw new Error(data?.error?.message || 'Creazione media Instagram fallita.')
   }
@@ -214,7 +234,11 @@ async function publishInstagramViaN8n(article: ArticleRow) {
   }
 
   if (!response.ok || (data?.success === false) || (data?.ok === false)) {
-    throw new Error(data?.error || data?.message || 'Webhook n8n Instagram non disponibile.')
+    const message = data?.error || data?.message || 'Webhook n8n Instagram non disponibile.'
+    if (response.status === 429 || isRateLimitMessage(message)) {
+      throw createHttpError(getPublicRateLimitMessage(), 429)
+    }
+    throw new Error(message)
   }
 
   return {
@@ -304,7 +328,11 @@ async function publishInstagramViaBuffer(article: ArticleRow) {
   const createPost = data?.data?.createPost
   const post = createPost?.post
   if (!response.ok || data?.errors?.length || ['MutationError', 'UnexpectedError'].includes(String(createPost?.__typename || '')) || !post?.id) {
-    throw new Error(data?.errors?.[0]?.message || createPost?.message || 'Invio Buffer fallito.')
+    const message = data?.errors?.[0]?.message || createPost?.message || 'Invio Buffer fallito.'
+    if (response.status === 429 || isRateLimitMessage(message)) {
+      throw createHttpError(getPublicRateLimitMessage(), 429)
+    }
+    throw new Error(message)
   }
 
   return {
@@ -330,6 +358,9 @@ async function publishInstagramMedia(creationId: string) {
     })
 
     const data = await response.json().catch(() => ({})) as { id?: string, error?: { message?: string } }
+    if (response.status === 429) {
+      throw createHttpError(getPublicRateLimitMessage(), 429)
+    }
     if (response.ok && data.id) {
       return data.id
     }
@@ -380,6 +411,16 @@ async function markArticleFailure(supabaseAdmin: ReturnType<typeof createClient>
     .from('articles')
     .update({
       instagram_post_status: 'failed',
+      instagram_post_error: truncateText(message, 500),
+    })
+    .eq('id', articleId)
+}
+
+async function markArticlePendingRetry(supabaseAdmin: ReturnType<typeof createClient>, articleId: string, message: string) {
+  await supabaseAdmin
+    .from('articles')
+    .update({
+      instagram_post_status: 'pending',
       instagram_post_error: truncateText(message, 500),
     })
     .eq('id', articleId)
@@ -447,6 +488,7 @@ async function processPendingArticles(supabaseAdmin: ReturnType<typeof createCli
     processed: 0,
     published: 0,
     failed: 0,
+    rateLimited: 0,
     items: [] as Array<Record<string, unknown>>,
   }
 
@@ -462,6 +504,13 @@ async function processPendingArticles(supabaseAdmin: ReturnType<typeof createCli
       summary.items.push({ articleId: result.articleId, status: 'published', permalink: result.permalink })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Pubblicazione Instagram fallita.'
+      const status = error instanceof Error && 'status' in error ? Number((error as Error & { status?: number }).status) || 400 : 400
+      if (status === 429) {
+        await markArticlePendingRetry(supabaseAdmin, reserved.id, message)
+        summary.rateLimited += 1
+        summary.items.push({ articleId: reserved.id, status: 'rate-limited', error: message })
+        continue
+      }
       await markArticleFailure(supabaseAdmin, reserved.id, message)
       summary.failed += 1
       summary.items.push({ articleId: reserved.id, status: 'failed', error: message })
@@ -554,6 +603,11 @@ Deno.serve(async (req) => {
         return jsonResponse({ configured: true, ...result })
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Pubblicazione Instagram fallita.'
+        const status = error instanceof Error && 'status' in error ? Number((error as Error & { status?: number }).status) || 400 : 400
+        if (status === 429) {
+          await markArticlePendingRetry(supabaseAdmin, reserved.id, message)
+          return jsonResponse({ error: message }, 429)
+        }
         await markArticleFailure(supabaseAdmin, reserved.id, message)
         return jsonResponse({ error: message }, 400)
       }

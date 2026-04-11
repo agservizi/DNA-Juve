@@ -935,7 +935,9 @@ export const invokeInstagramPublisher = async (payload = {}) => {
   }
 
   if (!response.ok) {
-    return { data: null, error: new Error(data?.error || 'Instagram publisher non disponibile.') }
+    const error = new Error(data?.error || 'Instagram publisher non disponibile.')
+    error.status = response.status
+    return { data: null, error }
   }
 
   return { data, error: null }

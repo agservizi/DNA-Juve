@@ -974,7 +974,12 @@ export default function ArticleEditor() {
       toast({ title: 'Instagram aggiornato', description: 'Il post e stato inviato su Instagram.', variant: 'success' })
     },
     onError: (err) => {
-      toast({ title: 'Invio Instagram fallito', description: err.message, variant: 'destructive' })
+      const isRateLimited = Number(err?.status) === 429
+      toast({
+        title: isRateLimited ? 'Provider temporaneamente limitato' : 'Invio Instagram fallito',
+        description: err.message,
+        variant: 'destructive',
+      })
     },
   })
 
