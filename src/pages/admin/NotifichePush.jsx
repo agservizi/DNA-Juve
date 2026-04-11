@@ -17,6 +17,19 @@ const PRESET_URLS = [
 
 const PUSH_DRAFT_STORAGE_KEY = 'admin-push-notification-draft'
 
+function getSummaryCount(value) {
+  if (Array.isArray(value)) return value.length
+
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
+function getFailedDeliveries(value) {
+  if (!Array.isArray(value)) return []
+
+  return value.filter((entry) => entry && typeof entry === 'object')
+}
+
 export default function NotifichePush() {
   const { toast } = useToast()
   const [title, setTitle] = useState('')
@@ -100,6 +113,15 @@ export default function NotifichePush() {
     setSent(null)
     sendMutation.mutate()
   }
+
+  const failedDeliveries = getFailedDeliveries(sent?.failed)
+  const summaryItems = sent
+    ? [
+      { label: 'Consegnate', value: getSummaryCount(sent.delivered) },
+      { label: 'Fallite', value: getSummaryCount(sent.failed) },
+      { label: 'Saltate', value: getSummaryCount(sent.skipped) },
+    ]
+    : []
 
   return (
     <div>
@@ -237,17 +259,29 @@ export default function NotifichePush() {
                 <h3 className="font-bold text-sm text-green-800 uppercase tracking-wider">Risultato invio</h3>
               </div>
               <dl className="grid grid-cols-3 gap-4">
-                {[
-                  { label: 'Consegnate', value: sent.delivered ?? 0 },
-                  { label: 'Fallite', value: sent.failed ?? 0 },
-                  { label: 'Saltate', value: sent.skipped ?? 0 },
-                ].map(item => (
+                {summaryItems.map(item => (
                   <div key={item.label}>
                     <dt className="text-xs text-green-600 font-bold uppercase tracking-wider">{item.label}</dt>
                     <dd className="font-display text-2xl font-black text-green-900">{item.value}</dd>
                   </div>
                 ))}
               </dl>
+
+              {failedDeliveries.length > 0 && (
+                <div className="mt-4 border-t border-green-200 pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-green-700">Errori di consegna</p>
+                  <ul className="mt-2 space-y-2 text-xs text-green-900">
+                    {failedDeliveries.slice(0, 5).map((entry, index) => (
+                      <li key={`${entry.endpoint || 'endpoint'}-${index}`} className="break-all">
+                        <strong>{entry.endpoint || 'endpoint sconosciuto'}</strong>: {String(entry.error || 'Errore sconosciuto')}
+                      </li>
+                    ))}
+                  </ul>
+                  {failedDeliveries.length > 5 && (
+                    <p className="mt-2 text-xs text-green-700">Altri {failedDeliveries.length - 5} errori non mostrati.</p>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
 
