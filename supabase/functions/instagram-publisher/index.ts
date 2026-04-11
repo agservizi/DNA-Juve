@@ -267,7 +267,7 @@ async function publishInstagramViaBuffer(article: ArticleRow) {
           channelId: bufferChannelId,
           text: caption,
           schedulingType: 'automatic',
-          mode: 'addToQueue',
+          mode: 'shareNow',
           assets: {
             images: [{
               url: imageUrl,
