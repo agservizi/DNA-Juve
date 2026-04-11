@@ -15,7 +15,7 @@ import {
   getArticleRevisions, getArticleRevisionById, createArticleRevision, getSeoArticleConflicts,
   getVideos, publishArticleToInstagram,
 } from '@/lib/supabase'
-import { formatDateLocalized, formatTimeLocalized, getClientLocaleContext, slugify, stripHtml, readingTime } from '@/lib/utils'
+import { formatDate, formatDateLocalized, formatTimeLocalized, getClientLocaleContext, slugify, stripHtml, readingTime } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import RichEditor from '@/components/admin/RichEditor'
