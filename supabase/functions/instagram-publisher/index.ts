@@ -85,7 +85,6 @@ function buildInstagramCaption(article: ArticleRow) {
   const intro = String(article.instagram_caption_override || '').trim()
   const title = String(article.title || '').trim()
   const excerpt = truncateText(String(article.excerpt || '').replace(/\s+/g, ' ').trim(), 260)
-  const articleUrl = getArticleUrl(article.slug)
   const pieces = [intro || title]
 
   if (!intro && excerpt) {
@@ -94,7 +93,7 @@ function buildInstagramCaption(article: ArticleRow) {
 
   pieces.push('Segui @BianconeriHub.Magazine per restare aggiornato sul mondo bianconero.')
   pieces.push('Iscriviti a BianconeriHub per non perderti i nuovi contenuti e per scrivere articoli con la community.')
-  pieces.push(`Leggi l\'articolo completo su ${articleUrl}`)
+  pieces.push('Leggi l\'articolo completo dal link in bio su BianconeriHub.')
 
   return truncateText(pieces.filter(Boolean).join('\n\n'), 2200)
 }

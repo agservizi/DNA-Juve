@@ -175,14 +175,13 @@ function buildSeoHints({ title, excerpt, content, categoryName, coverImage, meta
 }
 
 function buildInstagramCaptionPreview({ title, excerpt, slug, captionOverride }) {
-  const articleUrl = `${SITE_URL}/articolo/${slug || 'slug-articolo'}`
   const intro = String(captionOverride || '').trim()
   const summary = String(excerpt || '').trim()
   const pieces = [intro || title, !intro && summary ? summary : null].filter(Boolean)
   const cta = [
     'Segui @BianconeriHub.Magazine per restare aggiornato sul mondo bianconero.',
     'Iscriviti a BianconeriHub per non perderti i nuovi contenuti e per scrivere articoli con la community.',
-    `Leggi l\'articolo completo su ${articleUrl}`,
+    'Leggi l\'articolo completo dal link in bio su BianconeriHub.',
   ]
 
   return [...pieces, ...cta].join('\n\n').slice(0, 2200)
