@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Edit, Trash2, Loader2, Tag } from 'lucide-react'
 import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { slugify } from '@/lib/utils'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/Dialog'
 import { useToast } from '@/hooks/useToast'
@@ -15,7 +16,7 @@ const COLORS = [
 
 export default function Categories() {
   const [modal, setModal] = useState(null) // null | 'new' | { edit: category }
-  const [form, setForm] = useState({ name: '', slug: '', color: '#F5A623' })
+  const [form, setForm, clearFormDraft] = usePersistentAdminState('categories-form', { name: '', slug: '', color: '#F5A623' })
   const [deleteTarget, setDeleteTarget] = useState(null)
   const { toast } = useToast()
   const qc = useQueryClient()
@@ -30,6 +31,7 @@ export default function Categories() {
 
   const openNew = () => {
     setForm({ name: '', slug: '', color: '#F5A623' })
+    clearFormDraft()
     setModal('new')
   }
 
@@ -47,6 +49,8 @@ export default function Categories() {
       qc.invalidateQueries(['categories'])
       toast({ title: modal?.edit ? 'Categoria aggiornata' : 'Categoria creata', variant: 'success' })
       setModal(null)
+      setForm({ name: '', slug: '', color: '#F5A623' })
+      clearFormDraft()
     },
     onError: () => toast({ title: 'Errore nel salvataggio', variant: 'destructive' }),
   })

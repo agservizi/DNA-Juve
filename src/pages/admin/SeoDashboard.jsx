@@ -46,6 +46,7 @@ import {
 } from '@/lib/supabase'
 import { generateSitemap } from '@/lib/feeds'
 import { formatDate, formatViews, stripHtml } from '@/lib/utils'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 
 const SCORE_BUCKET_COLORS = ['#16A34A', '#D97706', '#DC2626', '#475569']
@@ -307,15 +308,15 @@ function SectionLabel({ icon: Icon, title, subtitle }) {
 export default function SeoDashboard() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [authorFilter, setAuthorFilter] = useState('all')
-  const [tagFilter, setTagFilter] = useState('all')
-  const [dateRange, setDateRange] = useState(28)
-  const [inspectionUrl, setInspectionUrl] = useState('')
+  const [searchTerm, setSearchTerm] = usePersistentAdminState('seo-search', '')
+  const [statusFilter, setStatusFilter] = usePersistentAdminState('seo-status-filter', 'all')
+  const [categoryFilter, setCategoryFilter] = usePersistentAdminState('seo-category-filter', 'all')
+  const [authorFilter, setAuthorFilter] = usePersistentAdminState('seo-author-filter', 'all')
+  const [tagFilter, setTagFilter] = usePersistentAdminState('seo-tag-filter', 'all')
+  const [dateRange, setDateRange] = usePersistentAdminState('seo-date-range', 28)
+  const [inspectionUrl, setInspectionUrl] = usePersistentAdminState('seo-inspection-url', '')
   const [inspectionResult, setInspectionResult] = useState(null)
-  const [sitemapSubmitUrl, setSitemapSubmitUrl] = useState('')
+  const [sitemapSubmitUrl, setSitemapSubmitUrl] = usePersistentAdminState('seo-sitemap-submit-url', '')
 
   const { data: articles = [], isLoading: articlesLoading } = useQuery({
     queryKey: ['seo-dashboard-articles'],

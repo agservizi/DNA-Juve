@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit3, X, ChevronDown, ArrowUpDown, Loader2, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 
 const STATUS_OPTIONS = ['rumor', 'trattativa', 'accordo', 'ufficiale', 'sfumato']
 const STATUS_LABELS = { rumor: 'Voce', trattativa: 'Trattativa', accordo: 'Accordo', ufficiale: 'Ufficiale', sfumato: 'Sfumato' }
@@ -16,10 +17,10 @@ const emptyRumor = {
 
 export default function TransferAdmin() {
   const queryClient = useQueryClient()
-  const [editingRumor, setEditingRumor] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ ...emptyRumor })
-  const [statusUpdate, setStatusUpdate] = useState({ rumorId: null, newStatus: '', note: '' })
+  const [editingRumor, setEditingRumor] = usePersistentAdminState('transfer-editing-rumor', null)
+  const [showForm, setShowForm] = usePersistentAdminState('transfer-show-form', false)
+  const [formData, setFormData, clearFormData] = usePersistentAdminState('transfer-form-data', { ...emptyRumor })
+  const [statusUpdate, setStatusUpdate] = usePersistentAdminState('transfer-status-update', { rumorId: null, newStatus: '', note: '' })
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { data: rumors = [], isLoading } = useQuery({
@@ -73,6 +74,7 @@ export default function TransferAdmin() {
 
   const resetForm = () => {
     setFormData({ ...emptyRumor })
+    clearFormData()
     setEditingRumor(null)
     setShowForm(false)
   }

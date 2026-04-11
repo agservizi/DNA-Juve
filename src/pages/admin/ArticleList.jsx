@@ -4,13 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PlusCircle, Edit, Trash2, Eye, Search, Filter, Star, Loader2 } from 'lucide-react'
 import { getAllArticles, deleteArticle } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { formatDateShort, formatViews } from '@/lib/utils'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/Dialog'
 import { useToast } from '@/hooks/useToast'
 
 export default function ArticleList() {
-  const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [search, setSearch] = usePersistentAdminState('article-list-search', '')
+  const [filterStatus, setFilterStatus] = usePersistentAdminState('article-list-status', 'all')
   const [deleteId, setDeleteId] = useState(null)
   const { toast } = useToast()
   const qc = useQueryClient()

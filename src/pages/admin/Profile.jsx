@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { supabase, uploadImage } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 import { formatDateShort, timeAgo } from '@/lib/utils'
 
@@ -73,17 +74,23 @@ export default function Profile() {
   const { user, refreshProfile } = useAuth()
   const { toast } = useToast()
   const qc = useQueryClient()
+  const hasHydratedProfile = useRef(false)
 
-  const [username, setUsername] = useState('')
-  const [bio, setBio] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState('')
-  const [authorSignature, setAuthorSignature] = useState('')
-  const [specialties, setSpecialties] = useState('')
-  const [socials, setSocials] = useState({
+  const [username, setUsername] = usePersistentAdminState('profile-username', '')
+  const [bio, setBio] = usePersistentAdminState('profile-bio', '')
+  const [avatarUrl, setAvatarUrl] = usePersistentAdminState('profile-avatar-url', '')
+  const [authorSignature, setAuthorSignature] = usePersistentAdminState('profile-author-signature', '')
+  const [specialties, setSpecialties] = usePersistentAdminState('profile-specialties', '')
+  const [socials, setSocials, clearSocialsDraft] = usePersistentAdminState('profile-socials', {
     twitter_url: '',
     instagram_url: '',
     linkedin_url: '',
   })
+  const [, , clearUsernameDraft] = usePersistentAdminState('profile-username', '')
+  const [, , clearBioDraft] = usePersistentAdminState('profile-bio', '')
+  const [, , clearAvatarDraft] = usePersistentAdminState('profile-avatar-url', '')
+  const [, , clearSignatureDraft] = usePersistentAdminState('profile-author-signature', '')
+  const [, , clearSpecialtiesDraft] = usePersistentAdminState('profile-specialties', '')
   const [uploading, setUploading] = useState(false)
   const [pwdForm, setPwdForm] = useState({ newPwd: '', confirm: '' })
   const [pwdLoading, setPwdLoading] = useState(false)
@@ -102,7 +109,22 @@ export default function Profile() {
   })
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile || hasHydratedProfile.current) return
+
+    const hasDraft = Boolean(
+      username
+      || bio
+      || avatarUrl
+      || authorSignature
+      || specialties
+      || Object.values(socials || {}).some(Boolean)
+    )
+
+    if (hasDraft) {
+      hasHydratedProfile.current = true
+      return
+    }
+
     setUsername(profile.username || '')
     setBio(profile.bio || '')
     setAvatarUrl(profile.avatar_url || '')
@@ -113,7 +135,8 @@ export default function Profile() {
       instagram_url: profile.instagram_url || '',
       linkedin_url: profile.linkedin_url || '',
     })
-  }, [profile])
+    hasHydratedProfile.current = true
+  }, [authorSignature, avatarUrl, bio, profile, setAuthorSignature, setAvatarUrl, setBio, setSocials, setSpecialties, setUsername, socials, specialties, username])
 
   const updateMutation = useMutation({
     mutationFn: () => updateProfile(user.id, {
@@ -129,6 +152,12 @@ export default function Profile() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', user?.id] })
       refreshProfile(user)
+      clearUsernameDraft()
+      clearBioDraft()
+      clearAvatarDraft()
+      clearSignatureDraft()
+      clearSpecialtiesDraft()
+      clearSocialsDraft()
       toast({ title: 'Profilo aggiornato', description: 'Identita editoriale salvata.', variant: 'success' })
     },
     onError: (err) => {

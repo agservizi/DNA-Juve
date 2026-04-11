@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Lock, MessageSquare, Pin, Search, Trash2 } from 'lucide-react'
 import { deleteForumThread, getForumThreads, updateForumThreadModeration } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { useToast } from '@/hooks/useToast'
@@ -20,9 +21,9 @@ function timeAgo(dateStr) {
 }
 
 export default function ForumModeration() {
-  const [page, setPage] = useState(1)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = usePersistentAdminState('forum-page', 1)
+  const [searchQuery, setSearchQuery] = usePersistentAdminState('forum-query', '')
+  const [statusFilter, setStatusFilter] = usePersistentAdminState('forum-status', 'all')
   const [threadToDelete, setThreadToDelete] = useState(null)
   const queryClient = useQueryClient()
   const { toast } = useToast()

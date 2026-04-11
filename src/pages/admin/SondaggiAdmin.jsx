@@ -11,6 +11,7 @@ import {
   updateCommunityPoll,
   deleteCommunityPoll,
 } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -20,12 +21,12 @@ const CATEGORIES = ['generale', 'calcio', 'mercato', 'champions', 'serie-a', 'fo
 
 function CreatePollForm({ onCancel, onCreated }) {
   const { toast } = useToast()
-  const [question, setQuestion] = useState('')
-  const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('generale')
-  const [options, setOptions] = useState(['', ''])
-  const [expiresAt, setExpiresAt] = useState('')
-  const [isFeatured, setIsFeatured] = useState(false)
+  const [question, setQuestion, clearQuestion] = usePersistentAdminState('poll-create-question', '')
+  const [description, setDescription, clearDescription] = usePersistentAdminState('poll-create-description', '')
+  const [category, setCategory, clearCategory] = usePersistentAdminState('poll-create-category', 'generale')
+  const [options, setOptions, clearOptions] = usePersistentAdminState('poll-create-options', ['', ''])
+  const [expiresAt, setExpiresAt, clearExpiresAt] = usePersistentAdminState('poll-create-expires-at', '')
+  const [isFeatured, setIsFeatured, clearIsFeatured] = usePersistentAdminState('poll-create-featured', false)
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -39,6 +40,12 @@ function CreatePollForm({ onCancel, onCreated }) {
       }),
     onSuccess: () => {
       toast({ title: 'Sondaggio creato', variant: 'success' })
+      clearQuestion()
+      clearDescription()
+      clearCategory()
+      clearOptions()
+      clearExpiresAt()
+      clearIsFeatured()
       onCreated()
     },
     onError: () => toast({ title: 'Errore nella creazione', variant: 'error' }),
@@ -245,9 +252,9 @@ function PollRow({ poll, onToggle, onDelete }) {
 export default function SondaggiAdmin() {
   const qc = useQueryClient()
   const { toast } = useToast()
-  const [showCreate, setShowCreate] = useState(false)
+  const [showCreate, setShowCreate] = usePersistentAdminState('polls-show-create', false)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [filter, setFilter] = useState('all') // 'all' | 'active' | 'expired'
+  const [filter, setFilter] = usePersistentAdminState('polls-filter', 'all') // 'all' | 'active' | 'expired'
 
   const { data: polls = [], isLoading } = useQuery({
     queryKey: ['admin-community-polls'],

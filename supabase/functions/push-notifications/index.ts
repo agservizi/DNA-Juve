@@ -1032,15 +1032,21 @@ Deno.serve(async (req) => {
 
       const { data: subs, error: subsError } = await supabaseAdmin
         .from('push_subscriptions')
-        .select('id, subscription, user_id, guest_token')
+        .select('id, endpoint, subscription, user_id, guest_token')
         .limit(5000)
 
       if (subsError) throw subsError
       if (!subs?.length) return jsonResponse({ delivered: 0, failed: 0, skipped: 0 })
 
       const results = await sendNotificationToRecords(
-        subs.map(s => ({ ...s, subscription: typeof s.subscription === 'string' ? JSON.parse(s.subscription) : s.subscription })),
-        { title, body: broadcastBody, data: { url } }
+        supabaseAdmin,
+        subs.map((subscription) => ({
+          ...subscription,
+          subscription: typeof subscription.subscription === 'string'
+            ? JSON.parse(subscription.subscription)
+            : subscription.subscription,
+        })) as PushRecord[],
+        { title, body: broadcastBody, url, tag: 'broadcast' },
       )
       return jsonResponse(results)
     }

@@ -189,6 +189,7 @@ export default function AdminLayout() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={handleLogout}
                 className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors"
               >
@@ -202,11 +203,12 @@ export default function AdminLayout() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ease-in-out">
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-4 transition-colors dark:border-white/10 dark:bg-neutral-900 sm:px-6">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
+          <button type="button" onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10">
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           <div className="h-5 w-px bg-gray-200 dark:bg-white/10" />
           <button
+            type="button"
             onClick={toggleTheme}
             className="inline-flex items-center rounded-full border border-gray-200 p-2 text-gray-600 transition-colors hover:border-juve-gold hover:text-juve-gold dark:border-white/10 dark:text-gray-300 dark:hover:border-juve-gold dark:hover:text-juve-gold"
             aria-label={theme === 'dark' ? 'Passa alla modalità chiara' : 'Passa alla modalità scura'}
@@ -223,7 +225,7 @@ export default function AdminLayout() {
           </a>
         </header>
 
-        <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <main className="flex-1 overflow-x-hidden p-4 sm:p-6">
           <Outlet />
         </main>
       </div>

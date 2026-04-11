@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Ban, Loader2, Search, Shield, UserCheck, Users } from 'lucide-react'
 import { getReaderProfiles, updateReaderBan } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -11,8 +12,8 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 export default function Lettori() {
   const qc = useQueryClient()
   const { toast } = useToast()
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all') // 'all' | 'banned'
+  const [search, setSearch] = usePersistentAdminState('readers-search', '')
+  const [filter, setFilter] = usePersistentAdminState('readers-filter', 'all')
   const [confirmBan, setConfirmBan] = useState(null)
 
   const { data, isLoading } = useQuery({

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Edit3, X, Eye, Upload, Link2, Loader2, Film, Play, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 
 const VIDEO_CATEGORIES = [
@@ -75,10 +76,10 @@ const emptyVideo = {
 export default function VideoAdmin() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [formData, setFormData] = useState({ ...emptyVideo })
-  const [uploadMode, setUploadMode] = useState('url') // 'url' | 'upload'
+  const [showForm, setShowForm] = usePersistentAdminState('video-show-form', false)
+  const [editingId, setEditingId] = usePersistentAdminState('video-editing-id', null)
+  const [formData, setFormData, clearFormData] = usePersistentAdminState('video-form-data', { ...emptyVideo })
+  const [uploadMode, setUploadMode] = usePersistentAdminState('video-upload-mode', 'url') // 'url' | 'upload'
   const [uploading, setUploading] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -135,6 +136,7 @@ export default function VideoAdmin() {
 
   const resetForm = () => {
     setFormData({ ...emptyVideo })
+    clearFormData()
     setEditingId(null)
     setShowForm(false)
     setUploadMode('url')

@@ -25,6 +25,7 @@ import {
   updateAdminAuthorRole,
 } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 
@@ -172,11 +173,11 @@ export default function Authors() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [detailTarget, setDetailTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [filter, setFilter] = useState('all')
-  const [query, setQuery] = useState('')
-  const [pendingPage, setPendingPage] = useState(1)
-  const [activePage, setActivePage] = useState(1)
-  const [inviteForm, setInviteForm] = useState({ email: '', role: 'author' })
+  const [filter, setFilter] = usePersistentAdminState('authors-filter', 'all')
+  const [query, setQuery] = usePersistentAdminState('authors-query', '')
+  const [pendingPage, setPendingPage] = usePersistentAdminState('authors-pending-page', 1)
+  const [activePage, setActivePage] = usePersistentAdminState('authors-active-page', 1)
+  const [inviteForm, setInviteForm, clearInviteForm] = usePersistentAdminState('authors-invite-form', { email: '', role: 'author' })
   const { toast } = useToast()
   const qc = useQueryClient()
 
@@ -285,6 +286,7 @@ export default function Authors() {
         variant: 'success',
       })
       setInviteForm({ email: '', role: 'author' })
+      clearInviteForm()
       setInviteOpen(false)
       reloadAuthors()
     },

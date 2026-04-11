@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Bell, CheckCircle2, Loader2, Send } from 'lucide-react'
@@ -15,6 +15,8 @@ const PRESET_URLS = [
   { label: 'Forum', value: '/community/forum' },
 ]
 
+const PUSH_DRAFT_STORAGE_KEY = 'admin-push-notification-draft'
+
 export default function NotifichePush() {
   const { toast } = useToast()
   const [title, setTitle] = useState('')
@@ -22,6 +24,48 @@ export default function NotifichePush() {
   const [url, setUrl] = useState('/')
   const [customUrl, setCustomUrl] = useState('')
   const [sent, setSent] = useState(null)
+  const draftHydratedRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || draftHydratedRef.current) return
+
+    draftHydratedRef.current = true
+
+    try {
+      const rawDraft = window.localStorage.getItem(PUSH_DRAFT_STORAGE_KEY)
+      if (!rawDraft) return
+
+      const parsedDraft = JSON.parse(rawDraft)
+      setTitle(typeof parsedDraft.title === 'string' ? parsedDraft.title : '')
+      setBody(typeof parsedDraft.body === 'string' ? parsedDraft.body : '')
+      setUrl(typeof parsedDraft.url === 'string' ? parsedDraft.url : '/')
+      setCustomUrl(typeof parsedDraft.customUrl === 'string' ? parsedDraft.customUrl : '')
+    } catch {
+      // Ignore invalid local drafts.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !draftHydratedRef.current) return
+
+    const draftPayload = {
+      title,
+      body,
+      url,
+      customUrl,
+    }
+
+    try {
+      if (!title && !body && !customUrl && url === '/') {
+        window.localStorage.removeItem(PUSH_DRAFT_STORAGE_KEY)
+        return
+      }
+
+      window.localStorage.setItem(PUSH_DRAFT_STORAGE_KEY, JSON.stringify(draftPayload))
+    } catch {
+      // Ignore localStorage quota errors.
+    }
+  }, [title, body, url, customUrl])
 
   const sendMutation = useMutation({
     mutationFn: () =>
@@ -36,6 +80,13 @@ export default function NotifichePush() {
       setBody('')
       setUrl('/')
       setCustomUrl('')
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.removeItem(PUSH_DRAFT_STORAGE_KEY)
+        } catch {
+          // Ignore storage cleanup failures.
+        }
+      }
       toast({ title: 'Notifica inviata', variant: 'success' })
     },
     onError: (err) => {

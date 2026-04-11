@@ -8,6 +8,7 @@ import {
   sendReaderEventNotification,
   updateFanArticleSubmission,
 } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { stripHtml, truncate, readingTime, formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
@@ -25,8 +26,8 @@ const FILTERS = [
 ]
 
 export default function FanArticleSubmissions() {
-  const [filter, setFilter] = useState('submitted')
-  const [notesById, setNotesById] = useState({})
+  const [filter, setFilter] = usePersistentAdminState('fan-submissions-filter', 'submitted')
+  const [notesById, setNotesById] = usePersistentAdminState('fan-submissions-notes', {})
   const { user } = useAuth()
   const { toasts, toast, dismiss } = useToast()
   const qc = useQueryClient()

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { CheckCircle2, Loader2, MessageSquare, Search, Trash2, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { deleteComment, getAllComments, updateComment } from '@/lib/supabase'
+import { usePersistentAdminState } from '@/hooks/usePersistentAdminState'
 import { useToast } from '@/hooks/useToast'
 import { timeAgo, truncate } from '@/lib/utils'
 
@@ -16,8 +17,8 @@ const FILTERS = [
 export default function CommentsAdmin() {
   const qc = useQueryClient()
   const { toast } = useToast()
-  const [status, setStatus] = useState('pending')
-  const [query, setQuery] = useState('')
+  const [status, setStatus] = usePersistentAdminState('comments-status', 'pending')
+  const [query, setQuery] = usePersistentAdminState('comments-query', '')
 
   const { data: comments = [], isLoading } = useQuery({
     queryKey: ['admin-comments', status],
