@@ -5,12 +5,12 @@ import { Search, Menu, X, Zap, UserCircle, Moon, Sun, ChevronDown, Users, BarCha
 import { useQuery } from '@tanstack/react-query'
 import { getCategories, getPublishedArticles } from '@/lib/supabase'
 import { getTransferNews } from '@/lib/newsApi'
-import { getLiveMatch, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
+import { getLatestFinishedMatch, getLiveMatch, getMatchFinishedAt, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { formatDate } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 import { useTheme } from '@/hooks/useTheme'
 
-const FINAL_BADGE_WINDOW_MS = 24 * 60 * 60 * 1000
+const FINAL_BADGE_WINDOW_MS = 3 * 60 * 60 * 1000
 
 function getLiveMatchLabel(match) {
   if (!match) return ''
@@ -30,21 +30,9 @@ function getLiveMinute(match) {
   return ''
 }
 
-function getFinishedAt(match) {
-  const updatedAt = new Date(match?.lastUpdated || '').getTime()
-  if (Number.isFinite(updatedAt) && updatedAt > 0) return updatedAt
-
-  const kickoff = new Date(match?.utcDate || '').getTime()
-  if (Number.isFinite(kickoff) && kickoff > 0) {
-    return kickoff + 2 * 60 * 60 * 1000
-  }
-
-  return null
-}
-
 function shouldShowFinalBadge(match) {
   if (!match || match.status !== 'FINISHED') return false
-  const finishedAt = getFinishedAt(match)
+  const finishedAt = getMatchFinishedAt(match)
   if (!finishedAt) return false
   return Date.now() - finishedAt <= FINAL_BADGE_WINDOW_MS
 }
@@ -90,9 +78,7 @@ export default function Header() {
         getRecentFinishedMatches(JUVE_ID, 1),
       ])
 
-      const latestFinished = (latestFinishedMatches || [])
-        .filter((match) => match?.status === 'FINISHED')
-        .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
+      const latestFinished = getLatestFinishedMatch(latestFinishedMatches || [])
 
       return {
         liveMatch: live || null,

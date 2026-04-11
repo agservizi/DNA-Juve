@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Activity, ArrowRight, Check, Clock3, MessageSquare, Play, Radio, Vote } from 'lucide-react'
 import { getCommunityPolls, getForumThreads, getSidebarPoll, voteMatchPoll } from '@/lib/supabase'
-import { getLiveMatch, getNextMatch, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
+import { getLatestFinishedMatch, getLiveMatch, getMatchFinishedAt, getNextMatch, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
 
 const PREMATCH_WINDOW_MS = 36 * 60 * 60 * 1000
@@ -40,16 +40,6 @@ function getKickoffMeta(match) {
   }
 }
 
-function getFinishedAt(match) {
-  const updatedAt = new Date(match?.lastUpdated || '').getTime()
-  if (Number.isFinite(updatedAt) && updatedAt > 0) return updatedAt
-
-  const kickoff = new Date(match?.utcDate || '').getTime()
-  if (Number.isFinite(kickoff) && kickoff > 0) return kickoff + 2 * 60 * 60 * 1000
-
-  return null
-}
-
 function getPostMatchStateLabel(match) {
   if (!match) return 'Partita chiusa'
 
@@ -67,7 +57,7 @@ function getPostMatchStateLabel(match) {
 }
 
 function getTimeSinceFinalLabel(match) {
-  const finishedAt = getFinishedAt(match)
+  const finishedAt = getMatchFinishedAt(match)
   if (!finishedAt) return 'Finale recente'
 
   const diffMinutes = Math.max(0, Math.floor((Date.now() - finishedAt) / 60000))
@@ -78,12 +68,6 @@ function getTimeSinceFinalLabel(match) {
 
   const days = Math.floor(hours / 24)
   return `${days} ${days === 1 ? 'giorno' : 'giorni'} dal fischio finale`
-}
-
-function getLatestFinishedMatch(matches = []) {
-  return matches
-    .filter((match) => match?.status === 'FINISHED')
-    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))[0] || null
 }
 
 function getCountdownParts(utcDate, now) {
@@ -148,7 +132,7 @@ function buildPulseState({ liveMatch, nextMatch, latestFinishedMatch, postMatchP
   }
 
   if (latestFinishedMatch) {
-    const finishedAt = getFinishedAt(latestFinishedMatch)
+    const finishedAt = getMatchFinishedAt(latestFinishedMatch)
     if (finishedAt && now - finishedAt <= POSTMATCH_WINDOW_MS) {
       return {
         mode: 'postmatch',

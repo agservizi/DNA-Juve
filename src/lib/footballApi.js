@@ -1,7 +1,8 @@
 import { apiUrl, apiHeaders } from './apiProxy'
 
 const JUVE_ID = 109
-const FOOTBALL_CACHE_PREFIX = 'football-api-cache:'
+const FOOTBALL_CACHE_PREFIX = 'football-api-cache:v2:'
+const DEFAULT_FINISHED_MATCH_DURATION_MS = 2 * 60 * 60 * 1000
 const memoryCache = new Map()
 const inFlightRequests = new Map()
 const STADIUM_BY_TEAM_ID = {
@@ -30,7 +31,7 @@ const STADIUM_BY_TEAM_ID = {
 function getCacheTtl(endpoint) {
   if (endpoint.includes('status=LIVE')) return 60 * 1000
   if (endpoint.includes('status=SCHEDULED')) return 2 * 60 * 1000
-  if (endpoint.includes('status=FINISHED')) return 12 * 60 * 60 * 1000
+  if (endpoint.includes('status=FINISHED')) return 5 * 60 * 1000
   if (endpoint.includes('/standings')) return 2 * 60 * 60 * 1000
   return 15 * 60 * 1000
 }
@@ -165,6 +166,28 @@ export async function getTeamMatches(season) {
 export async function getRecentFinishedMatches(teamId, limit = 5) {
   const data = await fetchApi(`/teams/${teamId}/matches?status=FINISHED&limit=${limit}`)
   return data.matches || []
+}
+
+export function getMatchFinishedAt(match) {
+  const updatedAt = new Date(match?.lastUpdated || '').getTime()
+  if (Number.isFinite(updatedAt) && updatedAt > 0) return updatedAt
+
+  const kickoff = new Date(match?.utcDate || '').getTime()
+  if (Number.isFinite(kickoff) && kickoff > 0) {
+    return kickoff + DEFAULT_FINISHED_MATCH_DURATION_MS
+  }
+
+  return null
+}
+
+export function getLatestFinishedMatch(matches = []) {
+  return matches
+    .filter((match) => match?.status === 'FINISHED')
+    .sort((a, b) => {
+      const finishedAtA = getMatchFinishedAt(a) || new Date(a?.utcDate || 0).getTime() || 0
+      const finishedAtB = getMatchFinishedAt(b) || new Date(b?.utcDate || 0).getTime() || 0
+      return finishedAtB - finishedAtA
+    })[0] || null
 }
 
 export function getVenueLabel(match) {
