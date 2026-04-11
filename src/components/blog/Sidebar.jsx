@@ -10,8 +10,9 @@ import StandingsWidget from './StandingsWidget'
 import PollWidget from './PollWidget'
 import Leaderboard from './Leaderboard'
 import TransferWidget from './TransferWidget'
+import InstagramProfileWidget from '@/components/layout/InstagramProfileWidget'
 
-export default function Sidebar() {
+export default function Sidebar({ showInstagramEmbed = false }) {
   const { data: latestData } = useQuery({
     queryKey: ['articles-latest-sidebar'],
     queryFn: async () => {
@@ -110,6 +111,8 @@ export default function Sidebar() {
 
       {/* Transfer countdown + rumors */}
       <TransferWidget />
+
+      {showInstagramEmbed && <InstagramProfileWidget />}
 
       {/* Social promo banner */}
       <motion.div

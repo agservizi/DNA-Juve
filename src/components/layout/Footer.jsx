@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Mail, ArrowRight } from 'lucide-react'
+import { Mail, ArrowRight, Instagram } from 'lucide-react'
 import { openCookiePreferences } from '@/lib/cookieConsent'
 
 const editorialHighlights = [
@@ -7,6 +7,8 @@ const editorialHighlights = [
   { label: 'Calciomercato', to: '/calciomercato' },
   { label: 'Area Bianconera', to: '/area-bianconera' },
 ]
+
+const instagramProfileUrl = 'https://www.instagram.com/bianconerihub.magazine'
 
 export default function Footer() {
   return (
@@ -26,6 +28,18 @@ export default function Footer() {
               Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato
               e tanto altro dalla redazione bianconera.
             </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <a
+                href={instagramProfileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 border border-gray-700 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-200 transition-colors hover:border-juve-gold hover:text-juve-gold"
+                aria-label="Segui BianconeriHub Magazine su Instagram"
+              >
+                <Instagram className="h-4 w-4" />
+                @bianconerihub.magazine
+              </a>
+            </div>
             <div className="mt-6 max-w-md border border-white/10 bg-white/5 p-4">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-juve-gold">
                 Da Seguire
@@ -118,9 +132,21 @@ export default function Footer() {
           <p className="text-xs text-gray-600">
             &copy; {new Date().getFullYear()} BianconeriHub Magazine. Tutti i diritti riservati.
           </p>
-          <p className="text-xs text-gray-700 italic">
-            Questo sito non è affiliato con Juventus F.C.
-          </p>
+          <div className="flex flex-col items-center gap-2 md:flex-row md:gap-4">
+            <a
+              href={instagramProfileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-xs text-gray-500 transition-colors hover:text-juve-gold"
+              aria-label="Apri il profilo Instagram di BianconeriHub Magazine"
+            >
+              <Instagram className="h-3.5 w-3.5" />
+              Instagram
+            </a>
+            <p className="text-xs text-gray-700 italic">
+              Questo sito non è affiliato con Juventus F.C.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

@@ -227,7 +227,7 @@ export default function Home() {
           {/* Sidebar */}
           <div className="lg:col-span-4">
             <div className="sticky top-28">
-              <Sidebar />
+              <Sidebar showInstagramEmbed />
             </div>
           </div>
         </div>
