@@ -99,6 +99,12 @@ function buildInstagramCaption(article: ArticleRow) {
   return truncateText(pieces.filter(Boolean).join('\n\n'), 2200)
 }
 
+function buildInstagramAltText(article: ArticleRow) {
+  const title = String(article.title || '').trim()
+  const excerpt = String(article.excerpt || '').replace(/\s+/g, ' ').trim()
+  return truncateText([title, excerpt].filter(Boolean).join(' - ') || 'Immagine articolo BianconeriHub', 1000)
+}
+
 async function getAuthenticatedAdmin(supabaseAdmin: ReturnType<typeof createClient>, authHeader: string | null) {
   if (!authHeader) throw new Error('Missing authorization header')
 
@@ -228,9 +234,13 @@ async function publishInstagramViaBuffer(article: ArticleRow) {
   }
 
   const caption = buildInstagramCaption(article)
+  const altText = buildInstagramAltText(article)
   const query = `mutation CreatePost($input: CreatePostInput!) {
     createPost(input: $input) {
       __typename
+      ... on UnexpectedError {
+        message
+      }
       ... on PostActionSuccess {
         post {
           id
@@ -259,7 +269,18 @@ async function publishInstagramViaBuffer(article: ArticleRow) {
           schedulingType: 'automatic',
           mode: 'addToQueue',
           assets: {
-            images: [{ url: imageUrl }],
+            images: [{
+              url: imageUrl,
+              metadata: {
+                altText,
+              },
+            }],
+          },
+          metadata: {
+            instagram: {
+              type: 'post',
+              shouldShareToFeed: true,
+            },
           },
         },
       },
@@ -283,7 +304,7 @@ async function publishInstagramViaBuffer(article: ArticleRow) {
 
   const createPost = data?.data?.createPost
   const post = createPost?.post
-  if (!response.ok || data?.errors?.length || createPost?.__typename === 'MutationError' || !post?.id) {
+  if (!response.ok || data?.errors?.length || ['MutationError', 'UnexpectedError'].includes(String(createPost?.__typename || '')) || !post?.id) {
     throw new Error(data?.errors?.[0]?.message || createPost?.message || 'Invio Buffer fallito.')
   }
 
