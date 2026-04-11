@@ -896,6 +896,14 @@ export default function ArticleEditor() {
     captionOverride: instagramCaptionOverride,
   }), [excerptValue, instagramCaptionOverride, slugValue, titleValue])
   const instagramStatus = existing?.instagram_post_status || (instagramPublishEnabled === false ? 'disabled' : 'pending')
+  const instagramManualImage = useMemo(
+    () => String(instagramImage || formValues.cover_image || '').trim(),
+    [formValues.cover_image, instagramImage],
+  )
+  const instagramManualArticleUrl = useMemo(
+    () => `${SITE_URL}/articolo/${slugValue || 'slug-articolo'}`,
+    [slugValue],
+  )
   const scheduledSummary = useMemo(() => {
     const value = formValues.scheduled_at
     if (!showSchedule || !value) return null
@@ -981,6 +989,26 @@ export default function ArticleEditor() {
       () => toast({ title: 'Errore', description: 'Impossibile copiare.', variant: 'destructive' })
     )
   }, [existing, watch, toast])
+
+  const copyInstagramCaption = useCallback(() => {
+    navigator.clipboard.writeText(instagramCaptionPreview).then(
+      () => toast({ title: 'Caption copiata', description: 'Testo Instagram pronto da incollare.', variant: 'success' }),
+      () => toast({ title: 'Errore', description: 'Impossibile copiare la caption.', variant: 'destructive' }),
+    )
+  }, [instagramCaptionPreview, toast])
+
+  const openInstagramImage = useCallback(() => {
+    if (!instagramManualImage) {
+      toast({ title: 'Immagine mancante', description: 'Aggiungi una cover o un\'immagine Instagram dedicata.', variant: 'destructive' })
+      return
+    }
+
+    window.open(instagramManualImage, '_blank', 'noopener,noreferrer')
+  }, [instagramManualImage, toast])
+
+  const openInstagramWeb = useCallback(() => {
+    window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer')
+  }, [])
 
   // ─── Related articles search ──────────────────────────────────
   const searchRelated = useCallback(async (query) => {
@@ -1297,6 +1325,51 @@ export default function ArticleEditor() {
                 <div className="rounded-sm border border-gray-200 bg-gray-50 p-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Preview caption</p>
                   <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-gray-700 font-sans">{instagramCaptionPreview}</pre>
+                </div>
+
+                <div className="rounded-sm border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900">
+                  <p className="font-bold uppercase tracking-widest text-blue-700">Fallback manuale</p>
+                  <p className="mt-2 leading-relaxed">
+                    Se Meta non ti lascia creare access token o Business Account ID, questo articolo resta comunque pronto per una pubblicazione assistita: copi la caption, apri l'immagine e incolli tutto su Instagram manualmente.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={copyInstagramCaption}
+                      className="inline-flex items-center gap-2 border border-blue-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-blue-800 transition-colors hover:border-blue-400"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copia caption
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openInstagramImage}
+                      className="inline-flex items-center gap-2 border border-blue-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-blue-800 transition-colors hover:border-blue-400"
+                    >
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      Apri immagine
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copyArticleUrl}
+                      className="inline-flex items-center gap-2 border border-blue-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-blue-800 transition-colors hover:border-blue-400"
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      Copia link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openInstagramWeb}
+                      className="inline-flex items-center gap-2 border border-blue-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-blue-800 transition-colors hover:border-blue-400"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Apri Instagram
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-1 text-[11px] text-blue-800">
+                    <p>Link articolo: {instagramManualArticleUrl}</p>
+                    <p>Immagine usata: {instagramManualImage || 'nessuna immagine disponibile'}</p>
+                  </div>
                 </div>
 
                 <div className="rounded-sm border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600">

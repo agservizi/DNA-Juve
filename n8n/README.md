@@ -1,5 +1,11 @@
 # n8n self-hosted per Instagram
 
+Percorso consigliato attuale: non usare Render e non usare n8n, a meno che ti serva davvero un workflow esterno.
+
+Il progetto puo gia pubblicare su Instagram direttamente tramite la Edge Function Supabase usando `INSTAGRAM_ACCESS_TOKEN` e `INSTAGRAM_BUSINESS_ACCOUNT_ID`.
+
+Questa cartella resta solo come opzione avanzata, non come percorso standard.
+
 Questa cartella serve a togliere la pubblicazione Instagram dal codice applicativo e spostarla su un webhook n8n self-hosted.
 
 Per il tuo setup attuale con Hostinger Cloud Starter, il percorso consigliato e Render: il sito resta dov'e, mentre n8n gira come servizio separato e pubblico.

@@ -262,8 +262,8 @@ export default function Settings() {
                 <p className="font-bold text-sm">Automazione Instagram</p>
                 <p className="text-xs text-gray-500">
                   {instagramStatus?.configured
-                    ? `${instagramStatus.provider === 'n8n' ? 'n8n self-hosted' : 'Meta diretta'} · ${instagramStatus.pendingCount || 0} articoli in coda`
-                    : 'Webhook n8n o credenziali Meta non configurati'}
+                    ? `${instagramStatus.provider === 'n8n' ? 'Webhook esterno' : instagramStatus.provider === 'buffer' ? 'Buffer' : 'Meta diretta'} · ${instagramStatus.pendingCount || 0} articoli in coda`
+                    : 'Configura Buffer, Meta diretta o un webhook esterno'}
                 </p>
               </div>
               <StatusBadge ok={Boolean(instagramStatus?.configured)} readyLabel="Connessa" fallbackLabel="Da configurare" />
