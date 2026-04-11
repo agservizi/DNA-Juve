@@ -93,10 +93,19 @@ async function sendNotificationToRecords(
       const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
         ? Number((error as { statusCode?: unknown }).statusCode)
         : 0
+      const responseBody = typeof error === 'object' && error !== null && 'body' in error
+        ? String((error as { body?: unknown }).body || '')
+        : ''
+      const isLegacyFcmEndpoint = record.endpoint.startsWith('https://fcm.googleapis.com/fcm/send/')
+      const hasUnexpectedResponse = message.toLowerCase().includes('received unexpected response code')
+      const hasKnownInvalidBody = /invalid|expired|not\s*registered|mismatch|unauthorized/i.test(responseBody)
+      const shouldInvalidate = statusCode === 404
+        || statusCode === 410
+        || (isLegacyFcmEndpoint && (hasUnexpectedResponse || hasKnownInvalidBody))
 
       failed.push({ endpoint: record.endpoint, error: message })
 
-      if (statusCode === 404 || statusCode === 410) {
+      if (shouldInvalidate) {
         invalidated.push(record.endpoint)
         await markSubscriptionStatus(supabaseAdmin, record.id, {
           is_active: false,
