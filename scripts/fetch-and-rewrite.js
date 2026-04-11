@@ -76,6 +76,15 @@ function replaceTag(html, pattern, replacement) {
   return pattern.test(html) ? html.replace(pattern, replacement) : html
 }
 
+function stripExistingPrerenderMeta(html) {
+  return html
+    .replace(/<!-- article-prerender-meta:start -->[\s\S]*?<!-- article-prerender-meta:end -->\s*/gi, '')
+    .replace(/<!-- page-prerender-meta:start -->[\s\S]*?<!-- page-prerender-meta:end -->\s*/gi, '')
+    .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
+    .replace(/<link\s+rel=["']alternate["'][^>]*hreflang=["'][^"']+["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+|article:[^"']+|robots)["'][^>]*>\s*/gi, '')
+}
+
 function buildHeadMeta(article) {
   const title = article.meta_title || article.title
   const description =
@@ -188,7 +197,7 @@ ${(() => {
 
 function rewriteArticleHtml(templateHtml, article) {
   const { fullTitle, description, metaBlock } = buildHeadMeta(article)
-  let html = templateHtml
+  let html = stripExistingPrerenderMeta(templateHtml)
 
   html = replaceTag(
     html,
@@ -200,7 +209,6 @@ function rewriteArticleHtml(templateHtml, article) {
     /<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i,
     `<meta name="description" content="${escapeHtml(description)}" />`,
   )
-  html = html.replace(/<!-- article-prerender-meta:start -->[\s\S]*?<!-- article-prerender-meta:end -->\s*/i, '')
   html = html.replace('</head>', `  ${metaBlock}\n  </head>`)
 
   return html
@@ -286,7 +294,7 @@ function buildPageMeta({ title, description, url, type = 'website' }) {
 function rewritePageHtml(templateHtml, { title, description, url, type }) {
   const fullTitle = `${title} | ${SITE_NAME}`
   const metaBlock = buildPageMeta({ title, description, url, type })
-  let html = templateHtml
+  let html = stripExistingPrerenderMeta(templateHtml)
 
   html = replaceTag(html, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(fullTitle)}</title>`)
   html = replaceTag(
@@ -294,7 +302,6 @@ function rewritePageHtml(templateHtml, { title, description, url, type }) {
     /<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i,
     `<meta name="description" content="${escapeHtml(description)}" />`,
   )
-  html = html.replace(/<!-- page-prerender-meta:start -->[\s\S]*?<!-- page-prerender-meta:end -->\s*/i, '')
   html = html.replace('</head>', `  ${metaBlock}\n  </head>`)
 
   return html
