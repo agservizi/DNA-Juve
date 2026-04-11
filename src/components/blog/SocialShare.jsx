@@ -10,6 +10,7 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
   const [copied, setCopied] = useState(false)
 
   const fullUrl = url || window.location.href
+  const shareTitle = title?.trim() || ''
 
   const handleCopy = async () => {
     try {
@@ -26,19 +27,19 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
       {/* Always-visible inline buttons */}
       <span className="mr-1 shrink-0 text-xs font-bold uppercase tracking-wider text-gray-500">Condividi:</span>
 
-      <TwitterShareButton url={fullUrl} title={title} via="BianconeriHub" className="shrink-0 align-middle">
+      <TwitterShareButton url={fullUrl} title={shareTitle} via="BianconeriHub" className="shrink-0 align-middle">
         <span className="flex items-center justify-center w-8 h-8 bg-[#1DA1F2] hover:bg-[#1a8fd1] text-white transition-colors">
           <TwitterIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
       </TwitterShareButton>
 
-      <FacebookShareButton url={fullUrl} quote={excerpt} className="shrink-0 align-middle">
+      <FacebookShareButton url={fullUrl} className="shrink-0 align-middle">
         <span className="flex items-center justify-center w-8 h-8 bg-[#1877F2] hover:bg-[#166fe5] text-white transition-colors">
           <FacebookIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
       </FacebookShareButton>
 
-      <WhatsappShareButton url={fullUrl} title={title} className="shrink-0 align-middle">
+      <WhatsappShareButton url={fullUrl} className="shrink-0 align-middle">
         <span className="flex items-center justify-center w-8 h-8 bg-[#25D366] hover:bg-[#20bc5a] text-white transition-colors">
           <WhatsappIcon size={14} round={false} bgStyle={{ fill: 'transparent' }} iconFillColor="white" />
         </span>
