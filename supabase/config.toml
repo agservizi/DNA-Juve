@@ -1,5 +1,8 @@
 project_id = "ncolenbfdiukkyfixovo"
 
+[functions.og-meta]
+verify_jwt = false
+
 [functions.push-notifications]
 verify_jwt = false
 

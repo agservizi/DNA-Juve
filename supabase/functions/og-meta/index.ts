@@ -1,10 +1,11 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
 const SITE_NAME = 'BianconeriHub'
 const SITE_URL = 'https://bianconerihub.com'
 const DEFAULT_IMAGE = `${SITE_URL}/og-default.png`
 const DEFAULT_DESCRIPTION =
   'Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato e tanto altro dalla redazione bianconera.'
+
+const SUPABASE_URL = 'https://ncolenbfdiukkyfixovo.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jb2xlbmJmZGl1a2t5Zml4b3ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNDEyNTQsImV4cCI6MjA5MDgxNzI1NH0.G9SJ1BjMdwiUUy0UPn-1DPa-lWaSbquvGoTW37JA0X0'
 
 function escapeHtml(s: string) {
   return s
@@ -28,36 +29,38 @@ function stripHtml(html: string) {
 Deno.serve(async (req) => {
   const url = new URL(req.url)
 
-  // Extract slug from path: /functions/v1/og-meta/[slug] or query ?slug=
-  const pathParts = url.pathname.replace(/^\/functions\/v1\/og-meta\/?/, '').split('/').filter(Boolean)
+  // Extract slug from path: /og-meta/[slug] or /functions/v1/og-meta/[slug] or ?slug=
+  const pathParts = url.pathname
+    .replace(/^\/functions\/v1\/og-meta\/?/, '')
+    .replace(/^\/og-meta\/?/, '')
+    .split('/').filter(Boolean)
   const slug = pathParts[0] || url.searchParams.get('slug') || ''
 
   if (!slug) {
     return new Response('Missing slug', { status: 400 })
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const apiKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || SUPABASE_ANON_KEY
+  const apiUrl = `${SUPABASE_URL}/rest/v1/articles?slug=eq.${encodeURIComponent(slug)}&status=eq.published&select=title,slug,excerpt,content,cover_image,published_at,updated_at,meta_title,meta_description,og_image,noindex,categories(name),profiles(username)&limit=1`
+
+  const res = await fetch(apiUrl, {
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+    },
   })
 
-  const { data: article, error } = await supabase
-    .from('articles')
-    .select(`
-      title, slug, excerpt, content, cover_image, published_at, updated_at,
-      meta_title, meta_description, og_image, noindex,
-      categories(name),
-      profiles(username)
-    `)
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .maybeSingle()
+  if (!res.ok) {
+    console.error('REST API error:', res.status, await res.text())
+    return new Response('DB error', { status: 500 })
+  }
 
-  if (error || !article) {
+  const rows = await res.json()
+  if (!rows.length) {
     return new Response('Not found', { status: 404 })
   }
 
+  const article = rows[0]
   const title = escapeHtml(article.meta_title || article.title || '')
   const fullTitle = escapeHtml(`${article.meta_title || article.title} | ${SITE_NAME}`)
   const description = escapeHtml(
@@ -68,8 +71,8 @@ Deno.serve(async (req) => {
   )
   const imageUrl = escapeHtml(normalizeImageUrl(article.og_image || article.cover_image))
   const canonicalUrl = escapeHtml(`${SITE_URL}/articolo/${article.slug}`)
-  const authorName = escapeHtml((article.profiles as any)?.username || 'Redazione BianconeriHub')
-  const categoryName = escapeHtml((article.categories as any)?.name || '')
+  const authorName = escapeHtml(article.profiles?.username || 'Redazione BianconeriHub')
+  const categoryName = escapeHtml(article.categories?.name || '')
 
   const html = `<!DOCTYPE html>
 <html lang="it">
