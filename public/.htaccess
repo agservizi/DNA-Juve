@@ -12,10 +12,11 @@
   RewriteCond %{QUERY_STRING} (^|&)slug=([^&]+)(&|$) [NC]
   RewriteRule ^ /articolo/%2? [R=301,L,NE]
 
-  # Missing article slugs should be a real 404 for crawlers, not a soft-404 SPA page.
-  RewriteRule ^articolo/[^/]+/?$ - [R=404,L]
+  # Social bot detection: redirect to Supabase Edge Function for OG meta tags.
+  RewriteCond %{HTTP_USER_AGENT} (WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|Googlebot|bingbot|Applebot|Pinterest|Snapchat) [NC]
+  RewriteRule ^articolo/([^/]+)/?$ https://ncolenbfdiukkyfixovo.supabase.co/functions/v1/og-meta/$1 [R=302,L]
 
-  # Fallback to the SPA only for app routes.
+  # Fallback to the SPA for all app routes (including article pages for regular users).
   RewriteRule . /index.html [L]
 </IfModule>
 

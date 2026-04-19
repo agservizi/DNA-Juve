@@ -44,7 +44,7 @@ export default function SocialShare({ url, title, excerpt, className = '' }) {
       <WhatsappShareButton
         url={fullUrl}
         title={whatsappMessage}
-        separator="\n"
+        separator=" "
         className="shrink-0 align-middle"
       >
         <span className="flex items-center justify-center w-8 h-8 bg-[#25D366] hover:bg-[#20bc5a] text-white transition-colors">
