@@ -12,7 +12,6 @@ const store = {
   tags:                    structuredClone(seed.tags),
   article_tags:            structuredClone(seed.article_tags),
   comments:                structuredClone(seed.comments),
-  podcasts:                structuredClone(seed.podcasts),
   reader_states:           [],
   newsletter_subscribers:  structuredClone(seed.newsletter_subscribers),
 }

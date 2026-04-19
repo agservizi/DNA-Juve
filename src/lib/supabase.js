@@ -2600,23 +2600,6 @@ export const savePublicPrediction = async (prediction) => {
   }
 }
 
-// ─── PODCASTS ────────────────────────────────────────────────────────────────
-let podcastsSupported = true
-
-export const getPodcasts = async ({ limit = 50 } = {}) => {
-  if (!podcastsSupported) return { data: [], error: null }
-  const { data, error } = await supabase
-    .from('podcasts')
-    .select('*')
-    .eq('is_published', true)
-    .order('published_at', { ascending: false })
-    .limit(limit)
-  if (error && isMissingColumnOrRelation(error, 'podcasts')) {
-    podcastsSupported = false
-    return { data: [], error: null }
-  }
-  return { data: data || [], error }
-}
 
 export const getCommunityFeed = async ({ limit = 10 } = {}) => {
   try {
