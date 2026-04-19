@@ -766,6 +766,46 @@ export const comments = [
   { id: 'com-10', article_id: 'art-14', author_name: 'Giulia', author_email: 'giulia@example.com', content: 'Locatelli decisivo! Semifinale meritata.',                   approved: true, created_at: '2026-03-06T08:00:00Z' },
 ]
 
+// ── PODCASTS ────────────────────────────────────────────────────────────────
+export const podcasts = [
+  {
+    id: 'pod-01',
+    title: 'Analisi post-derby: 3-1 al Torino',
+    description: 'La redazione commenta la prestazione bianconera nel derby della Mole: tattica, singoli e prospettive.',
+    audio_url: '',
+    cover_image: 'https://placehold.co/400x400/000000/F5A623?text=EP.1',
+    duration: 2580,
+    episode_number: 1,
+    is_published: true,
+    published_at: '2026-03-31T10:00:00Z',
+    created_at: '2026-03-31T09:00:00Z',
+  },
+  {
+    id: 'pod-02',
+    title: 'Champions: i quarti ci chiamano',
+    description: 'Preview e analisi in vista dei quarti di finale di Champions League. Ospite speciale: un ex bianconero.',
+    audio_url: '',
+    cover_image: 'https://placehold.co/400x400/7e3af2/FFFFFF?text=EP.2',
+    duration: 3120,
+    episode_number: 2,
+    is_published: true,
+    published_at: '2026-04-05T10:00:00Z',
+    created_at: '2026-04-05T09:00:00Z',
+  },
+  {
+    id: 'pod-03',
+    title: 'Calciomercato: obiettivi estivi della Juve',
+    description: 'Indiscrezioni, sogni e trattative concrete: tutto quello che c\'è da sapere sul mercato bianconero.',
+    audio_url: '',
+    cover_image: 'https://placehold.co/400x400/F5A623/000000?text=EP.3',
+    duration: 2760,
+    episode_number: 3,
+    is_published: true,
+    published_at: '2026-04-12T10:00:00Z',
+    created_at: '2026-04-12T09:00:00Z',
+  },
+]
+
 // ── NEWSLETTER SUBSCRIBERS (vuoto per demo) ─────────────────────────────────
 export const newsletter_subscribers = []
 

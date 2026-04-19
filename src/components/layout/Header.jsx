@@ -302,6 +302,16 @@ export default function Header() {
             >
               Video
             </NavLink>
+            <NavLink
+              to="/podcast"
+              className={({ isActive }) =>
+                `px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  isActive ? 'bg-juve-gold text-juve-black border-juve-gold' : 'border-transparent text-gray-600 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold'
+                }`
+              }
+            >
+              <Mic className="h-3 w-3" /> Podcast
+            </NavLink>
             <div className="relative" onMouseEnter={() => setCommunityOpen(true)} onMouseLeave={() => setCommunityOpen(false)}>
               <button
                 className={`px-4 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors whitespace-nowrap flex items-center gap-1 border-transparent text-gray-600 hover:text-juve-black hover:bg-juve-gold/20 hover:border-juve-gold`}
@@ -393,6 +403,13 @@ export default function Header() {
                 className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Video
+              </Link>
+              <Link
+                to="/podcast"
+                onClick={() => setMenuOpen(false)}
+                className="px-3 py-2 text-sm font-bold uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+              >
+                <Mic className="h-3.5 w-3.5 text-juve-gold" /> Podcast
               </Link>
               <div className="h-px bg-gray-200 dark:bg-gray-700 mx-3 my-1" />
               <span className="px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-juve-gold">Community</span>

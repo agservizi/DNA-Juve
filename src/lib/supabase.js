@@ -8,7 +8,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.s
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
 const configuredSiteUrl = (import.meta.env.VITE_SITE_URL || '').trim().replace(/\/+$/, '')
 const defaultSiteUrl = 'https://bianconerihub.com'
-export const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
+export const vapidPublicKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim()
 export const pushNotificationsConfigured = Boolean(vapidPublicKey)
 const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
 let readerStateSupported = true
@@ -2598,6 +2598,24 @@ export const savePublicPrediction = async (prediction) => {
   } catch (err) {
     return { data: null, error: err }
   }
+}
+
+// ─── PODCASTS ────────────────────────────────────────────────────────────────
+let podcastsSupported = true
+
+export const getPodcasts = async ({ limit = 50 } = {}) => {
+  if (!podcastsSupported) return { data: [], error: null }
+  const { data, error } = await supabase
+    .from('podcasts')
+    .select('*')
+    .eq('is_published', true)
+    .order('published_at', { ascending: false })
+    .limit(limit)
+  if (error && isMissingColumnOrRelation(error, 'podcasts')) {
+    podcastsSupported = false
+    return { data: [], error: null }
+  }
+  return { data: data || [], error }
 }
 
 export const getCommunityFeed = async ({ limit = 10 } = {}) => {

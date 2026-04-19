@@ -29,6 +29,7 @@ const Calciomercato = lazy(() => import('@/pages/Calciomercato'))
 const NotizeLive    = lazy(() => import('@/pages/NotizeLive'))
 const Rosa          = lazy(() => import('@/pages/Rosa'))
 const Video         = lazy(() => import('@/pages/Video'))
+const Podcast       = lazy(() => import('@/pages/Podcast'))
 const Sondaggi      = lazy(() => import('@/pages/community/Sondaggi'))
 const Pagelle       = lazy(() => import('@/pages/community/Pagelle'))
 const Forum         = lazy(() => import('@/pages/community/Forum'))
@@ -110,6 +111,7 @@ function AppRoutes() {
           <Route path="notizie-live" element={<NotizeLive />} />
           <Route path="rosa" element={<Rosa />} />
           <Route path="video" element={<Video />} />
+          <Route path="podcast" element={<Podcast />} />
           <Route path="community/sondaggi" element={<Sondaggi />} />
           <Route path="community/pagelle" element={<Pagelle />} />
           <Route path="community/forum" element={<Forum />} />
