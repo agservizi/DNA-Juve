@@ -387,6 +387,27 @@ export default function FeedManager() {
         </UrlCard>
 
         <UrlCard
+          icon={Map}
+          title="News Sitemap"
+          subtitle="Endpoint dedicato ai contenuti editoriali più recenti"
+          url={`${SITE_URL}/news-sitemap.xml`}
+          accent="bg-emerald-600"
+        >
+          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+            <span>Utile per segnalare i contenuti freschi ai crawler news-oriented</span>
+            <a
+              href="/news-sitemap.xml"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-juve-gold hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Visualizza news sitemap
+            </a>
+          </div>
+        </UrlCard>
+
+        <UrlCard
           icon={Globe}
           title="Robots.txt"
           subtitle="Direttive crawler e riferimento alla sitemap"
@@ -436,6 +457,10 @@ export default function FeedManager() {
           <li className="flex items-start gap-2">
             <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
             Verifica che <code className="text-xs bg-gray-100 px-1">{SITE_URL}/robots.txt</code> sia pubblico e contenga il riferimento corretto alla sitemap.
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
+            Se vuoi spingere i contenuti più freschi, aggiungi anche <code className="text-xs bg-gray-100 px-1">{SITE_URL}/news-sitemap.xml</code> negli strumenti webmaster.
           </li>
           <li className="flex items-start gap-2">
             <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />

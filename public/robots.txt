@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://bianconerihub.com/sitemap.xml
+Sitemap: https://bianconerihub.com/news-sitemap.xml

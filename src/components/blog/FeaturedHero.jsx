@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Clock, ChevronRight } from 'lucide-react'
+import { Clock, ChevronRight, User } from 'lucide-react'
 import { formatDateLocalized, getClientLocaleContext, getRelativeDateLabel, readingTime } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 import LazyImage from './LazyImage'
@@ -11,6 +11,10 @@ export default function FeaturedHero({ articles = [] }) {
   const { preferences } = useReader()
   const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const [main, ...rest] = articles
+  const mainTags = (main.article_tags || [])
+    .map((entry) => entry?.tags)
+    .filter((tag) => tag?.slug && tag?.name)
+    .slice(0, 2)
   const formatPublishedDate = (value) => formatDateLocalized(value, {
     locale: localeContext.locale,
     timeZone: localeContext.timeZone,
@@ -34,41 +38,58 @@ export default function FeaturedHero({ articles = [] }) {
           transition={{ duration: 0.6 }}
           className="lg:col-span-7 bg-white group"
         >
-          <Link to={`/articolo/${main.slug}`} className="block relative overflow-hidden aspect-[16/10]">
-            <LazyImage
-              src={main.cover_image}
-              alt={main.title}
-              aspectRatio="aspect-[16/10]"
-              wrapperClassName="w-full"
-              className="group-hover:scale-105 transition-transform duration-700"
-            />
+          <div className="relative overflow-hidden aspect-[16/10]">
+            <Link to={`/articolo/${main.slug}`} className="block h-full w-full">
+              <LazyImage
+                src={main.cover_image}
+                alt={main.title}
+                aspectRatio="aspect-[16/10]"
+                wrapperClassName="w-full"
+                className="group-hover:scale-105 transition-transform duration-700"
+              />
+            </Link>
             {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6">
               {main.categories && (
-                <span
-                  className="inline-block px-3 py-1 text-xs font-black uppercase tracking-widest mb-3 text-black"
+                <Link
+                  to={`/categoria/${main.categories.slug}`}
+                  className="inline-block px-3 py-1 text-xs font-black uppercase tracking-widest mb-3 text-black hover:opacity-90 transition-opacity"
                   style={{ backgroundColor: main.categories.color || '#F5A623' }}
                 >
                   {main.categories.name}
-                </span>
+                </Link>
               )}
-              <h1 className="font-display text-2xl md:text-3xl font-black text-white leading-tight group-hover:text-juve-gold transition-colors">
-                {main.title}
-              </h1>
+              <Link to={`/articolo/${main.slug}`} className="block">
+                <h1 className="font-display text-2xl md:text-3xl font-black text-white leading-tight group-hover:text-juve-gold transition-colors">
+                  {main.title}
+                </h1>
+              </Link>
               {main.excerpt && (
                 <p className="text-gray-300 text-sm mt-2 line-clamp-2 hidden md:block">{main.excerpt}</p>
               )}
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-gray-300">
+                {main.profiles?.username && (
+                  <Link to={`/autore/${main.profiles.username}`} className="inline-flex items-center gap-1 hover:text-juve-gold transition-colors">
+                    <User className="h-3 w-3" />
+                    {main.profiles.username}
+                  </Link>
+                )}
+                {mainTags.map((tag) => (
+                  <Link key={tag.slug} to={`/tag/${tag.slug}`} className="hover:text-juve-gold transition-colors">
+                    #{tag.name}
+                  </Link>
+                ))}
+              </div>
               <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
                 <span>{formatPublishedDate(main.published_at)}{formatFreshness(main.published_at) ? ` · ${formatFreshness(main.published_at)}` : ''}</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {readingTime(main.content || main.excerpt)} min
                 </span>
-                {main.profiles && <span>di {main.profiles.username}</span>}
               </div>
             </div>
-          </Link>
+          </div>
         </motion.article>
 
         {/* Secondary list */}

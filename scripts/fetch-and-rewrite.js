@@ -19,6 +19,12 @@ const DEFAULT_IMAGE = `${SITE_URL}/og-default.png`
 const DEFAULT_DESCRIPTION =
   'Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato e tanto altro dalla redazione bianconera.'
 
+function buildSeoTitle(value = '') {
+  const normalized = String(value || '').trim()
+  if (!normalized) return `${SITE_NAME} — Il Magazine Bianconero`
+  return normalized.toLowerCase().includes(SITE_NAME.toLowerCase()) ? normalized : `${normalized} | ${SITE_NAME}`
+}
+
 function normalizeAbsoluteUrl(value, fallbackPath = '') {
   if (!value) return fallbackPath ? `${SITE_URL}${fallbackPath}` : SITE_URL
   if (/^https?:\/\//i.test(value)) return value
@@ -72,6 +78,22 @@ function replaceTag(html, pattern, replacement) {
   return pattern.test(html) ? html.replace(pattern, replacement) : html
 }
 
+function buildBreadcrumbJsonLd(canonicalUrl, breadcrumbs = []) {
+  if (!breadcrumbs.length) return null
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    '@id': `${canonicalUrl}#breadcrumb`,
+    itemListElement: breadcrumbs.map((crumb, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: crumb.name,
+      item: normalizeAbsoluteUrl(crumb.url),
+    })),
+  }
+}
+
 function stripExistingPrerenderMeta(html) {
   return html
     .replace(/<!-- article-prerender-meta:start -->[\s\S]*?<!-- article-prerender-meta:end -->\s*/gi, '')
@@ -99,48 +121,90 @@ function buildHeadMeta(article) {
   const fullTitle = `${title} | ${SITE_NAME}`
   const categoryName = article.categories?.name || ''
   const authorName = article.profiles?.username || 'Redazione BianconeriHub'
+  const authorUrl = article.profiles?.username ? `${SITE_URL}/autore/${article.profiles.username}` : ''
+  const breadcrumbs = [
+    { name: 'Home', url: '/' },
+    ...(article.categories?.slug ? [{ name: article.categories.name, url: `/categoria/${article.categories.slug}` }] : []),
+    { name: article.title, url: `/articolo/${article.slug}` },
+  ]
+  const articleTags = (article.article_tags || [])
+    .map((entry) => entry?.tags?.name)
+    .filter(Boolean)
   const robots = article.noindex ? 'noindex,nofollow' : 'index,follow,max-image-preview:large'
 
-  const jsonLd = {
+  const webPageJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'NewsArticle',
-    headline: title,
+    '@type': 'WebPage',
+    '@id': canonicalUrl,
+    url: canonicalUrl,
+    name: title,
     description,
-    image: imageUrl,
-    datePublished: article.published_at,
-    dateModified: article.updated_at || article.published_at,
-    author: {
-      '@type': 'Person',
-      name: authorName,
+    inLanguage: 'it-IT',
+    primaryImageOfPage: {
+      '@type': 'ImageObject',
+      url: imageUrl,
     },
-    publisher: {
+  }
+
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
       '@type': 'Organization',
       name: SITE_NAME,
+      url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
         url: `${SITE_URL}/favicon.svg`,
       },
     },
-    mainEntityOfPage: {
-      '@type': 'WebPage',
-      '@id': canonicalUrl,
-    },
-    articleSection: categoryName || undefined,
-    url: canonicalUrl,
-    inLanguage: 'it-IT',
-    contentLocation: {
-      '@type': 'Place',
-      name: 'Torino, Italia',
-      geo: {
-        '@type': 'GeoCoordinates',
-        latitude: 45.109,
-        longitude: 7.641,
+    webPageJsonLd,
+    {
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: title,
+      description,
+      image: imageUrl,
+      datePublished: article.published_at,
+      dateModified: article.updated_at || article.published_at,
+      author: {
+        '@type': 'Person',
+        name: authorName,
+        url: authorUrl || undefined,
+        image: article.profiles?.avatar_url || undefined,
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: SITE_NAME,
+        logo: {
+          '@type': 'ImageObject',
+          url: `${SITE_URL}/favicon.svg`,
+        },
+      },
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': canonicalUrl,
+      },
+      articleSection: categoryName || undefined,
+      keywords: articleTags.join(', ') || undefined,
+      about: articleTags.length ? articleTags.map((tag) => ({ '@type': 'Thing', name: tag })) : undefined,
+      url: canonicalUrl,
+      inLanguage: 'it-IT',
+      contentLocation: {
+        '@type': 'Place',
+        name: 'Torino, Italia',
+        geo: {
+          '@type': 'GeoCoordinates',
+          latitude: 45.109,
+          longitude: 7.641,
+        },
       },
     },
-  }
+    buildBreadcrumbJsonLd(canonicalUrl, breadcrumbs),
+  ]
+  .filter(Boolean)
 
   return {
-    fullTitle,
+    fullTitle: buildSeoTitle(title),
     description,
     canonicalUrl,
     metaBlock: `<!-- article-prerender-meta:start -->
@@ -154,10 +218,14 @@ function buildHeadMeta(article) {
 <meta name="ICBM" content="45.109, 7.641" />
 <meta name="language" content="it" />
 <meta name="content-language" content="it-IT" />
+<meta name="author" content="${escapeHtml(authorName)}" />
+<meta name="date" content="${escapeHtml(article.published_at || '')}" />
+<meta name="last-modified" content="${escapeHtml(article.updated_at || article.published_at || '')}" />
 <meta property="og:site_name" content="${SITE_NAME}" />
 <meta property="og:title" content="${escapeHtml(fullTitle)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:image" content="${escapeHtml(imageUrl)}" />
+<meta property="og:image:alt" content="${escapeHtml(title)}" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
@@ -165,14 +233,18 @@ function buildHeadMeta(article) {
 <meta property="og:locale" content="it_IT" />
 <meta property="article:published_time" content="${escapeHtml(article.published_at || '')}" />
 <meta property="article:modified_time" content="${escapeHtml(article.updated_at || article.published_at || '')}" />
+<meta property="og:updated_time" content="${escapeHtml(article.updated_at || article.published_at || '')}" />
 <meta property="article:author" content="${escapeHtml(authorName)}" />
 ${categoryName ? `<meta property="article:section" content="${escapeHtml(categoryName)}" />` : ''}
+${articleTags.map((tag) => `<meta property="article:tag" content="${escapeHtml(tag)}" />`).join('\n')}
+${articleTags.length ? `<meta name="news_keywords" content="${escapeHtml(articleTags.slice(0, 12).join(', '))}" />` : ''}
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:site" content="@BianconeriHub" />
 <meta name="twitter:title" content="${escapeHtml(fullTitle)}" />
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
-<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
+<meta name="twitter:image:alt" content="${escapeHtml(title)}" />
+${jsonLd.map((entry) => `<script type="application/ld+json">${JSON.stringify(entry).replace(/</g, '\\u003c')}</script>`).join('\n')}
 ${(() => {
   const faqs = extractFaqFromHtml(article.content)
   if (!faqs.length) return ''
@@ -225,7 +297,8 @@ async function fetchPublishedArticles() {
       id, title, slug, excerpt, content, cover_image, published_at, updated_at,
       meta_title, meta_description, canonical_url, og_image, noindex,
       categories(name, slug),
-      profiles(username)
+      profiles(username, avatar_url),
+      article_tags(tags(name, slug))
     `)
     .eq('status', 'published')
     .order('published_at', { ascending: false })
@@ -244,25 +317,92 @@ async function fetchCategories(supabase) {
   return data || []
 }
 
-function buildPageMeta({ title, description, url, type = 'website' }) {
-  const fullTitle = `${title} | ${SITE_NAME}`
-  const canonicalUrl = `${SITE_URL}${url}`
-  const imageUrl = DEFAULT_IMAGE
+function fetchTagsFromArticles(articles = []) {
+  return Array.from(new Map(
+    articles
+      .flatMap((article) => article.article_tags || [])
+      .map((entry) => entry?.tags)
+      .filter((tag) => tag?.slug)
+      .map((tag) => [tag.slug, { slug: tag.slug, name: tag.name || tag.slug }]),
+  ).values())
+}
 
-  const jsonLd = {
+function fetchAuthorsFromArticles(articles = []) {
+  return Array.from(new Map(
+    articles
+      .filter((article) => article.profiles?.username)
+      .map((article) => [article.profiles.username, {
+        username: article.profiles.username,
+        articleCount: 0,
+        avatar_url: article.profiles.avatar_url || null,
+      }]),
+  ).values()).map((author) => ({
+    ...author,
+    articleCount: articles.filter((article) => article.profiles?.username === author.username).length,
+  }))
+}
+
+function buildPageMeta({
+  title,
+  description,
+  url,
+  type = 'website',
+  pageType = 'WebPage',
+  imageUrl = DEFAULT_IMAGE,
+  jsonLdExtra = [],
+  noindex = false,
+  breadcrumbs = [],
+}) {
+  const fullTitle = buildSeoTitle(title)
+  const canonicalUrl = `${SITE_URL}${url}`
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(canonicalUrl, breadcrumbs)
+  const webSiteJsonLd = pageType === 'WebSite'
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE_NAME,
+        url: SITE_URL,
+        description: DEFAULT_DESCRIPTION,
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${SITE_URL}/cerca?q={search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      }
+    : null
+
+  const jsonLd = [{
     '@context': 'https://schema.org',
-    '@type': 'WebPage',
+    '@type': 'Organization',
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: {
+      '@type': 'ImageObject',
+      url: `${SITE_URL}/favicon.svg`,
+    },
+  }, {
+    '@context': 'https://schema.org',
+    '@type': pageType,
     name: title,
     description,
     url: canonicalUrl,
     inLanguage: 'it-IT',
     isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: SITE_URL },
-  }
+    primaryImageOfPage: {
+      '@type': 'ImageObject',
+      url: imageUrl,
+    },
+    breadcrumb: breadcrumbs.length ? { '@id': `${canonicalUrl}#breadcrumb` } : undefined,
+  },
+  ...(webSiteJsonLd ? [webSiteJsonLd] : []),
+  ...jsonLdExtra,
+  ...(breadcrumbJsonLd ? [breadcrumbJsonLd] : [])]
 
   return `<!-- page-prerender-meta:start -->
 <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
 <link rel="alternate" hreflang="it" href="${escapeHtml(canonicalUrl)}" />
-<meta name="robots" content="index,follow,max-image-preview:large" />
+<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonicalUrl)}" />
+<meta name="robots" content="${noindex ? 'noindex,nofollow' : 'index,follow,max-image-preview:large'}" />
 <meta name="geo.region" content="IT-21" />
 <meta name="geo.placename" content="Torino" />
 <meta name="geo.position" content="45.109;7.641" />
@@ -271,6 +411,7 @@ function buildPageMeta({ title, description, url, type = 'website' }) {
 <meta property="og:title" content="${escapeHtml(fullTitle)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:image" content="${escapeHtml(imageUrl)}" />
+<meta property="og:image:alt" content="${escapeHtml(title)}" />
 <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
 <meta property="og:type" content="${type}" />
 <meta property="og:locale" content="it_IT" />
@@ -279,13 +420,15 @@ function buildPageMeta({ title, description, url, type = 'website' }) {
 <meta name="twitter:title" content="${escapeHtml(fullTitle)}" />
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
-<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
+<meta name="twitter:image:alt" content="${escapeHtml(title)}" />
+${jsonLd.map((entry) => `<script type="application/ld+json">${JSON.stringify(entry).replace(/</g, '\\u003c')}</script>`).join('\n')}
 <!-- page-prerender-meta:end -->`
 }
 
-function rewritePageHtml(templateHtml, { title, description, url, type }) {
-  const fullTitle = `${title} | ${SITE_NAME}`
-  const metaBlock = buildPageMeta({ title, description, url, type })
+function rewritePageHtml(templateHtml, pageMeta) {
+  const { title, description } = pageMeta
+  const fullTitle = buildSeoTitle(title)
+  const metaBlock = buildPageMeta(pageMeta)
   let html = stripExistingPrerenderMeta(templateHtml)
 
   html = replaceTag(html, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(fullTitle)}</title>`)
@@ -322,6 +465,8 @@ async function main() {
     fetchPublishedArticles(),
     fetchCategories(supabase),
   ])
+  const tags = fetchTagsFromArticles(articles)
+  const authors = fetchAuthorsFromArticles(articles)
 
   // ─── Prerender homepage ────────────────────────────────────────
   const homepageHtml = rewritePageHtml(templateHtml, {
@@ -329,6 +474,8 @@ async function main() {
     description: DEFAULT_DESCRIPTION,
     url: '/',
     type: 'website',
+    pageType: 'WebSite',
+    breadcrumbs: [{ name: 'Home', url: '/' }],
   })
   await fs.writeFile(path.join(distDir, 'index.html'), homepageHtml, 'utf8')
   console.log('[fetch-and-rewrite] prerendered homepage.')
@@ -337,11 +484,29 @@ async function main() {
   for (const cat of categories) {
     if (!cat.slug) continue
     const catDir = path.join(distDir, 'categoria', cat.slug)
+    const catArticles = articles.filter((article) => article.categories?.slug === cat.slug)
     const catHtml = rewritePageHtml(templateHtml, {
-      title: `${cat.name} — Juventus`,
-      description: `Tutti gli articoli su ${cat.name}: notizie, analisi e approfondimenti dalla redazione BianconeriHub.`,
+      title: `${cat.name} Juve: news, analisi e approfondimenti`,
+      description: catArticles.length
+        ? `${catArticles.length} articoli su ${cat.name}: notizie Juventus, analisi, approfondimenti e aggiornamenti editoriali di BianconeriHub.`
+        : `Archivio ${cat.name} di BianconeriHub con notizie Juventus, analisi e approfondimenti della redazione.`,
       url: `/categoria/${cat.slug}`,
       type: 'website',
+      pageType: 'CollectionPage',
+      breadcrumbs: [
+        { name: 'Home', url: '/' },
+        { name: cat.name, url: `/categoria/${cat.slug}` },
+      ],
+      jsonLdExtra: catArticles.length ? [{
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        itemListElement: catArticles.slice(0, 12).map((article, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: article.title,
+          url: `${SITE_URL}/articolo/${article.slug}`,
+        })),
+      }] : [],
     })
     await fs.mkdir(catDir, { recursive: true })
     await fs.writeFile(path.join(catDir, 'index.html'), catHtml, 'utf8')
@@ -350,12 +515,92 @@ async function main() {
     console.log(`[fetch-and-rewrite] prerendered ${categories.length} category pages.`)
   }
 
+  // ─── Prerender tag pages ───────────────────────────────────────
+  for (const tag of tags) {
+    if (!tag.slug) continue
+    const tagDir = path.join(distDir, 'tag', tag.slug)
+    const tagArticles = articles.filter((article) =>
+      (article.article_tags || []).some((entry) => entry?.tags?.slug === tag.slug),
+    )
+    const tagHtml = rewritePageHtml(templateHtml, {
+      title: `${tag.name} Juve: archivio topic e articoli correlati`,
+      description: tagArticles.length
+        ? `${tagArticles.length} articoli sul topic ${tag.name}: news Juventus, analisi, opinioni e approfondimenti collegati su BianconeriHub.`
+        : `Archivio tag ${tag.name} di BianconeriHub con contenuti, analisi e articoli dedicati al mondo Juventus.`,
+      url: `/tag/${tag.slug}`,
+      type: 'website',
+      pageType: 'CollectionPage',
+      breadcrumbs: [
+        { name: 'Home', url: '/' },
+        { name: `#${tag.name}`, url: `/tag/${tag.slug}` },
+      ],
+      jsonLdExtra: tagArticles.length ? [{
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        itemListElement: tagArticles.slice(0, 12).map((article, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: article.title,
+          url: `${SITE_URL}/articolo/${article.slug}`,
+        })),
+      }] : [],
+    })
+    await fs.mkdir(tagDir, { recursive: true })
+    await fs.writeFile(path.join(tagDir, 'index.html'), tagHtml, 'utf8')
+  }
+  if (tags.length) {
+    console.log(`[fetch-and-rewrite] prerendered ${tags.length} tag pages.`)
+  }
+
+  // ─── Prerender author pages ────────────────────────────────────
+  for (const author of authors) {
+    if (!author.username) continue
+    const authorDir = path.join(distDir, 'autore', author.username)
+    const authorArticles = articles.filter((article) => article.profiles?.username === author.username)
+    const authorHtml = rewritePageHtml(templateHtml, {
+      title: `${author.username}: articoli, analisi e firma Juventus`,
+      description: authorArticles.length
+        ? `${authorArticles.length} articoli firmati da ${author.username} su BianconeriHub: notizie, analisi e approfondimenti dedicati alla Juventus.`
+        : `Profilo autore di ${author.username} su BianconeriHub con articoli e approfondimenti dedicati alla Juventus.`,
+      url: `/autore/${author.username}`,
+      type: 'profile',
+      pageType: 'ProfilePage',
+      imageUrl: author.avatar_url || DEFAULT_IMAGE,
+      breadcrumbs: [
+        { name: 'Home', url: '/' },
+        { name: author.username, url: `/autore/${author.username}` },
+      ],
+      jsonLdExtra: [{
+        '@context': 'https://schema.org',
+        '@type': 'Person',
+        name: author.username,
+        image: author.avatar_url || undefined,
+        url: `${SITE_URL}/autore/${author.username}`,
+      }, ...(authorArticles.length ? [{
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        itemListElement: authorArticles.slice(0, 12).map((article, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: article.title,
+          url: `${SITE_URL}/articolo/${article.slug}`,
+        })),
+      }] : [])],
+    })
+    await fs.mkdir(authorDir, { recursive: true })
+    await fs.writeFile(path.join(authorDir, 'index.html'), authorHtml, 'utf8')
+  }
+  if (authors.length) {
+    console.log(`[fetch-and-rewrite] prerendered ${authors.length} author pages.`)
+  }
+
   // ─── Prerender 404 page ────────────────────────────────────────
   const notFoundHtml = rewritePageHtml(templateHtml, {
     title: 'Pagina non trovata',
     description: 'La pagina che cerchi non esiste. Torna alla homepage di BianconeriHub per le ultime notizie sulla Juventus.',
     url: '/404',
     type: 'website',
+    noindex: true,
   })
   await fs.writeFile(path.join(distDir, '404.html'), notFoundHtml, 'utf8')
   console.log('[fetch-and-rewrite] prerendered 404 page.')

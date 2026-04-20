@@ -24,8 +24,10 @@ async function getArticlesByAuthor(authorId) {
   const { data, error } = await supabase
     .from('articles')
     .select(`
-      id, title, slug, excerpt, cover_image, published_at, views,
-      categories(id, name, slug, color)
+      id, title, slug, excerpt, content, cover_image, published_at, views,
+      categories(id, name, slug, color),
+      profiles(username, avatar_url),
+      article_tags(tags(id, name, slug))
     `)
     .eq('author_id', authorId)
     .eq('status', 'published')
@@ -181,10 +183,24 @@ export default function Author() {
   return (
     <>
       <SEO
-        title={author?.username ? `${author.username} — Redazione` : 'Autore'}
-        description={`Tutti gli articoli scritti da ${author?.username || username} per BianconeriHub`}
+        title={author?.username ? `${author.username}: articoli, analisi e firma Juventus` : 'Autore'}
+        description={
+          author?.bio ||
+          (articles.length > 0
+            ? `${articles.length} articoli firmati da ${author?.username || username} su BianconeriHub: notizie, analisi e approfondimenti dedicati alla Juventus.`
+            : `Profilo autore di ${author?.username || username} su BianconeriHub con articoli e approfondimenti dedicati alla Juventus.`)
+        }
         image={author?.avatar_url}
         url={`/autore/${username}`}
+        pageType="profile"
+        authorImage={author?.avatar_url}
+        authorDescription={author?.bio}
+        authorLinks={[author?.twitter_url, author?.instagram_url, author?.linkedin_url].filter(Boolean)}
+        keywords={[author?.username || username, `${author?.username || username} Juventus`, 'autore Juventus', 'BianconeriHub']}
+        itemList={articles.slice(0, 12).map((article) => ({
+          name: article.title,
+          url: `/articolo/${article.slug}`,
+        }))}
         breadcrumbs={[
           { name: 'Home', url: '/' },
           { name: author?.username || username, url: `/autore/${username}` },

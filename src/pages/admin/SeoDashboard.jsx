@@ -399,8 +399,22 @@ export default function SeoDashboard() {
         .filter((article) => article.categories?.slug)
         .map((article) => [article.categories.slug, { slug: article.categories.slug }])
     ).values())
+    const tagRows = Array.from(new Map(
+      publishedArticles
+        .flatMap((article) => normalizeArticleTags(article))
+        .filter((tag) => tag?.slug)
+        .map((tag) => [tag.slug, { slug: tag.slug, lastmod: null }])
+    ).values())
+    const authorRows = Array.from(new Map(
+      publishedArticles
+        .filter((article) => article.profiles?.username)
+        .map((article) => [article.profiles.username, {
+          username: article.profiles.username,
+          lastmod: article.updated_at || article.published_at || null,
+        }])
+    ).values())
 
-    const xml = generateSitemap(publishedArticles, categoryRows)
+    const xml = generateSitemap(publishedArticles, categoryRows, tagRows, authorRows)
     const doc = new DOMParser().parseFromString(xml, 'application/xml')
     const urls = Array.from(doc.querySelectorAll('url')).map((node) => ({
       loc: node.querySelector('loc')?.textContent?.trim() || '',

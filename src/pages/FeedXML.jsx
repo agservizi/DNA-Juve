@@ -7,11 +7,18 @@ import { supabase } from '@/lib/supabase'
 import { generateRSS, generateSitemap } from '@/lib/feeds'
 
 async function fetchFeedData() {
-  const [articlesRes, catsRes] = await Promise.all([
-    supabase.from('articles').select('id, title, slug, excerpt, cover_image, published_at, updated_at, featured, categories(name, slug)').eq('status', 'published').order('published_at', { ascending: false }).limit(50),
+  const [articlesRes, catsRes, tagsRes] = await Promise.all([
+    supabase.from('articles').select('id, title, slug, excerpt, cover_image, published_at, updated_at, featured, categories(name, slug), profiles(username), article_tags(tags(name, slug))').eq('status', 'published').order('published_at', { ascending: false }).limit(50),
     supabase.from('categories').select('slug'),
+    supabase.from('tags').select('slug'),
   ])
-  return { articles: articlesRes.data || [], categories: catsRes.data || [] }
+  const articles = articlesRes.data || []
+  const authors = Array.from(new Map(
+    articles
+      .filter((article) => article.profiles?.username)
+      .map((article) => [article.profiles.username, { username: article.profiles.username, lastmod: article.updated_at || article.published_at }]),
+  ).values())
+  return { articles, categories: catsRes.data || [], tags: tagsRes.data || [], authors }
 }
 
 export function RssFeed() {
@@ -43,7 +50,7 @@ export function SitemapXML() {
 
   useEffect(() => {
     if (!data) return
-    const xml = generateSitemap(data.articles, data.categories)
+    const xml = generateSitemap(data.articles, data.categories, data.tags, data.authors)
     const blob = new Blob([xml], { type: 'application/xml' })
     const url = URL.createObjectURL(blob)
     window.location.href = url

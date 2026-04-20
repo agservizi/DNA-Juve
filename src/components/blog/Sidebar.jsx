@@ -26,7 +26,12 @@ export default function Sidebar({ showInstagramEmbed = false }) {
     queryFn: async () => {
       const { data } = await supabase
         .from('articles')
-        .select('id, title, slug, cover_image, published_at, views, categories(name, slug, color)')
+        .select(`
+          id, title, slug, cover_image, published_at, views,
+          categories(name, slug, color),
+          profiles(username, avatar_url),
+          article_tags(tags(id, name, slug))
+        `)
         .eq('status', 'published')
         .order('views', { ascending: false })
         .limit(5)

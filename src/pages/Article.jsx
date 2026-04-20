@@ -213,10 +213,14 @@ export default function Article() {
         publishedAt={article.published_at}
         modifiedAt={article.updated_at}
         author={article.profiles?.username}
+        authorUrl={article.profiles?.username ? `/autore/${article.profiles.username}` : undefined}
+        authorImage={article.profiles?.avatar_url}
         category={article.categories?.name}
         tags={tags.map(t => t.name)}
+        keywords={[article.title, article.categories?.name, ...tags.map((tag) => tag.name)]}
         noindex={article.noindex}
         categorySlug={article.categories?.slug}
+        ogImageAlt={article.title}
         breadcrumbs={[
           { name: 'Home', url: '/' },
           ...(article.categories ? [{ name: article.categories.name, url: `/categoria/${article.categories.slug}` }] : []),
@@ -347,6 +351,40 @@ export default function Article() {
                 <TagList tags={tags} />
               </div>
             )}
+
+            <div className="mt-8 border border-gray-200 bg-gray-50 p-5">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="h-5 w-1.5 bg-juve-gold" />
+                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">Continua l'esplorazione</h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {article.categories && (
+                  <Link
+                    to={`/categoria/${article.categories.slug}`}
+                    className="inline-flex items-center border border-gray-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black"
+                  >
+                    Altre notizie in {article.categories.name}
+                  </Link>
+                )}
+                {article.profiles?.username && (
+                  <Link
+                    to={`/autore/${article.profiles.username}`}
+                    className="inline-flex items-center border border-gray-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black"
+                  >
+                    Profilo autore: {article.profiles.username}
+                  </Link>
+                )}
+                {tags.slice(0, 3).map((tag) => (
+                  <Link
+                    key={tag.id || tag.slug}
+                    to={`/tag/${tag.slug}`}
+                    className="inline-flex items-center border border-gray-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-juve-black hover:text-juve-black"
+                  >
+                    Topic: {tag.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
 
             {/* Annotations */}
             <ArticleAnnotations articleId={article.id} articleTitle={article.title} />

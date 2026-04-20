@@ -1074,7 +1074,8 @@ export const getPublishedArticles = async ({ page = 1, limit = 12, category = nu
     .select(`
       id, title, slug, excerpt, content, cover_image, published_at, views, featured,
       categories(id, name, slug, color),
-      profiles(username, avatar_url)
+      profiles(username, avatar_url),
+      article_tags(tags(id, name, slug))
     `)
     .eq('status', 'published')
     .order('published_at', { ascending: false })
@@ -1091,7 +1092,8 @@ export const getFeaturedArticles = () =>
     .select(`
       id, title, slug, excerpt, content, cover_image, published_at,
       categories(id, name, slug, color),
-      profiles(username)
+      profiles(username, avatar_url),
+      article_tags(tags(id, name, slug))
     `)
     .eq('status', 'published')
     .eq('featured', true)
@@ -1113,7 +1115,12 @@ export const getArticleBySlug = (slug) =>
 export const getRelatedArticles = (categoryId, excludeId) =>
   supabase
     .from('articles')
-    .select('id, title, slug, excerpt, content, cover_image, published_at, categories(name, slug, color)')
+    .select(`
+      id, title, slug, excerpt, content, cover_image, published_at,
+      categories(name, slug, color),
+      profiles(username, avatar_url),
+      article_tags(tags(id, name, slug))
+    `)
     .eq('status', 'published')
     .eq('category_id', categoryId)
     .neq('id', excludeId)
@@ -1166,7 +1173,12 @@ export const getSmartRelatedArticles = async (articleId, categoryId, tagIds = []
   // 3. Fetch full article data for all candidates
   const { data: candidates } = await supabase
     .from('articles')
-    .select('id, title, slug, excerpt, content, cover_image, published_at, categories(name, slug, color)')
+    .select(`
+      id, title, slug, excerpt, content, cover_image, published_at,
+      categories(name, slug, color),
+      profiles(username, avatar_url),
+      article_tags(tags(id, name, slug))
+    `)
     .eq('status', 'published')
     .in('id', [...allCandidateIds])
 
@@ -1277,7 +1289,12 @@ export const deleteArticleReaction = async ({ articleId, userId }) => {
 export const searchArticles = (query) =>
   supabase
     .from('articles')
-    .select('id, title, slug, excerpt, content, cover_image, published_at, categories(name, slug, color)')
+    .select(`
+      id, title, slug, excerpt, content, cover_image, published_at,
+      categories(name, slug, color),
+      profiles(username, avatar_url),
+      article_tags(tags(id, name, slug))
+    `)
     .eq('status', 'published')
     .or(`title.ilike.%${query}%,excerpt.ilike.%${query}%`)
     .order('published_at', { ascending: false })

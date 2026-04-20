@@ -48,18 +48,28 @@ export default function Category() {
   })
 
   const articles = data?.pages.flat() || []
+  const categoryName = category?.name || slug
+  const categoryDescription = articles.length > 0
+    ? `${articles.length} articoli su ${categoryName}: notizie Juventus, analisi, approfondimenti e aggiornamenti editoriali di BianconeriHub.`
+    : `Archivio ${categoryName} di BianconeriHub con notizie Juventus, analisi e approfondimenti della redazione.`
 
   return (
     <>
       <SEO
-        title={category?.name}
-        description={`Tutti gli articoli nella categoria ${category?.name || slug} di BianconeriHub`}
+        title={`${categoryName} Juve: news, analisi e approfondimenti`}
+        description={categoryDescription}
         url={`/categoria/${slug}`}
         categorySlug={slug}
-        category={category?.name}
+        category={categoryName}
+        pageType="collection"
+        keywords={[categoryName, `${categoryName} Juventus`, 'notizie Juventus', 'analisi Juventus']}
+        itemList={articles.slice(0, 12).map((article) => ({
+          name: article.title,
+          url: `/articolo/${article.slug}`,
+        }))}
         breadcrumbs={[
           { name: 'Home', url: '/' },
-          { name: category?.name || slug, url: `/categoria/${slug}` },
+          { name: categoryName, url: `/categoria/${slug}` },
         ]}
       />
 

@@ -45,7 +45,20 @@ export function generateRSS(articles = [], category = null) {
 </rss>`
 }
 
-export function generateSitemap(articles = [], categories = []) {
+function normalizeArchiveEntries(entries = [], { pathPrefix, priority, changefreq }) {
+  return entries
+    .filter((entry) => entry?.slug || entry?.username)
+    .map((entry) => ({
+      url: entry.slug
+        ? `/${pathPrefix}/${entry.slug}`
+        : `/${pathPrefix}/${entry.username}`,
+      priority,
+      changefreq,
+      lastmod: entry.lastmod || null,
+    }))
+}
+
+export function generateSitemap(articles = [], categories = [], tags = [], authors = []) {
   const staticUrls = [
     { url: '/', priority: '1.0', changefreq: 'daily' },
     { url: '/notizie-live', priority: '0.9', changefreq: 'hourly' },
@@ -66,7 +79,9 @@ export function generateSitemap(articles = [], categories = []) {
     { url: '/privacy', priority: '0.2', changefreq: 'yearly' },
     { url: '/cookie-policy', priority: '0.2', changefreq: 'yearly' },
     { url: '/termini', priority: '0.2', changefreq: 'yearly' },
-    ...categories.map(c => ({ url: `/categoria/${c.slug}`, priority: '0.8', changefreq: 'daily' })),
+    ...normalizeArchiveEntries(categories, { pathPrefix: 'categoria', priority: '0.8', changefreq: 'daily' }),
+    ...normalizeArchiveEntries(tags, { pathPrefix: 'tag', priority: '0.6', changefreq: 'weekly' }),
+    ...normalizeArchiveEntries(authors, { pathPrefix: 'autore', priority: '0.5', changefreq: 'weekly' }),
   ]
 
   const articleUrls = articles.map(a => ({
@@ -89,5 +104,37 @@ export function generateSitemap(articles = [], categories = []) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   ${urlset}
+</urlset>`
+}
+
+export function generateNewsSitemap(articles = []) {
+  const escapeXml = (str = '') =>
+    String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const cutoff = Date.now() - (1000 * 60 * 60 * 24 * 2)
+  const recentArticles = articles
+    .filter((article) => {
+      const publishedAt = new Date(article.published_at || 0).getTime()
+      return article?.slug && Number.isFinite(publishedAt) && publishedAt >= cutoff
+    })
+    .slice(0, 1000)
+
+  const items = recentArticles.map((article) => `
+  <url>
+    <loc>${NORMALIZED_SITE_URL}/articolo/${article.slug}</loc>
+    <news:news>
+      <news:publication>
+        <news:name>${escapeXml(SITE_NAME)}</news:name>
+        <news:language>it</news:language>
+      </news:publication>
+      <news:publication_date>${new Date(article.published_at).toISOString()}</news:publication_date>
+      <news:title>${escapeXml(article.title)}</news:title>
+    </news:news>
+    ${article.updated_at || article.published_at ? `<lastmod>${new Date(article.updated_at || article.published_at).toISOString()}</lastmod>` : ''}
+  </url>`).join('')
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+  ${items}
 </urlset>`
 }

@@ -3,7 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import { generateRSS, generateSitemap } from '../src/lib/feeds.js'
+import { generateNewsSitemap, generateRSS, generateSitemap } from '../src/lib/feeds.js'
 import { getSupabaseScriptConfig } from './env.js'
 
 dotenv.config()
@@ -33,12 +33,14 @@ async function main() {
     },
   })
 
-  const [articlesRes, categoriesRes] = await Promise.all([
+  const [articlesRes, categoriesRes, tagsRes] = await Promise.all([
     supabase
       .from('articles')
       .select(`
         id, title, slug, excerpt, cover_image, published_at, updated_at, featured,
-        categories(name, slug)
+        categories(name, slug),
+        profiles(username),
+        article_tags(tags(name, slug))
       `)
       .eq('status', 'published')
       .order('published_at', { ascending: false })
@@ -47,17 +49,59 @@ async function main() {
       .from('categories')
       .select('slug, name')
       .order('name'),
+    supabase
+      .from('tags')
+      .select('slug, name')
+      .order('name'),
   ])
 
   if (articlesRes.error) throw articlesRes.error
   if (categoriesRes.error) throw categoriesRes.error
+  if (tagsRes.error) throw tagsRes.error
 
   const articles = articlesRes.data || []
-  const categories = categoriesRes.data || []
+  const categoryMap = new Map((categoriesRes.data || []).map((category) => [category.slug, { ...category, lastmod: null }]))
+  const tagMap = new Map((tagsRes.data || []).map((tag) => [tag.slug, { ...tag, lastmod: null }]))
+  const authorMap = new Map()
+
+  for (const article of articles) {
+    const articleLastmod = article.updated_at || article.published_at || null
+
+    if (article.categories?.slug) {
+      const existing = categoryMap.get(article.categories.slug) || { slug: article.categories.slug, name: article.categories.name || article.categories.slug, lastmod: null }
+      if (!existing.lastmod || new Date(articleLastmod).getTime() > new Date(existing.lastmod).getTime()) {
+        existing.lastmod = articleLastmod
+      }
+      categoryMap.set(article.categories.slug, existing)
+    }
+
+    for (const entry of article.article_tags || []) {
+      const tag = entry?.tags
+      if (!tag?.slug) continue
+      const existing = tagMap.get(tag.slug) || { slug: tag.slug, name: tag.name || tag.slug, lastmod: null }
+      if (!existing.lastmod || new Date(articleLastmod).getTime() > new Date(existing.lastmod).getTime()) {
+        existing.lastmod = articleLastmod
+      }
+      tagMap.set(tag.slug, existing)
+    }
+
+    if (article.profiles?.username) {
+      const existing = authorMap.get(article.profiles.username) || { username: article.profiles.username, lastmod: null }
+      if (!existing.lastmod || new Date(articleLastmod).getTime() > new Date(existing.lastmod).getTime()) {
+        existing.lastmod = articleLastmod
+      }
+      authorMap.set(article.profiles.username, existing)
+    }
+  }
+
+  const categories = Array.from(categoryMap.values())
+  const tags = Array.from(tagMap.values())
+  const authors = Array.from(authorMap.values())
 
   await fs.mkdir(distDir, { recursive: true })
   await fs.writeFile(path.join(distDir, 'feed.xml'), generateRSS(articles), 'utf8')
-  await fs.writeFile(path.join(distDir, 'sitemap.xml'), generateSitemap(articles, categories), 'utf8')
+  await fs.writeFile(path.join(distDir, 'sitemap.xml'), generateSitemap(articles, categories, tags, authors), 'utf8')
+  await fs.writeFile(path.join(distDir, 'news-sitemap.xml'), generateNewsSitemap(articles), 'utf8')
 
   // Generate per-category RSS feeds
   const feedDir = path.join(distDir, 'feed')
@@ -72,7 +116,7 @@ async function main() {
     categoryFeedCount++
   }
 
-  console.log(`[generate-feeds] feed.xml, sitemap.xml, and ${categoryFeedCount} category feeds generated (${articles.length} articles, ${categories.length} categories).`)
+  console.log(`[generate-feeds] feed.xml, sitemap.xml, news-sitemap.xml, and ${categoryFeedCount} category feeds generated (${articles.length} articles, ${categories.length} categories, ${tags.length} tags, ${authors.length} authors).`)
 }
 
 main().catch((error) => {

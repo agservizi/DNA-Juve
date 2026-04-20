@@ -106,7 +106,13 @@ export default function Home() {
 
   return (
     <>
-      <SEO />
+      <SEO
+        title="BianconeriHub"
+        description="Notizie, analisi, calciomercato, community e approfondimenti sulla Juventus in un magazine editoriale ottimizzato per lettura e aggiornamento continuo."
+        url="/"
+        pageType="website"
+        keywords={['Juventus', 'notizie Juventus', 'calciomercato Juventus', 'magazine Juventus', 'community Juventus']}
+      />
 
       {/* Featured Hero */}
       {!loadingFeatured && featured.length > 0 && (
