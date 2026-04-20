@@ -10,8 +10,6 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 const cronSecret = Deno.env.get('CRON_SECRET') || ''
 const siteUrl = (Deno.env.get('SITE_URL') || 'https://bianconerihub.com').replace(/\/+$/, '')
 const instagramProviderPreference = (Deno.env.get('INSTAGRAM_PROVIDER') || 'meta').trim().toLowerCase()
-const n8nInstagramWebhookUrl = Deno.env.get('N8N_INSTAGRAM_WEBHOOK_URL') || ''
-const n8nInstagramWebhookSecret = Deno.env.get('N8N_INSTAGRAM_WEBHOOK_SECRET') || ''
 const instagramAccessToken = Deno.env.get('INSTAGRAM_ACCESS_TOKEN') || ''
 const instagramBusinessAccountId = Deno.env.get('INSTAGRAM_BUSINESS_ACCOUNT_ID') || ''
 const bufferAccessToken = Deno.env.get('BUFFER_ACCESS_TOKEN') || ''
@@ -45,26 +43,16 @@ function jsonResponse(body: unknown, status = 200) {
 
 function getInstagramProvider() {
   const hasMeta = Boolean(instagramAccessToken && instagramBusinessAccountId)
-  const hasN8n = Boolean(n8nInstagramWebhookUrl)
   const hasBuffer = Boolean(bufferAccessToken && bufferChannelId)
-
-  if (instagramProviderPreference === 'n8n') {
-    if (hasN8n) return 'n8n'
-    if (hasMeta) return 'meta'
-    if (hasBuffer) return 'buffer'
-    return null
-  }
 
   if (instagramProviderPreference === 'buffer') {
     if (hasBuffer) return 'buffer'
     if (hasMeta) return 'meta'
-    if (hasN8n) return 'n8n'
     return null
   }
 
   if (hasMeta) return 'meta'
   if (hasBuffer) return 'buffer'
-  if (hasN8n) return 'n8n'
   return null
 }
 
@@ -189,65 +177,6 @@ async function createInstagramMedia(imageUrl: string, caption: string) {
   }
 
   return data.id
-}
-
-async function publishInstagramViaN8n(article: ArticleRow) {
-  const imageUrl = String(article.instagram_image || article.cover_image || '').trim()
-  if (!imageUrl) {
-    throw new Error('Immagine Instagram mancante: serve instagram_image o cover_image.')
-  }
-
-  const caption = buildInstagramCaption(article)
-  const payload = {
-    source: 'bianconerihub',
-    action: 'publish-instagram-article',
-    articleId: article.id,
-    title: article.title,
-    slug: article.slug,
-    excerpt: article.excerpt,
-    imageUrl,
-    caption,
-    articleUrl: getArticleUrl(article.slug),
-    publishedAt: article.published_at,
-    secret: n8nInstagramWebhookSecret || undefined,
-  }
-
-  const response = await fetch(n8nInstagramWebhookUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(n8nInstagramWebhookSecret ? { 'x-bianconerihub-secret': n8nInstagramWebhookSecret } : {}),
-    },
-    body: JSON.stringify(payload),
-  })
-
-  const data = await response.json().catch(() => ({})) as {
-    ok?: boolean
-    success?: boolean
-    error?: string
-    message?: string
-    postId?: string
-    mediaId?: string
-    permalink?: string
-    publishedAt?: string
-    runId?: string
-  }
-
-  if (!response.ok || (data?.success === false) || (data?.ok === false)) {
-    const message = data?.error || data?.message || 'Webhook n8n Instagram non disponibile.'
-    if (response.status === 429 || isRateLimitMessage(message)) {
-      throw createHttpError(getPublicRateLimitMessage(), 429)
-    }
-    throw new Error(message)
-  }
-
-  return {
-    caption,
-    creationId: data?.mediaId || data?.runId || `n8n-${article.id}`,
-    postId: data?.postId || data?.mediaId || `n8n-${article.id}`,
-    permalink: data?.permalink || null,
-    timestamp: data?.publishedAt || new Date().toISOString(),
-  }
 }
 
 async function publishInstagramViaBuffer(article: ArticleRow) {
@@ -434,13 +363,11 @@ async function publishArticleRecord(supabaseAdmin: ReturnType<typeof createClien
 
   const provider = getInstagramProvider()
   if (!provider) {
-    throw new Error('Instagram non configurato: imposta Buffer, Meta diretta oppure un webhook n8n opzionale.')
+    throw new Error('Instagram non configurato: imposta Buffer oppure Meta diretta.')
   }
 
-  const result = provider === 'n8n'
-    ? await publishInstagramViaN8n(article)
-    : provider === 'buffer'
-      ? await publishInstagramViaBuffer(article)
+  const result = provider === 'buffer'
+    ? await publishInstagramViaBuffer(article)
     : await (async () => {
       const caption = buildInstagramCaption(article)
       const creationId = await createInstagramMedia(imageUrl, caption)
@@ -558,7 +485,6 @@ Deno.serve(async (req) => {
         configured: isConfigured(),
         provider: getInstagramProvider(),
         providerPreference: instagramProviderPreference,
-        usingN8nWebhook: Boolean(n8nInstagramWebhookUrl),
         usingBuffer: Boolean(bufferAccessToken && bufferChannelId),
         instagramBusinessAccountId: instagramBusinessAccountId || null,
         bufferChannelId: bufferChannelId || null,
@@ -567,7 +493,7 @@ Deno.serve(async (req) => {
     }
 
     if (!isConfigured()) {
-      return jsonResponse({ error: 'Instagram non configurato: imposta BUFFER_ACCESS_TOKEN e BUFFER_CHANNEL_ID, oppure Meta diretta o un webhook n8n opzionale.' }, 400)
+      return jsonResponse({ error: 'Instagram non configurato: imposta BUFFER_ACCESS_TOKEN e BUFFER_CHANNEL_ID, oppure Meta diretta.' }, 400)
     }
 
     if (action === 'publish-article') {

@@ -262,7 +262,7 @@ export default function Settings() {
                 <p className="font-bold text-sm">Automazione Instagram</p>
                 <p className="text-xs text-gray-500">
                   {instagramStatus?.configured
-                    ? `${instagramStatus.provider === 'n8n' ? 'Webhook esterno' : instagramStatus.provider === 'buffer' ? 'Buffer' : 'Meta diretta'} · ${instagramStatus.pendingCount || 0} articoli in coda`
+                    ? `${instagramStatus.provider === 'buffer' ? 'Buffer' : 'Meta diretta'} · ${instagramStatus.pendingCount || 0} articoli in coda`
                     : 'Configura Buffer, Meta diretta o un webhook esterno'}
                 </p>
               </div>
@@ -325,12 +325,6 @@ export default function Settings() {
               label="Google Search Console"
               hint="Indicizzazione, sitemap e performance SEO"
             />
-            <QuickLink
-              to="https://docs.n8n.io/hosting/installation/docker/"
-              icon={SettingsIcon}
-              label="n8n Self-Hosted"
-              hint="Installazione Docker e webhook pubblici"
-            />
           </div>
         </InfoCard>
 
@@ -355,7 +349,7 @@ export default function Settings() {
             </li>
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
-              Per Instagram via n8n serve un endpoint HTTPS pubblico: senza quello Supabase non puo consegnare i post al workflow.
+              Per Instagram verifica che Buffer oppure Meta Graph API siano configurati prima di avviare la coda automatica.
             </li>
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 bg-juve-gold rounded-full mt-2 shrink-0" />
