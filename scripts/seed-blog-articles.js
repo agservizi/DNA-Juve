@@ -1,14 +1,9 @@
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
 import { seedArticles } from './data/blogSeedArticles.js'
+import { getSupabaseScriptConfig } from './env.js'
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!supabaseUrl || !serviceRoleKey) {
-  console.error('Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment.')
-  process.exit(1)
-}
+const { url: supabaseUrl, key: serviceRoleKey } = getSupabaseScriptConfig({ requireServiceRole: true })
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -156,4 +151,3 @@ seed().catch((error) => {
   console.error(error)
   process.exit(1)
 })
-

@@ -263,7 +263,7 @@ export default function Settings() {
                 <p className="text-xs text-gray-500">
                   {instagramStatus?.configured
                     ? `${instagramStatus.provider === 'buffer' ? 'Buffer' : 'Meta diretta'} · ${instagramStatus.pendingCount || 0} articoli in coda`
-                    : 'Configura Buffer, Meta diretta o un webhook esterno'}
+                    : 'Configura Buffer o Meta diretta'}
                 </p>
               </div>
               <StatusBadge ok={Boolean(instagramStatus?.configured)} readyLabel="Connessa" fallbackLabel="Da configurare" />

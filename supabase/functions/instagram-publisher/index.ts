@@ -8,7 +8,6 @@ const corsHeaders = {
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 const cronSecret = Deno.env.get('CRON_SECRET') || ''
-const siteUrl = (Deno.env.get('SITE_URL') || 'https://bianconerihub.com').replace(/\/+$/, '')
 const instagramProviderPreference = (Deno.env.get('INSTAGRAM_PROVIDER') || 'meta').trim().toLowerCase()
 const instagramAccessToken = Deno.env.get('INSTAGRAM_ACCESS_TOKEN') || ''
 const instagramBusinessAccountId = Deno.env.get('INSTAGRAM_BUSINESS_ACCOUNT_ID') || ''
@@ -58,10 +57,6 @@ function getInstagramProvider() {
 
 function isConfigured() {
   return Boolean(getInstagramProvider())
-}
-
-function getArticleUrl(slug: string) {
-  return `${siteUrl}/articolo/${slug}`
 }
 
 function truncateText(value: string, maxLength: number) {

@@ -3,6 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { getSupabaseScriptConfig } from './env.js'
 
 dotenv.config()
 
@@ -17,11 +18,6 @@ const SITE_URL = (process.env.VITE_SITE_URL || 'https://bianconerihub.com').repl
 const DEFAULT_IMAGE = `${SITE_URL}/og-default.png`
 const DEFAULT_DESCRIPTION =
   'Il magazine digitale dedicato alla Juventus. Analisi, notizie, mercato e tanto altro dalla redazione bianconera.'
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY
 
 function normalizeAbsoluteUrl(value, fallbackPath = '') {
   if (!value) return fallbackPath ? `${SITE_URL}${fallbackPath}` : SITE_URL
@@ -215,11 +211,7 @@ function rewriteArticleHtml(templateHtml, article) {
 }
 
 async function fetchPublishedArticles() {
-  if (!supabaseUrl || !supabaseKey) {
-    console.warn('[fetch-and-rewrite] Missing Supabase env vars, skipping article prerender.')
-    return []
-  }
-
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseScriptConfig()
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
       persistSession: false,
@@ -310,8 +302,14 @@ function rewritePageHtml(templateHtml, { title, description, url, type }) {
 async function main() {
   const templatePath = path.join(distDir, 'index.html')
   const templateHtml = await fs.readFile(templatePath, 'utf8')
+  let supabaseUrl = ''
+  let supabaseKey = ''
 
-  if (!supabaseUrl || !supabaseKey) {
+  try {
+    const config = getSupabaseScriptConfig()
+    supabaseUrl = config.url
+    supabaseKey = config.key
+  } catch {
     console.warn('[fetch-and-rewrite] Missing Supabase env vars, skipping prerender.')
     return
   }

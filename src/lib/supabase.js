@@ -4,13 +4,18 @@ import { slugify } from './utils'
 import { buildFanArticlePlaceholder, deriveFanArticleTags } from './fanArticles'
 import { getRecentFinishedMatches, JUVE_ID } from './footballApi'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
+const rawSupabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim()
+const rawSupabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()
+const supabaseUrl = rawSupabaseUrl || 'https://invalid.supabase.local'
+const supabaseAnonKey = rawSupabaseAnonKey || 'invalid-anon-key'
 const configuredSiteUrl = (import.meta.env.VITE_SITE_URL || '').trim().replace(/\/+$/, '')
 const defaultSiteUrl = 'https://bianconerihub.com'
 export const vapidPublicKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim()
 export const pushNotificationsConfigured = Boolean(vapidPublicKey)
-const IS_MOCK = supabaseUrl.includes('your-project.supabase.co')
+export const supabaseConfigured = Boolean(rawSupabaseUrl && rawSupabaseAnonKey)
+const IS_MOCK =
+  import.meta.env.DEV &&
+  (!supabaseConfigured || String(import.meta.env.VITE_ENABLE_MOCK_SUPABASE || '').toLowerCase() === 'true')
 let readerStateSupported = true
 let profileRoleSupported = true
 let matchPollSupported = true
@@ -27,6 +32,10 @@ const DEFAULT_MATCH_POLL_OPTIONS = [
 ]
 
 export const supabase = IS_MOCK ? createMockClient() : createClient(supabaseUrl, supabaseAnonKey)
+
+if (!supabaseConfigured && !IS_MOCK && typeof console !== 'undefined') {
+  console.error('BianconeriHub — Supabase non configurato: imposta VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.')
+}
 
 function isMissingColumnOrRelation(error, token) {
   const message = String(error?.message || '').toLowerCase()

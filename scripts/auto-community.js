@@ -13,15 +13,14 @@
  */
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { getSupabaseScriptConfig, readEnv } from './env.js'
 
 dotenv.config()
 
 const JUVE_ID = 109
 const API_BASE = 'https://api.football-data.org/v4'
-const API_KEY = process.env.VITE_FOOTBALL_API_KEY || process.env.FOOTBALL_API_KEY || ''
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+const API_KEY = readEnv('FOOTBALL_API_KEY', 'VITE_FOOTBALL_API_KEY')
+const { url: supabaseUrl, key: supabaseKey } = getSupabaseScriptConfig()
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 const DRY_RUN = process.argv.includes('--dry-run')
@@ -42,9 +41,9 @@ async function footballFetch(endpoint) {
 
 // ─── POSIZIONE dal ruolo API ───────────────────────────────────────
 function mapPosition(pos) {
-  if (!pos) return 'CM'
+  if (!pos) return 'CEN'
   const map = { Goalkeeper: 'POR', Defence: 'DIF', Midfield: 'CEN', Offence: 'ATT' }
-  return map[pos] || 'CM'
+  return map[pos] || 'CEN'
 }
 
 // ─── ROSA HARDCODED (fallback quando API free non dà lineup) ──────
@@ -83,6 +82,12 @@ async function generatePagelle() {
 
   for (const match of data.matches) {
     const apiMatchId = String(match.id)
+    const homeTeam = match.homeTeam.shortName || match.homeTeam.name
+    const awayTeam = match.awayTeam.shortName || match.awayTeam.name
+    const homeScore = match.score?.fullTime?.home ?? null
+    const awayScore = match.score?.fullTime?.away ?? null
+    const competition = match.competition?.name || 'Serie A'
+    const matchDate = match.utcDate
 
     // Check se pagella già esiste
     const { data: existing } = await supabase
@@ -126,13 +131,6 @@ async function generatePagelle() {
     // Fetch dettagli partita con lineup
     const matchDetail = await footballFetch(`/matches/${match.id}`)
     if (!matchDetail) continue
-
-    const homeTeam = match.homeTeam.shortName || match.homeTeam.name
-    const awayTeam = match.awayTeam.shortName || match.awayTeam.name
-    const homeScore = match.score?.fullTime?.home ?? null
-    const awayScore = match.score?.fullTime?.away ?? null
-    const competition = match.competition?.name || 'Serie A'
-    const matchDate = match.utcDate
 
     console.log(`\n  📋 ${homeTeam} ${homeScore}-${awayScore} ${awayTeam} (${competition})`)
 

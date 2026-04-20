@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
 import 'dotenv/config'
+import { readEnv, requireEnv } from './env.js'
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || ''
-const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
-const cronSecret = process.env.CRON_SECRET || ''
+const supabaseUrl = requireEnv(['SUPABASE_URL', 'VITE_SUPABASE_URL'], 'SUPABASE_URL or VITE_SUPABASE_URL')
+const anonKey = requireEnv(['SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY'], 'SUPABASE_ANON_KEY or VITE_SUPABASE_ANON_KEY')
+const cronSecret = readEnv('CRON_SECRET')
 const dryRun = process.argv.includes('--dry-run')
 
-if (!supabaseUrl || !anonKey || !cronSecret) {
-  console.error('Missing environment: SUPABASE_URL/VITE_SUPABASE_URL, SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY, CRON_SECRET')
+if (!cronSecret) {
+  console.error('Missing environment: CRON_SECRET')
   process.exit(1)
 }
 

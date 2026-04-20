@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { generateRSS, generateSitemap } from '../src/lib/feeds.js'
+import { getSupabaseScriptConfig } from './env.js'
 
 dotenv.config()
 
@@ -12,13 +13,15 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 const distDir = path.join(rootDir, 'dist')
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY
-
 async function main() {
-  if (!supabaseUrl || !supabaseKey) {
+  let supabaseUrl = ''
+  let supabaseKey = ''
+
+  try {
+    const config = getSupabaseScriptConfig()
+    supabaseUrl = config.url
+    supabaseKey = config.key
+  } catch {
     console.warn('[generate-feeds] Missing Supabase env vars, skipping XML generation.')
     return
   }
