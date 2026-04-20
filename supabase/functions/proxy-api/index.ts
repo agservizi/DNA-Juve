@@ -16,7 +16,7 @@ const ROUTES: Record<string, { target: string; headers?: Record<string, string>;
   'rss/tuttosport': { target: 'https://www.tuttosport.com/rss/calcio/serie-a/juventus' },
   'rss/tuttojuve': { target: 'https://www.tuttojuve.com/rss/?section=6' },
   'rss/juventusnews24': { target: 'https://www.juventusnews24.com/feed/' },
-  'rss/juvenews': { target: 'https://www.juvenews.eu/feed/' },
+  'rss/juvenews': { target: 'https://www.juvenews.eu/feed/rss.xml' },
   brevo: {
     target: 'https://api.brevo.com/v3',
     headers: { 'api-key': Deno.env.get('BREVO_API_KEY') || '' },

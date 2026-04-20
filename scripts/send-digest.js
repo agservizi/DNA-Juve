@@ -37,7 +37,7 @@ const NEWS_FEEDS = [
   { url: 'https://www.gazzetta.it/rss/calcio.xml', source: 'La Gazzetta dello Sport' },
   { url: 'https://www.tuttosport.com/rss/calcio/serie-a/juventus', source: 'Tuttosport' },
   { url: 'https://www.juventusnews24.com/feed/', source: 'JuventusNews24' },
-  { url: 'https://www.juvenews.eu/feed/', source: 'JuveNews' },
+  { url: 'https://www.juvenews.eu/feed/rss.xml', source: 'JuveNews' },
 ]
 
 const JUVE_KEYWORDS = ['juventus', 'juve', 'bianconeri', 'bianconero']

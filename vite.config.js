@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => {
           rewrite: () => '',
         },
         '/api/rss/juvenews': {
-          target: 'https://www.juvenews.eu/feed/',
+          target: 'https://www.juvenews.eu/feed/rss.xml',
           changeOrigin: true,
           rewrite: () => '',
         },
