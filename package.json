@@ -9,6 +9,7 @@
           "check:scripts": "node --check scripts/env.js && node --check scripts/auto-community.js && node --check scripts/generate-feeds.js && node --check scripts/fetch-and-rewrite.js && node --check scripts/process-reader-notifications.js && node --check scripts/seed-blog-articles.js",
           "check": "npm run check:scripts && npm run build",
           "preview": "vite preview",
+                "start": "vite preview --host 0.0.0.0 --port 3010",
           "seed:articles": "node scripts/seed-blog-articles.js",
           "newsletter": "node scripts/send-digest.js",
           "newsletter:preview": "node scripts/send-digest.js --dry-run",
