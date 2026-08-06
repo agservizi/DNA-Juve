@@ -1,8 +1,11 @@
 -- Add is_banned flag to profiles for reader banning
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT false;
 
--- Allow admins to update is_banned on any profile
-CREATE POLICY IF NOT EXISTS "Profiles: admin can ban readers"
+-- Allow admins to update is_banned on any profile. PostgreSQL does not
+-- support CREATE POLICY IF NOT EXISTS, so keep this migration idempotent by
+-- replacing the policy explicitly.
+DROP POLICY IF EXISTS "Profiles: admin can ban readers" ON profiles;
+CREATE POLICY "Profiles: admin can ban readers"
   ON profiles FOR UPDATE
   TO authenticated
   USING (
