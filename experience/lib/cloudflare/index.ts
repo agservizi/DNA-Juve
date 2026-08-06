@@ -100,7 +100,7 @@ export async function uploadToStream(
   tusToken: string,
   onProgress?: (progress: number) => void
 ): Promise<{ streamUid: string; url: string }> {
-  const { Upload } = await import('@tus/js-client')
+  const { Upload } = await import('tus-js-client')
 
   return new Promise((resolve, reject) => {
     const upload = new Upload(file, {

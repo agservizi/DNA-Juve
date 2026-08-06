@@ -28,7 +28,7 @@
         "@anthropic-ai/sdk": "^0.82.0",
         "@aws-sdk/client-s3": "^3.527.0",
         "@hookform/resolvers": "^5.2.2",
-        "@tus/js-client": "^4.1.0",
+        "tus-js-client": "^4.3.0",
         "@radix-ui/react-alert-dialog": "^1.0.5",
         "@radix-ui/react-avatar": "^1.0.4",
         "@radix-ui/react-dialog": "^1.0.5",
