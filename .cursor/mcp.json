@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "url": "https://supabase.agenziaplinio.it/mcp?features=docs%2Cdatabase%2Cdebugging%2Cdevelopment"
+    }
+  }
+}
