@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+.env.local
+.env.*.local
+.cursor
+experience/node_modules
+experience/.next
+*.log
+.DS_Store
+dist
+build
+.venv
+venv
