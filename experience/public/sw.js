@@ -1,0 +1,4 @@
+self.addEventListener('install',()=>self.skipWaiting())
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()))
+self.addEventListener('push',event=>{let payload={};try{payload=event.data?event.data.json():{}}catch{payload={body:event.data?.text?.()||'Nuovo aggiornamento disponibile.'}}event.waitUntil(self.registration.showNotification(payload.title||'BianconeriHub',{body:payload.body||'Nuovo aggiornamento disponibile.',data:{url:payload.url||'/area-bianconera'},tag:payload.tag||'bianconerihub-notification'}))})
+self.addEventListener('notificationclick',event=>{event.notification.close();const url=event.notification.data?.url||'/area-bianconera';event.waitUntil((async()=>{const list=await self.clients.matchAll({type:'window',includeUncontrolled:true});const current=list.find(client=>client.url.includes(url));if(current)return current.focus();return self.clients.openWindow(url)})())})

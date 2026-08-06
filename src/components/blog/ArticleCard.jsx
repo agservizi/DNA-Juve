@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
 import { Clock, Eye, User } from 'lucide-react'
 import { formatDateLocalized, getClientLocaleContext, getRelativeDateLabel, readingTime, formatViews, truncate } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 import LazyImage from './LazyImage'
 import BookmarkButton from './BookmarkButton'
+import Reveal from '@/components/motion/Reveal'
+import Parallax from '@/components/motion/Parallax'
 
 export default function ArticleCard({ article, variant = 'default', index = 0 }) {
   const mins = readingTime(article.content || article.excerpt)
@@ -26,20 +27,17 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
 
   if (variant === 'horizontal') {
     return (
-      <motion.article
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: index * 0.05 }}
-        className="flex gap-4 group"
-      >
+      <Reveal as="article" className="flex gap-4 group" fromY={10} delay={index * 0.04}>
         <Link to={`/articolo/${article.slug}`} className="shrink-0 w-28 h-20 overflow-hidden bg-gray-100">
-          <LazyImage
-            src={article.cover_image}
-            alt={article.title}
-            aspectRatio=""
-            wrapperClassName="w-full h-full"
-            className="group-hover:scale-105 transition-transform duration-500"
-          />
+          <Parallax className="h-full w-full will-change-transform" y={10}>
+            <LazyImage
+              src={article.cover_image}
+              alt={article.title}
+              aspectRatio=""
+              wrapperClassName="w-full h-full"
+              className="group-hover:scale-105 transition-transform duration-500"
+            />
+          </Parallax>
         </Link>
         <div className="flex-1 min-w-0">
           {cat && (
@@ -71,17 +69,17 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
           </div>
           <p className="text-xs text-gray-500 mt-1">{publishedDate}{freshness ? ` · ${freshness}` : ''}</p>
         </div>
-      </motion.article>
+      </Reveal>
     )
   }
 
   if (variant === 'compact') {
     return (
-      <motion.article
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.05 }}
+      <Reveal
+        as="article"
         className="group border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+        fromY={10}
+        delay={index * 0.03}
       >
         {cat && (
           <Link
@@ -114,25 +112,22 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
           <span>{publishedDate}{freshness ? ` · ${freshness}` : ''}</span>
           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{mins} min</span>
         </div>
-      </motion.article>
+      </Reveal>
     )
   }
 
   // default card
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="group bg-white overflow-hidden"
-    >
+    <Reveal as="article" className="group bg-white overflow-hidden" fromY={14} delay={index * 0.03}>
       <Link to={`/articolo/${article.slug}`} className="block overflow-hidden">
-        <LazyImage
-          src={article.cover_image}
-          alt={article.title}
-          aspectRatio="aspect-[16/9]"
-          className="group-hover:scale-105 transition-transform duration-700"
-        />
+        <Parallax className="will-change-transform" y={14}>
+          <LazyImage
+            src={article.cover_image}
+            alt={article.title}
+            aspectRatio="aspect-[16/9]"
+            className="group-hover:scale-105 transition-transform duration-700"
+          />
+        </Parallax>
       </Link>
 
       <div className="p-4">
@@ -185,6 +180,6 @@ export default function ArticleCard({ article, variant = 'default', index = 0 })
           </div>
         </div>
       </div>
-    </motion.article>
+    </Reveal>
   )
 }

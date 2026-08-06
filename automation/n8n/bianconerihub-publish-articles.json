@@ -1,0 +1,242 @@
+{
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "versionId": "550e8400-e29b-41d4-a716-446655440001",
+  "name": "BianconeriHub — Pubblica articoli (RSS + Groq)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 3
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000001",
+      "name": "Ogni 3 ore",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://www.tuttojuve.com/rss/?section=6"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000002",
+      "name": "RSS TuttoJuve",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [260, 120]
+    },
+    {
+      "parameters": {
+        "url": "https://www.juvenews.eu/feed/rss.xml"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000003",
+      "name": "RSS JuveNews",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://www.juventusnews24.com/feed/"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000004",
+      "name": "RSS JuventusNews24",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [260, 480]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000005",
+      "name": "Unisci feed",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const maxAgeHours = 8;\nconst now = Date.now();\n\nconst items = $input.all()\n  .map((item) => item.json)\n  .filter((entry) => {\n    const pub = new Date(entry.pubDate || entry.isoDate || 0).getTime();\n    if (!Number.isFinite(pub)) return true;\n    return now - pub <= maxAgeHours * 60 * 60 * 1000;\n  })\n  .slice(0, 6)\n  .map((entry) => ({\n    json: {\n      source_name: entry.creator || entry['dc:creator'] || 'RSS',\n      title: entry.title || '',\n      link: entry.link || entry.guid || '',\n      pubDate: entry.pubDate || entry.isoDate || '',\n      contentSnippet: entry.contentSnippet || entry.summary || entry.description || '',\n      content: entry.content || entry['content:encoded'] || entry.description || '',\n      cover_image_url: entry.enclosure?.url || entry.image?.url || entry.mediaContent?.url || '',\n    },\n  }));\n\nreturn items.length ? items : [];"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000006",
+      "name": "Filtra recenti",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000007",
+      "name": "Uno alla volta",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.GROQ_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"temperature\": 0.75,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un redattore senior di BianconeriHub, magazine digitale sulla Juventus. Scrivi in italiano con tono editoriale umano, appassionato ma sobrio. Non copiare: riscrivi dai fatti. Non inventare nomi, cifre o dichiarazioni non presenti nella fonte. Evita frasi da AI. Rispondi SOLO con JSON valido.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Fonte: {{ $json.source_name }}\\nTitolo: {{ $json.title }}\\nLink: {{ $json.link }}\\nData: {{ $json.pubDate }}\\nTesto:\\n{{ $json.contentSnippet || $json.content }}\\n\\nRiscrivi per BianconeriHub. JSON richiesto:\\n{\\\"title\\\":\\\"\\\",\\\"slug\\\":\\\"\\\",\\\"excerpt\\\":\\\"\\\",\\\"content\\\":\\\"HTML con p e h2\\\",\\\"category_slug\\\":\\\"mercato|calcio|formazione|champions|serie-a|interviste\\\",\\\"tags\\\":[\\\"\\\"],\\\"meta_title\\\":\\\"\\\",\\\"meta_description\\\":\\\"\\\"}\"\n    }\n  ]\n}"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000008",
+      "name": "Groq — Riscrittura umana",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Uno alla volta').item.json;\nconst groq = $input.first().json;\nconst raw = groq?.choices?.[0]?.message?.content || '{}';\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (error) {\n  throw new Error('Groq non ha restituito JSON valido: ' + raw.slice(0, 240));\n}\n\nreturn [{\n  json: {\n    title: parsed.title,\n    slug: parsed.slug,\n    excerpt: parsed.excerpt,\n    content: parsed.content,\n    category_slug: parsed.category_slug,\n    tags: parsed.tags || [],\n    meta_title: parsed.meta_title || parsed.title,\n    meta_description: parsed.meta_description || parsed.excerpt,\n    status: 'published',\n    source_url: source.link,\n    cover_image_url: source.cover_image_url || '',\n  },\n}];"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000009",
+      "name": "Prepara payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1480, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL}}/functions/v1/n8n-publish-article",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "x-n8n-secret",
+              "value": "={{$env.N8N_PUBLISH_SECRET}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000010",
+      "name": "Pubblica su BianconeriHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1720, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skipped }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000011",
+      "name": "Pubblicato?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1960, 300]
+    }
+  ],
+  "connections": {
+    "Ogni 3 ore": {
+      "main": [
+        [
+          { "node": "RSS TuttoJuve", "type": "main", "index": 0 },
+          { "node": "RSS JuveNews", "type": "main", "index": 0 },
+          { "node": "RSS JuventusNews24", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "RSS TuttoJuve": {
+      "main": [[{ "node": "Unisci feed", "type": "main", "index": 0 }]]
+    },
+    "RSS JuveNews": {
+      "main": [[{ "node": "Unisci feed", "type": "main", "index": 1 }]]
+    },
+    "RSS JuventusNews24": {
+      "main": [[{ "node": "Unisci feed", "type": "main", "index": 1 }]]
+    },
+    "Unisci feed": {
+      "main": [[{ "node": "Filtra recenti", "type": "main", "index": 0 }]]
+    },
+    "Filtra recenti": {
+      "main": [[{ "node": "Uno alla volta", "type": "main", "index": 0 }]]
+    },
+    "Uno alla volta": {
+      "main": [
+        [{ "node": "Groq — Riscrittura umana", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Groq — Riscrittura umana": {
+      "main": [[{ "node": "Prepara payload", "type": "main", "index": 0 }]]
+    },
+    "Prepara payload": {
+      "main": [[{ "node": "Pubblica su BianconeriHub", "type": "main", "index": 0 }]]
+    },
+    "Pubblica su BianconeriHub": {
+      "main": [[{ "node": "Pubblicato?", "type": "main", "index": 0 }]]
+    },
+    "Pubblicato?": {
+      "main": [
+        [{ "node": "Uno alla volta", "type": "main", "index": 0 }],
+        [{ "node": "Uno alla volta", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Rome"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

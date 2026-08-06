@@ -1,14 +1,16 @@
 import { Link } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, ChevronRight, User } from 'lucide-react'
 import { formatDateLocalized, getClientLocaleContext, getRelativeDateLabel, readingTime } from '@/lib/utils'
 import { useReader } from '@/hooks/useReader'
 import LazyImage from './LazyImage'
+import { loadGsap, prefersReducedMotion } from '@/lib/gsap'
 
 export default function FeaturedHero({ articles = [] }) {
   if (!articles.length) return null
   const { preferences } = useReader()
+  const rootRef = useRef(null)
   const localeContext = useMemo(() => getClientLocaleContext(preferences?.timeZone), [preferences?.timeZone])
   const [main, ...rest] = articles
   const mainTags = (main.article_tags || [])
@@ -22,8 +24,74 @@ export default function FeaturedHero({ articles = [] }) {
   })
   const formatFreshness = (value) => getRelativeDateLabel(value)
 
+  useLayoutEffect(() => {
+    if (!rootRef.current) return
+    if (prefersReducedMotion()) return
+
+    let ctx = null
+    let cancelled = false
+
+    ;(async () => {
+      const { gsap, ScrollTrigger } = await loadGsap()
+      if (cancelled || !rootRef.current) return
+
+      ctx = gsap.context(() => {
+        const mainCard = rootRef.current.querySelector('[data-gsap="featured-main"]')
+        const mainImage = rootRef.current.querySelector('[data-gsap="featured-main-image"]')
+        const mainOverlay = rootRef.current.querySelector('[data-gsap="featured-main-overlay"]')
+        const mainTitle = rootRef.current.querySelector('[data-gsap="featured-main-title"]')
+        const mainMeta = rootRef.current.querySelector('[data-gsap="featured-main-meta"]')
+
+        const secondaryItems = Array.from(rootRef.current.querySelectorAll('[data-gsap="featured-secondary-item"]'))
+
+        if (mainCard) {
+          const tl = gsap.timeline({
+            defaults: { ease: 'power3.out' },
+            scrollTrigger: {
+              trigger: mainCard,
+              start: 'top 85%',
+              once: true,
+            },
+          })
+
+          if (mainImage) tl.fromTo(mainImage, { scale: 1.08 }, { scale: 1, duration: 1.1 }, 0)
+          if (mainOverlay) tl.fromTo(mainOverlay, { opacity: 0.55 }, { opacity: 1, duration: 0.8 }, 0)
+          if (mainTitle) tl.fromTo(mainTitle, { y: 22, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7 }, 0.05)
+          if (mainMeta) tl.fromTo(mainMeta, { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55 }, 0.2)
+        }
+
+        if (secondaryItems.length) {
+          gsap.fromTo(
+            secondaryItems,
+            { y: 16, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.5,
+              ease: 'power2.out',
+              stagger: 0.08,
+              scrollTrigger: {
+                trigger: secondaryItems[0].parentElement,
+                start: 'top 90%',
+                once: true,
+              },
+            },
+          )
+        }
+
+        // In case images load late and change layout.
+        ScrollTrigger.refresh()
+      }, rootRef)
+    })()
+
+    return () => {
+      cancelled = true
+      ctx?.revert()
+    }
+  }, [main?.id])
+
   return (
-    <section className="max-w-7xl mx-auto px-4 py-8">
+    <section ref={rootRef} className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="h-6 w-1.5 bg-juve-gold" />
         <h2 className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">In Evidenza</h2>
@@ -33,6 +101,7 @@ export default function FeaturedHero({ articles = [] }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-gray-200">
         {/* Main featured */}
         <motion.article
+          data-gsap="featured-main"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6 }}
@@ -40,16 +109,21 @@ export default function FeaturedHero({ articles = [] }) {
         >
           <div className="relative overflow-hidden aspect-[16/10]">
             <Link to={`/articolo/${main.slug}`} className="block h-full w-full">
-              <LazyImage
-                src={main.cover_image}
-                alt={main.title}
-                aspectRatio="aspect-[16/10]"
-                wrapperClassName="w-full"
-                className="group-hover:scale-105 transition-transform duration-700"
-              />
+              <div data-gsap="featured-main-image" className="h-full w-full will-change-transform">
+                <LazyImage
+                  src={main.cover_image}
+                  alt={main.title}
+                  aspectRatio="aspect-[16/10]"
+                  wrapperClassName="w-full"
+                  className="group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
             </Link>
             {/* Gradient overlay */}
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            <div
+              data-gsap="featured-main-overlay"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"
+            />
             <div className="absolute bottom-0 left-0 right-0 p-6">
               {main.categories && (
                 <Link
@@ -61,7 +135,10 @@ export default function FeaturedHero({ articles = [] }) {
                 </Link>
               )}
               <Link to={`/articolo/${main.slug}`} className="block">
-                <h1 className="font-display text-2xl md:text-3xl font-black text-white leading-tight group-hover:text-juve-gold transition-colors">
+                <h1
+                  data-gsap="featured-main-title"
+                  className="font-display text-2xl md:text-3xl font-black text-white leading-tight group-hover:text-juve-gold transition-colors"
+                >
                   {main.title}
                 </h1>
               </Link>
@@ -81,7 +158,7 @@ export default function FeaturedHero({ articles = [] }) {
                   </Link>
                 ))}
               </div>
-              <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
+              <div data-gsap="featured-main-meta" className="flex items-center gap-4 mt-3 text-xs text-gray-400">
                 <span>{formatPublishedDate(main.published_at)}{formatFreshness(main.published_at) ? ` · ${formatFreshness(main.published_at)}` : ''}</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
@@ -97,6 +174,7 @@ export default function FeaturedHero({ articles = [] }) {
           {rest.slice(0, 4).map((article, i) => (
             <motion.article
               key={article.id}
+              data-gsap="featured-secondary-item"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 + i * 0.1 }}

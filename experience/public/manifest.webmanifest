@@ -1,0 +1,13 @@
+{
+  "name": "BianconeriHub",
+  "short_name": "BHHUB",
+  "description": "Blog indipendente dedicato alla Juventus.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "lang": "it-IT",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

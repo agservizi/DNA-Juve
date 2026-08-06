@@ -1,0 +1,1 @@
+import type { Metadata } from 'next';import { TrackerPage } from '@/components/match-pages';export const metadata:Metadata={title:'Trasferimenti | BianconeriHub',description:'Segui le trattative della Juventus in tempo reale.'};export default function Page(){return <TrackerPage/>}

@@ -1,0 +1,12 @@
+{
+  "title": "Test automazione BianconeriHub",
+  "slug": "test-automazione-bianconerihub",
+  "excerpt": "Articolo di prova generato dall automazione n8n per verificare publish, immagini e categorie sul magazine bianconero.",
+  "content": "<p>Questo è un test dell automazione editoriale di BianconeriHub.</p><h2>Verifica pubblicazione</h2><p>Se stai leggendo questo contenuto, la edge function ha creato correttamente l articolo con categoria, tag e metadati SEO di base.</p><p>Il tono editoriale verrà gestito da Groq nei flussi reali partendo dalle fonti RSS.</p>",
+  "category_slug": "calcio",
+  "tags": ["juventus", "test", "bianconerihub"],
+  "status": "draft",
+  "source_url": "https://example.com/test-automation-bianconerihub",
+  "meta_title": "Test automazione BianconeriHub",
+  "meta_description": "Verifica del flusso n8n + Groq + Supabase per BianconeriHub."
+}

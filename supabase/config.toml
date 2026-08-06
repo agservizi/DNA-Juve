@@ -1,5 +1,33 @@
 project_id = "ncolenbfdiukkyfixovo"
 
+[auth]
+site_url = "https://bianconerihub.com"
+additional_redirect_urls = ["https://bianconerihub.com/admin/login", "https://bianconerihub.com/admin/login?mode=recovery"]
+
+[auth.email.template.invite]
+subject = "Il tuo invito a BianconeriHub"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Conferma il tuo account BianconeriHub"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reimposta la password BianconeriHub"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Il tuo accesso sicuro a BianconeriHub"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Conferma il nuovo indirizzo email"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "{{ .Token }} è il tuo codice BianconeriHub"
+content_path = "./supabase/templates/reauthentication.html"
+
 [functions.og-meta]
 verify_jwt = false
 
@@ -10,4 +38,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.instagram-publisher]
+verify_jwt = false
+
+[functions.n8n-publish-article]
 verify_jwt = false

@@ -5,6 +5,7 @@ import { Activity, ArrowRight, Check, Clock3, MessageSquare, Play, Radio, Vote }
 import { getCommunityPolls, getForumThreads, getSidebarPoll, voteMatchPoll } from '@/lib/supabase'
 import { getLatestFinishedMatch, getLiveMatch, getMatchFinishedAt, getNextMatch, getRecentFinishedMatches, JUVE_ID, shouldRetryFootballQuery } from '@/lib/footballApi'
 import { useReader } from '@/hooks/useReader'
+import Reveal from '@/components/motion/Reveal'
 
 const PREMATCH_WINDOW_MS = 36 * 60 * 60 * 1000
 const POSTMATCH_WINDOW_MS = 18 * 60 * 60 * 1000
@@ -261,7 +262,7 @@ export default function MatchdayPulse({ readerId = null }) {
 
   return (
     <section className="max-w-7xl mx-auto px-4 pt-8">
-      <div className="relative overflow-hidden border border-gray-200 bg-white">
+      <Reveal className="relative overflow-hidden border border-gray-200 bg-white" fromY={16}>
         <div className={`absolute inset-x-0 top-0 h-1 ${pulse?.accentClass || `bg-gradient-to-r ${pulse?.accent || 'from-juve-black via-juve-gold to-juve-black'}`}`} />
         <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] lg:p-6">
           <div>
@@ -451,7 +452,7 @@ export default function MatchdayPulse({ readerId = null }) {
             )}
           </div>
         </div>
-      </div>
+      </Reveal>
     </section>
   )
 }

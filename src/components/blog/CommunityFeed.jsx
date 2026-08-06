@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { PenLine, Zap, Users } from 'lucide-react'
 import { getCommunityFeed } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
+import Reveal from '@/components/motion/Reveal'
 
 const MOOD_EMOJI = {
   ecstatic: '🤩',
@@ -122,7 +122,7 @@ export default function CommunityFeed() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 pb-8">
-      <div className="border border-gray-200 bg-white p-5">
+      <Reveal className="border border-gray-200 bg-white p-5" fromY={14}>
         <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-juve-gold" />
@@ -140,20 +140,15 @@ export default function CommunityFeed() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {feed.map((entry, i) => (
-            <motion.div
-              key={entry.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
-            >
+            <Reveal key={entry.id} fromY={10} delay={i * 0.02}>
               {entry.type === 'diary'
                 ? <DiaryCard entry={entry} />
                 : <PredictionCard entry={entry} />
               }
-            </motion.div>
+            </Reveal>
           ))}
         </div>
-      </div>
+      </Reveal>
     </div>
   )
 }

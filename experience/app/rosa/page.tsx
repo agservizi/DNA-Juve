@@ -1,0 +1,1 @@
+import type { Metadata } from 'next';import { SquadPage } from '@/components/match-pages';export const metadata:Metadata={title:'Rosa Juventus | BianconeriHub',description:'La rosa completa della Juventus: giocatori, ruoli e informazioni.'};export default function Page(){return <SquadPage/>}

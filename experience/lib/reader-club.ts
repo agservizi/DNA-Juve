@@ -1,0 +1,31 @@
+export type ClubState={xp:number;streak:number;unlockedBadges:string[];weeklyProgress:Record<string,number>;collectedCards:string[];diary:any[];predictions:any[];fanArticles:any[];avatar:string;formation?:{formation:string;players:string[]}}
+export const CLUB_DEFAULT:ClubState={xp:0,streak:0,unlockedBadges:[],weeklyProgress:{},collectedCards:[],diary:[],predictions:[],fanArticles:[],avatar:'shield'}
+export const LEVELS=[{name:'Tifoso',min:0},{name:'Ultras',min:100},{name:'Vecchia Signora',min:300},{name:'Mister 36',min:600},{name:'Leggenda Bianconera',min:1000}]
+export const BADGES=[['first-read','Prima lettura','Leggi il tuo primo articolo','BookOpen'],['reader-10','Lettore assiduo','Leggi 10 articoli','Library'],['reader-50','Divoratore','Leggi 50 articoli','Flame'],['streak-3','Costante','Streak di 3 giorni','Zap'],['streak-7','Maratoneta','Streak di 7 giorni','Gauge'],['bookworm','Collezionista','Salva 10 articoli','Bookmark'],['predictor','Indovino','Fai 5 pronostici','Target']] as const
+export const CHALLENGES=[{id:'read-5',label:'Leggi 5 articoli',key:'articlesRead',target:5,xp:50},{id:'react-3',label:'Reagisci a 3 articoli',key:'reactions',target:3,xp:30},{id:'bookmark-2',label:'Salva 2 segnalibri',key:'bookmarks',target:2,xp:20},{id:'streak-3',label:'Streak di 3 giorni',key:'streakDays',target:3,xp:40}]
+const PLAYER_IMG='https://r2.thesportsdb.com/images/media/player/cutout/'
+type PlayerCard={id:string;name:string;number:number|null;role:'POR'|'DIF'|'CEN'|'ATT';nat:string;img:string;unlockAt:number;newSigning?:boolean}
+export const CARDS:PlayerCard[]=[
+ ['p-1','Di Gregorio',16,'POR','🇮🇹',`${PLAYER_IMG}fgvi9t1759222392.png`,6],['p-2','Perin',1,'POR','🇮🇹',`${PLAYER_IMG}oo0l5m1759222361.png`,3],['p-3','Pinsoglio',23,'POR','🇮🇹',`${PLAYER_IMG}8s18041759222421.png`,2],
+ ['p-4','Bremer',3,'DIF','🇧🇷',`${PLAYER_IMG}3qx4p71759224866.png`,7],['p-5','Gatti',4,'DIF','🇮🇹',`${PLAYER_IMG}z1jv3i1759224911.png`,2],['p-6','Kelly',6,'DIF','🇬🇧',`${PLAYER_IMG}asto6f1759224942.png`,4],['p-7','Kalulu',15,'DIF','🇫🇷',`${PLAYER_IMG}bl8oj61759224970.png`,5],['p-8','Holm',2,'DIF','🇸🇪',`${PLAYER_IMG}za5z3l1758897172.png`,3],['p-9','Cambiaso',27,'DIF','🇮🇹',`${PLAYER_IMG}6r741t1759225481.png`,3],['p-10','Cabal',32,'DIF','🇨🇴',`${PLAYER_IMG}qbfpln1759225060.png`,2],
+ ['p-11','Locatelli',5,'CEN','🇮🇹',`${PLAYER_IMG}0zlnug1759225148.png`,8],['p-12','Koopmeiners',8,'CEN','🇳🇱',`${PLAYER_IMG}pvqhh01759225850.png`,15],['p-13','Adžić',17,'CEN','🇲🇪',`${PLAYER_IMG}bjgbrx1759225187.png`,1],['p-14','Kostić',18,'CEN','🇷🇸',`${PLAYER_IMG}1kqxaz1759225234.png`,4],['p-15','Thuram',19,'CEN','🇫🇷',`${PLAYER_IMG}z7zq751759225259.png`,11],['p-16','Miretti',21,'CEN','🇮🇹',`${PLAYER_IMG}cjhsf71759225300.png`,2],['p-17','McKennie',22,'CEN','🇺🇸',`${PLAYER_IMG}ct34v01759225325.png`,1],
+ ['p-18','Conceição',7,'ATT','🇵🇹',`${PLAYER_IMG}ekqivz1759225498.png`,12],['p-19','Vlahović',9,'ATT','🇷🇸',`${PLAYER_IMG}rl2w191759225532.png`,5],['p-20','Yıldız',10,'ATT','🇹🇷',`${PLAYER_IMG}zgep4d1759225554.png`,10],['p-21','Zhegrova',11,'ATT','🇽🇰',`${PLAYER_IMG}0cl9vy1759225607.png`,9],['p-22','Boga',13,'ATT','🇨🇮',`${PLAYER_IMG}spr68z1766319612.png`,5],['p-23','Milik',14,'ATT','🇵🇱',`${PLAYER_IMG}3wwsgd1759225651.png`,6],['p-24','Openda',20,'ATT','🇧🇪',`${PLAYER_IMG}1chuok1759225712.png`,13],['p-25','David',30,'ATT','🇨🇦',`${PLAYER_IMG}nyd9d91759225738.png`,14],
+ ['p-26','Jeff Ekhator',null,'ATT','🇮🇹','https://www.juventus.com/images/image/private/t_editorial_landscape_12_desktop/f_auto/dev/xlukzlpnmk3aknlgroy2.jpg',6,true],
+ ['p-27','Zeki Çelik',null,'DIF','🇹🇷','https://www.juventus.com/images/image/private/t_editorial_landscape_12_desktop/f_auto/dev/jc15hfa0fab5hqld26nv.jpg',6,true],
+].map(([id,name,number,role,nat,img,unlockAt,newSigning])=>({id,name,number,role,nat,img,unlockAt,newSigning})) as PlayerCard[]
+export const PLAYERS=CARDS.map(card=>card.name)
+export const FORMATIONS=['4-3-3','4-4-2','3-5-2','4-2-3-1','3-4-3']
+export const AVATARS=[
+ {id:'trophy',label:'Campione',icon:'trophy'},{id:'star',label:'Stella',icon:'star'},
+ {id:'shield',label:'Difensore',icon:'shield'},{id:'crown',label:'Re',icon:'crown'},
+ {id:'zap',label:'Fulmine',icon:'zap'},{id:'swords',label:'Guerriero',icon:'swords'},
+ {id:'target',label:'Bomber',icon:'target'},{id:'medal',label:'Medaglia',icon:'medal'},
+ {id:'flame',label:'Fuoco',icon:'flame'},{id:'heart',label:'Passione',icon:'heart'},
+ {id:'flag',label:'Bandiera',icon:'flag'},{id:'gem',label:'Diamante',icon:'gem'},
+] as const
+export const REMINDER_PRESETS=[{minutes:1440,label:'24h prima'},{minutes:180,label:'3h prima'},{minutes:60,label:'1h prima'},{minutes:15,label:'15m prima'},{minutes:0,label:'Al calcio d’inizio'}] as const
+export const DAILY_MISSIONS=[{id:'read',label:'Leggi un articolo',reward:10},{id:'prediction',label:'Lascia un pronostico',reward:15},{id:'bookmark',label:'Salva un segnalibro',reward:5},{id:'forum',label:'Partecipa al forum',reward:3}] as const
+export const DEFAULT_PREFERENCES={favoriteCategories:[],timeZone:'auto',cityLabel:'',reminderOffsets:[60,15],notificationSettings:{quietHoursEnabled:true,quietHoursStart:'23:00',quietHoursEnd:'08:00',digestHour:'08:30',liveMode:'smart'}}
+export function mergeClub(remote:any,local:any):ClubState{return{...CLUB_DEFAULT,...(remote||{}),...(local||{}),unlockedBadges:Array.isArray(local?.unlockedBadges)?local.unlockedBadges:Array.isArray(remote?.unlockedBadges)?remote.unlockedBadges:[],weeklyProgress:{...(remote?.weeklyProgress||{}),...(local?.weeklyProgress||{})},collectedCards:Array.isArray(local?.collectedCards)?local.collectedCards:Array.isArray(remote?.collectedCards)?remote.collectedCards:[],diary:Array.isArray(local?.diary)?local.diary:Array.isArray(remote?.diary)?remote.diary:[],predictions:Array.isArray(local?.predictions)?local.predictions:Array.isArray(remote?.predictions)?remote.predictions:[],fanArticles:Array.isArray(local?.fanArticles)?local.fanArticles:Array.isArray(remote?.fanArticles)?remote.fanArticles:[]}}
+export function levelFor(xp:number){let current=LEVELS[0];for(const level of LEVELS)if(xp>=level.min)current=level;const next=LEVELS[LEVELS.indexOf(current)+1];return{...current,next,progress:next?Math.min(1,(xp-current.min)/(next.min-current.min)):1}}
+export function legacyKey(userId:string){return`fb-gamification:${userId||'guest'}`}
