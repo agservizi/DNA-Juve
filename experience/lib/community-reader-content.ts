@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
+import { translateAuthError } from '@/lib/auth-errors'
 
 export type Poll = { id:string; question:string; description?:string|null; category?:string|null; cover_image?:string|null; expires_at?:string|null; options:PollOption[]; totalVotes:number; currentVote?:string|null }
 export type PollOption = { id:string; label:string; position:number; votes:number }
@@ -42,24 +43,31 @@ export async function setThreadLike(threadId:string,userId:string,active:boolean
 export async function setThreadFollow(threadId:string,userId:string,active:boolean){const query=active?db().from('forum_thread_follows').upsert([{thread_id:threadId,user_id:userId}],{onConflict:'thread_id,user_id'}):db().from('forum_thread_follows').delete().eq('thread_id',threadId).eq('user_id',userId);const{error}=await query;if(error)throw error}
 export async function incrementThreadViews(threadId:string){const{error}=await db().rpc('increment_thread_views',{thread_id:threadId});if(error)throw error}
 export async function getReader(){const c=db();const {data:{user}}=await c.auth.getUser();if(!user)return null;const {data:p}=await c.from('profiles').select('username,avatar_url,bio,role,created_at').eq('id',user.id).maybeSingle();return{id:user.id,email:user.email||'',name:p?.username||user.user_metadata?.display_name||user.email?.split('@')[0]||'Tifoso',...p}}
-export async function signIn(email:string,password:string){const {error}=await db().auth.signInWithPassword({email,password});if(error)throw error}
-export async function signUp(name:string,email:string,password:string){
+export async function signIn(email:string,password:string){
+  const {error}=await db().auth.signInWithPassword({email,password})
+  if(error) throw new Error(translateAuthError(error,'Accesso non riuscito. Riprova.'))
+}
+export async function signUp(name:string,email:string,password:string):Promise<{needsEmailConfirmation:boolean}>{
   const c=db()
   const {data:auth,error:authError}=await c.auth.signUp({
     email,
     password,
-    options:{data:{display_name:name}},
+    options:{data:{display_name:name.trim()}},
   })
-  if(authError)throw authError
+  if(authError){
+    throw new Error(translateAuthError(authError,'Registrazione non riuscita. Riprova.'))
+  }
   // Profile row is created by public.handle_new_user trigger; sync display name if session exists.
   if(auth.user){
     const {error:profileError}=await c.from('profiles').upsert(
-      [{id:auth.user.id,username:name,role:'reader',email}],
+      [{id:auth.user.id,username:name.trim(),role:'reader',email}],
       {onConflict:'id'},
     )
-    // Ignore race/duplicate if trigger already wrote the row and RLS blocks update before session.
-    if(profileError&&profileError.code!=='23505'&&profileError.code!=='42501')throw profileError
+    if(profileError&&profileError.code!=='23505'&&profileError.code!=='42501'){
+      throw new Error(translateAuthError(profileError,'Profilo non salvato. Riprova tra poco.'))
+    }
   }
+  return {needsEmailConfirmation:!auth.session}
 }
 export async function signOut(){await db().auth.signOut()}
 

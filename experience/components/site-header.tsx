@@ -110,7 +110,7 @@ export function SiteHeader() {
       aria-label="Navigazione principale"
     >
       <Link className="brand" href="/" aria-label="BianconeriHub, home" onClick={() => setOpen(false)}>
-        <span>BIANCONERI</span><i>HUB</i>
+        BIANCONERI<span>HUB</span>
       </Link>
       <nav aria-label="Sezioni">
         {primary.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>{item.label}</Link>)}
