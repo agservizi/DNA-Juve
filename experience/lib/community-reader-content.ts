@@ -43,7 +43,7 @@ export async function setThreadFollow(threadId:string,userId:string,active:boole
 export async function incrementThreadViews(threadId:string){const{error}=await db().rpc('increment_thread_views',{thread_id:threadId});if(error)throw error}
 export async function getReader(){const c=db();const {data:{user}}=await c.auth.getUser();if(!user)return null;const {data:p}=await c.from('profiles').select('username,avatar_url,bio,role,created_at').eq('id',user.id).maybeSingle();return{id:user.id,email:user.email||'',name:p?.username||user.user_metadata?.display_name||user.email?.split('@')[0]||'Tifoso',...p}}
 export async function signIn(email:string,password:string){const {error}=await db().auth.signInWithPassword({email,password});if(error)throw error}
-export async function signUp(name:string,email:string,password:string){const {error}=await db().auth.signUp({email,password,options:{data:{display_name:name,role:'reader'}}});if(error)throw error}
+export async function signUp(name:string,email:string,password:string){const c=db();const {data:auth,error:authError}=await c.auth.signUp({email,password,options:{data:{display_name:name,role:'reader'}}});if(authError)throw authError;if(auth.user){const {error:profileError}=await c.from('profiles').insert([{id:auth.user.id,username:name,role:'reader'}]);if(profileError)throw profileError}}
 export async function signOut(){await db().auth.signOut()}
 
 export type ReaderState = { bookmarks:any[]; history:any[]; preferences:Record<string,any>; gamification:Record<string,any>; notifications_enabled:boolean }
