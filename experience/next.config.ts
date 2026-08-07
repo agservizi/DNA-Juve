@@ -5,7 +5,11 @@ const nextConfig: NextConfig = {
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   allowedDevOrigins: ['192.168.1.19'],
   outputFileTracingRoot: process.cwd(),
-  experimental: { optimizePackageImports: ['three', '@react-three/drei', 'motion'] },
+  experimental: {
+    optimizePackageImports: ['three', '@react-three/drei', 'motion'],
+    // Avoid Vercel immutable-static upload path that currently fails this project.
+    supportsImmutableAssets: false,
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },

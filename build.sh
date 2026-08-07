@@ -9,6 +9,6 @@ pwd
 ls -la
 npm --version
 node --version
-npm install
+npm install --include=dev
 npm run build
 echo "Build completed successfully"

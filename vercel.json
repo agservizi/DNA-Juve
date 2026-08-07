@@ -1,4 +1,12 @@
 {
-  "buildCommand": "bash build.sh",
-  "outputDirectory": "experience/.next"
+  "framework": "nextjs",
+  "installCommand": "cd experience && npm install --include=dev",
+  "buildCommand": "cd experience && npm run build",
+  "outputDirectory": "experience/.next",
+  "crons": [
+    {
+      "path": "/api/cron/publish-scheduled",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }
