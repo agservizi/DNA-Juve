@@ -416,9 +416,6 @@ export function ImmersiveHome({
             <i />
           </div>
           <div className="hero-copy">
-            <p className="brand-mark" data-hero-copy>
-              BianconeriHub
-            </p>
             <p className="eyebrow" data-hero-copy>
               {lead.categories?.name || 'In evidenza'}
             </p>
@@ -436,9 +433,6 @@ export function ImmersiveHome({
               </Link>
             </div>
           </div>
-          <span className="vertical-mark" aria-hidden="true">
-            BIANCONERIHUB MAGAZINE
-          </span>
         </section>
       ) : (
         <section className="hero empty-hero" id="chapter-ingresso" aria-labelledby="hero-title" data-cinema-room="ingresso">
@@ -446,7 +440,6 @@ export function ImmersiveHome({
             <div className="scene-fallback" />
           </div>
           <div className="hero-copy">
-            <p className="brand-mark">BianconeriHub</p>
             <h1 id="hero-title">
               Il magazine
               <br />
