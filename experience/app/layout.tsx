@@ -4,10 +4,22 @@ import { ExperienceProviders } from '@/components/experience-providers'
 import { SiteChrome } from '@/components/site-chrome'
 import { CookieConsent } from '@/components/cookie-consent'
 import './globals.css'
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
+import { Instrument_Serif, Manrope } from 'next/font/google'
+import { cn } from '@/lib/utils'
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const display = Instrument_Serif({
+  subsets: ['latin'],
+  weight: '400',
+  style: ['normal', 'italic'],
+  variable: '--font-display',
+  display: 'swap',
+})
+
+const sans = Manrope({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3020'),
@@ -23,7 +35,7 @@ export const viewport: Viewport = { themeColor: '#050505', colorScheme: 'dark' }
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <ViewTransitions>
-      <html lang="it" className={cn("font-sans", geist.variable)}>
+      <html lang="it" className={cn('font-sans', display.variable, sans.variable)}>
         <body>
           <SiteChrome position="before" />
           <ExperienceProviders>{children}</ExperienceProviders>

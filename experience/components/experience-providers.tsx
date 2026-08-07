@@ -1,5 +1,12 @@
 'use client'
 
+/**
+ * Experience kernel roles:
+ * - GSAP + ScrollTrigger + Lenis = camera / scroll world
+ * - Motion = UI chrome (menu, curtain, chapter panel)
+ * - R3F = optional home shader field only (no geometry wallpaper)
+ * - Spline / Rive / Lottie = only when real assets + consent exist
+ */
 import { useEffect, useRef } from 'react'
 import Lenis from 'lenis'
 import { usePathname } from 'next/navigation'
@@ -15,7 +22,7 @@ import { CinematicChapterNav } from '@/components/cinematic-chapter-nav'
 export function ExperienceProviders({ children }: { children: React.ReactNode }) {
   const lenisRef = useRef<Lenis | null>(null)
   const pathname = usePathname()
-  const isAppShell=pathname.startsWith('/admin')||pathname.startsWith('/area-bianconera')
+  const isAppShell = pathname.startsWith('/admin') || pathname.startsWith('/area-bianconera')
 
   useEffect(() => {
     if (isAppShell) return
@@ -29,35 +36,60 @@ export function ExperienceProviders({ children }: { children: React.ReactNode })
       const ScrollTrigger = triggerModule.ScrollTrigger
       gsap.registerPlugin(ScrollTrigger)
 
-      const lenis = new Lenis({ lerp: .085, smoothWheel: true, syncTouch: false, wheelMultiplier: .9 })
+      const lenis = new Lenis({ lerp: 0.085, smoothWheel: true, syncTouch: false, wheelMultiplier: 0.9 })
       lenisRef.current = lenis
       const update = (time: number) => lenis.raf(time * 1000)
       lenis.on('scroll', ScrollTrigger.update)
       gsap.ticker.add(update)
       gsap.ticker.lagSmoothing(0)
-      const visibility=()=>document.hidden?lenis.stop():lenis.start()
-      document.addEventListener('visibilitychange',visibility)
+      const visibility = () => (document.hidden ? lenis.stop() : lenis.start())
+      document.addEventListener('visibilitychange', visibility)
 
       cleanup = () => {
-        document.removeEventListener('visibilitychange',visibility)
+        document.removeEventListener('visibilitychange', visibility)
         gsap.ticker.remove(update)
         lenis.destroy()
         lenisRef.current = null
       }
     })
 
-    return () => { disposed = true; cleanup() }
+    return () => {
+      disposed = true
+      cleanup()
+    }
   }, [isAppShell])
 
-  useEffect(()=>{
-    if(isAppShell)return
-    let second=0
-    const first=requestAnimationFrame(()=>{second=requestAnimationFrame(()=>{
-      lenisRef.current?.resize()
-      import('gsap/ScrollTrigger').then(({ScrollTrigger})=>ScrollTrigger.refresh()).catch(()=>{})
-    })})
-    return()=>{cancelAnimationFrame(first);cancelAnimationFrame(second)}
-  },[isAppShell,pathname])
+  useEffect(() => {
+    if (isAppShell) return
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        lenisRef.current?.resize()
+        import('gsap/ScrollTrigger')
+          .then(({ ScrollTrigger }) => ScrollTrigger.refresh())
+          .catch(() => {})
+      })
+    })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+    }
+  }, [isAppShell, pathname])
 
-  return <MotionConfig reducedMotion="user">{!isAppShell&&<><CinematicDirector/><AmbientWebGLGate/><CinematicMediaLayer/><ImmersiveOrchestrator/><GlobalPageChoreography/><GlobalKineticInteractions/><CinematicChapterNav/></>}{children}</MotionConfig>
+  return (
+    <MotionConfig reducedMotion="user">
+      {!isAppShell && (
+        <>
+          <CinematicDirector />
+          <AmbientWebGLGate />
+          <CinematicMediaLayer />
+          <ImmersiveOrchestrator />
+          <GlobalPageChoreography />
+          <GlobalKineticInteractions />
+          <CinematicChapterNav />
+        </>
+      )}
+      {children}
+    </MotionConfig>
+  )
 }
