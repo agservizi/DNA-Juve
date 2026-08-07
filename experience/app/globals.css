@@ -431,9 +431,13 @@ body:has(.article-page) .brand span { color:#765D32; }
 body:has(.article-page) .nav-shell nav { color:#4f504c; }
 body:has(.article-page) .menu-button { background:var(--ink); }
 body:has(.article-page) .menu-button span { background:var(--paper); }
-/* Compact/open force dark pill — restore light logo contrast */
+/* Compact/open: dark pill so white logo/links stay readable over the light article chrome */
 body:has(.article-page) .nav-shell.is-compact,
-body:has(.article-page) .nav-shell.is-open { color:var(--paper); }
+body:has(.article-page) .nav-shell.is-open {
+  background:rgba(0,0,0,.94);
+  color:var(--paper);
+  box-shadow:inset 0 1px rgba(255,255,255,.12),0 18px 60px rgba(0,0,0,.28);
+}
 body:has(.article-page) .nav-shell.is-compact .brand,
 body:has(.article-page) .nav-shell.is-open .brand { color:var(--paper); }
 body:has(.article-page) .nav-shell.is-compact .brand span,
