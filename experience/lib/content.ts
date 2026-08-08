@@ -26,6 +26,16 @@ export type ArticleTag = { id: string; name: string; slug: string }
 export type ArticleSidebar = { latest: Article[]; mostViewed: Article[]; categories: Array<{id:string;name:string;slug:string}> }
 export type HomeVideo = {id:string;title:string;description?:string|null;thumbnail?:string|null;platform?:string|null;video_id?:string|null;video_url?:string|null;category?:string|null;views?:number|null}
 export type HomeCategory = {id:string;name:string;slug:string;description?:string|null;color?:string|null}
+export type HomeGalleryItem = {
+  id: string
+  media_type: 'image' | 'video'
+  title: string
+  alt_text: string
+  media_url: string
+  location: string | null
+  captured_at: string
+  featured: boolean
+}
 
 const select = 'id,title,slug,excerpt,cover_image,published_at,views,featured,categories(id,name,slug,color),profiles(username,avatar_url)'
 
@@ -33,14 +43,15 @@ export async function getHomeContent() {
   await publishDueArticles().catch(()=>null)
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return { featured: [] as Article[], latest: [] as Article[], mostViewed:[] as Article[], videos:[] as HomeVideo[], categories:[] as HomeCategory[], configured: false }
+  if (!url || !key) return { featured: [] as Article[], latest: [] as Article[], mostViewed:[] as Article[], videos:[] as HomeVideo[], gallery:[] as HomeGalleryItem[], categories:[] as HomeCategory[], configured: false }
 
   const client = createClient(url, key, { auth: { persistSession: false } })
-  const [featuredResult, latestResult,mostViewedResult,videosResult,categoriesResult] = await Promise.all([
+  const [featuredResult, latestResult,mostViewedResult,videosResult,galleryResult,categoriesResult] = await Promise.all([
     client.from('articles').select(select).eq('status', 'published').eq('featured', true).order('published_at', { ascending: false }).limit(5),
     client.from('articles').select(select).eq('status', 'published').order('published_at', { ascending: false }).limit(12),
     client.from('articles').select(select).eq('status','published').order('views',{ascending:false}).limit(6),
     client.from('videos').select('id,title,description,thumbnail,platform,video_id,video_url,category,views').eq('is_published',true).order('published_at',{ascending:false}).limit(6),
+    client.from('gallery_items').select('id,media_type,title,alt_text,media_url,location,captured_at,featured').eq('status','published').order('featured',{ascending:false}).order('captured_at',{ascending:false}).limit(10),
     client.from('categories').select('id,name,slug,description,color').order('name').limit(8),
   ])
 
@@ -50,6 +61,7 @@ export async function getHomeContent() {
     latest: normalize(latestResult.data),
     mostViewed:normalize(mostViewedResult.data),
     videos:(Array.isArray(videosResult.data)?videosResult.data:[]) as HomeVideo[],
+    gallery:(Array.isArray(galleryResult.data)?galleryResult.data:[]) as HomeGalleryItem[],
     categories:(Array.isArray(categoriesResult.data)?categoriesResult.data:[]) as HomeCategory[],
     configured: true,
   }

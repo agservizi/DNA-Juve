@@ -14,6 +14,7 @@ export const HOME_CHAPTERS = [
   { id: 'chapter-ingresso', label: 'Ingresso', selector: '[data-hero]' },
   { id: 'chapter-storia', label: 'Storia', selector: '.cinematic-pulse' },
   { id: 'chapter-evidenza', label: 'Evidenza', selector: '.featured-strip' },
+  { id: 'chapter-gallery', label: 'Gallery', selector: '.home-gallery' },
   { id: 'chapter-cinema', label: 'Cinema', selector: '.home-cinema' },
   { id: 'chapter-lettori', label: 'Lettori', selector: '.ranking-section' },
   { id: 'chapter-ultime', label: 'Ultime', selector: '.latest-section' },

@@ -3,8 +3,9 @@
 import { Link } from 'next-view-transitions'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
-import type { Article, HomeCategory, HomeVideo } from '@/lib/content'
+import type { Article, HomeCategory, HomeGalleryItem, HomeVideo } from '@/lib/content'
 import { HOME_CHAPTERS, setCinemaEra } from '@/lib/cinema-spine'
+import { HomeGalleryLive } from '@/components/home-gallery-live'
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value))
@@ -202,6 +203,7 @@ export function ImmersiveHome({
   latest,
   mostViewed,
   videos,
+  gallery = [],
   categories,
   configured,
 }: {
@@ -209,6 +211,7 @@ export function ImmersiveHome({
   latest: Article[]
   mostViewed: Article[]
   videos: HomeVideo[]
+  gallery?: HomeGalleryItem[]
   categories: HomeCategory[]
   configured: boolean
 }) {
@@ -470,6 +473,8 @@ export function ImmersiveHome({
         </section>
       )}
 
+      <HomeGalleryLive items={gallery} />
+
       <HomeCinema videos={videos} />
 
       {mostViewed.length > 0 && (
@@ -552,11 +557,12 @@ export function ImmersiveHome({
             ['Calciomercato', 'Notizie, analisi e transfer tracker.', '/calciomercato'],
             ['Calendario', 'Partite, risultati e promemoria.', '/calendario'],
             ['Community', 'Forum, sondaggi e pagelle.', '/community/forum'],
+            ['Gallery live', 'Foto e video dallo stadio.', '/gallery'],
             ['Area Bianconera', 'Il tuo profilo, i preferiti e la cronologia.', '/area-bianconera'],
           ] as const
         ).map(([title, copy, href], index) => (
           <Link data-reveal href={href} key={href}>
-            <span>0{index + 1}</span>
+            <span>{String(index + 1).padStart(2, '0')}</span>
             <h3>{title}</h3>
             <p>{copy}</p>
             <i aria-hidden="true">↗︎</i>
