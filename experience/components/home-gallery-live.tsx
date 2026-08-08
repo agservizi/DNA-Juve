@@ -123,9 +123,8 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
           <div className="home-gallery__empty-copy">
             <p className="eyebrow">Archivio in attesa</p>
             <h3>Nessun media pubblicato ancora.</h3>
-            <p>Carica e pubblica da Admin → Gallery live. Finché è vuota, sotto In evidenza restano i video editoriali.</p>
             <Link className="text-link" href="/gallery">
-              Vai a /gallery <i aria-hidden="true">↗︎</i>
+              Vai alla Gallery <i aria-hidden="true">↗︎</i>
             </Link>
           </div>
         </div>
