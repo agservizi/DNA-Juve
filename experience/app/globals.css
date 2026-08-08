@@ -288,11 +288,11 @@ h1 em { color:var(--juve-accent); font-weight:400; }
 .vertical-mark { position:absolute; right:2.5vw; bottom:7vh; color:#a5a6a1; font-size:.6rem; letter-spacing:.38em; writing-mode:vertical-rl; }
 .cinematic-pulse{height:680dvh;position:relative;background:#030303;color:var(--paper);isolation:isolate}
 .cinematic-pulse__world{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.cinematic-pulse__zebra{position:absolute;inset:-12% -6%;opacity:.1;background:
-  repeating-linear-gradient(90deg,#050505 0 4.8%,#e7e5de 4.8% 9.6%);
+.cinematic-pulse__zebra{position:absolute;inset:-12% -6%;opacity:.12;background:#050505 url("/media/zebra-fur.png") center / cover no-repeat;
   -webkit-mask-image:radial-gradient(ellipse 78% 72% at 62% 44%,#000 18%,transparent 78%);
   mask-image:radial-gradient(ellipse 78% 72% at 62% 44%,#000 18%,transparent 78%);
-  transform:skewX(-4deg) scale(1.05);pointer-events:none}
+  filter:contrast(1.05) brightness(.72);
+  transform:scale(1.06);pointer-events:none}
 .cinematic-pulse__plate{position:absolute;inset:-8%;background:
   radial-gradient(ellipse 70% 55% at 72% 42%,rgba(175,143,92,.2),transparent 55%),
   linear-gradient(160deg,rgba(26,24,20,.78) 0%,rgba(7,7,7,.82) 48%,rgba(12,13,16,.86) 100%);
