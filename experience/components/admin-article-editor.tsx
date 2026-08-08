@@ -9,7 +9,44 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
+function AdminToggle({ checked, onCheckedChange, label }: { checked: boolean; onCheckedChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onCheckedChange(!checked)}
+      style={{
+        position: 'relative',
+        width: 40,
+        height: 22,
+        flexShrink: 0,
+        borderRadius: 999,
+        border: `1px solid ${checked ? '#af8f5c' : '#5c5d58'}`,
+        background: checked ? '#af8f5c' : '#3a3b38',
+        padding: 0,
+        cursor: 'pointer',
+        transition: 'background .18s,border-color .18s',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: checked ? 18 : 2,
+          width: 16,
+          height: 16,
+          borderRadius: 999,
+          background: checked ? '#090a0a' : '#f4f2ec',
+          transition: 'left .18s,background .18s',
+          boxShadow: '0 1px 2px rgba(0,0,0,.45)',
+        }}
+      />
+    </button>
+  )
+}
 
 type Db = SupabaseClient<any, 'public', any>
 type Choice = { id: string; name: string }
@@ -162,7 +199,7 @@ export function AdminArticleEditor({client,user,id}:{client:Db;user:{id:string};
    <section className="grid gap-4 rounded-xl border border-[#303130] bg-[#101111] p-5"><h3 className="font-serif text-xl">Sondaggio articolo</h3><Input placeholder="Domanda" value={pollQuestion} onChange={e=>setPollQuestion(e.target.value)}/>{pollOptions.map((x,i)=><Input key={i} placeholder={`Opzione ${i+1}`} value={x} onChange={e=>setPollOptions(pollOptions.map((o,n)=>n===i?e.target.value:o))}/>)}<Button type="button" variant="outline" onClick={()=>setPollOptions([...pollOptions,''])}>Aggiungi opzione</Button></section>
    <section className="grid gap-3 rounded-xl border border-[#303130] bg-[#101111] p-5"><h3 className="font-serif text-xl">Cronologia revisioni</h3>{revisions.length?revisions.map(r=><div key={r.id} className="flex items-center justify-between gap-3 border-t border-[#303130] pt-3"><span><b>{r.title||'Senza titolo'}</b><small className="block text-[#888]">{new Date(r.created_at).toLocaleString('it-IT')}</small></span><Button type="button" variant="outline" onClick={()=>restore(r)}>Ripristina</Button></div>):<p className="text-sm text-[#888]">Nessuna revisione salvata.</p>}</section>
   </main><aside className="grid content-start gap-5">
-   <section className="grid gap-4 rounded-xl border border-[#303130] bg-[#101111] p-5"><h3 className="font-serif text-xl">Pubblicazione</h3><Label>Stato<select className="mt-2 h-9 w-full rounded-lg border border-[#444] bg-[#151616] px-3" value={data.status} onChange={e=>{const status=e.target.value as Article['status'];setData(v=>({...v,status,scheduled_at:status==='scheduled'?v.scheduled_at:'',published_at:status==='published'?v.published_at:null}))}}><option value="draft">Bozza</option><option value="scheduled">Programmato</option><option value="published">Pubblicato</option></select></Label><Label>Programma<Input type="datetime-local" disabled={data.status!=='scheduled'} value={data.scheduled_at} onChange={e=>set('scheduled_at',e.target.value)}/></Label>{data.status==='scheduled'&&<p className="text-xs leading-5 text-[#d2b27d]">L’articolo verrà pubblicato automaticamente alla data indicata.</p>}<Label>Categoria<select className="mt-2 h-9 w-full rounded-lg border border-[#444] bg-[#151616] px-3" value={data.category_id} onChange={e=>set('category_id',e.target.value)}><option value="">Nessuna</option>{categories.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Label>{([['featured','In evidenza'],['noindex','No index'],['instagram_publish_enabled','Instagram attivo']] as const).map(([k,l])=><div className="flex items-center justify-between" key={k}><Label>{l}</Label><Switch checked={Boolean(data[k])} onCheckedChange={v=>set(k,v)}/></div>)}</section>
+   <section className="grid gap-4 rounded-xl border border-[#303130] bg-[#101111] p-5"><h3 className="font-serif text-xl">Pubblicazione</h3><Label>Stato<select className="mt-2 h-9 w-full rounded-lg border border-[#444] bg-[#151616] px-3" value={data.status} onChange={e=>{const status=e.target.value as Article['status'];setData(v=>({...v,status,scheduled_at:status==='scheduled'?v.scheduled_at:'',published_at:status==='published'?v.published_at:null}))}}><option value="draft">Bozza</option><option value="scheduled">Programmato</option><option value="published">Pubblicato</option></select></Label><Label>Programma<Input type="datetime-local" disabled={data.status!=='scheduled'} value={data.scheduled_at} onChange={e=>set('scheduled_at',e.target.value)}/></Label>{data.status==='scheduled'&&<p className="text-xs leading-5 text-[#d2b27d]">L’articolo verrà pubblicato automaticamente alla data indicata.</p>}<Label>Categoria<select className="mt-2 h-9 w-full rounded-lg border border-[#444] bg-[#151616] px-3" value={data.category_id} onChange={e=>set('category_id',e.target.value)}><option value="">Nessuna</option>{categories.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Label>{([['featured','In evidenza'],['noindex','No index'],['instagram_publish_enabled','Instagram attivo']] as const).map(([k,l])=><div className="flex items-center justify-between gap-3" key={k}><Label>{l}</Label><AdminToggle label={l} checked={Boolean(data[k])} onCheckedChange={v=>set(k,v)}/></div>)}</section>
    <section className="grid gap-3 rounded-xl border border-[#303130] bg-[#101111] p-5"><h3 className="font-serif text-xl">Media</h3><Input value={data.cover_image} placeholder="URL copertina" onChange={e=>set('cover_image',e.target.value)}/><Label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#555] p-3"><Upload/>Carica copertina<Input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e=>e.target.files?.[0]&&upload(e.target.files[0],'cover_image')}/></Label><div className="flex gap-2"><Input value={galleryUrl} placeholder="URL galleria" onChange={e=>setGalleryUrl(e.target.value)}/><Button type="button" size="icon" variant="outline" aria-label="Aggiungi alla galleria" onClick={()=>{if(galleryUrl.trim()){set('gallery',[...data.gallery,galleryUrl.trim()]);setGalleryUrl('')}}}><ImagePlus/></Button></div><Label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#555] p-3"><Upload/>Carica in galleria<Input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e=>e.target.files?.[0]&&upload(e.target.files[0],'gallery')}/></Label>{data.gallery.map((url,i)=><div className="flex gap-2" key={`${url}-${i}`}><Input value={url} readOnly/><Button type="button" variant="destructive" onClick={()=>set('gallery',data.gallery.filter((_,n)=>n!==i))}>Rimuovi</Button></div>)}</section>
    <section className="grid gap-4 rounded-xl border border-[#303130] bg-[#101111] p-5"><Multi label="Coautori" items={authors.filter(x=>x.id!==data.author_id)} value={data.co_author_ids} onChange={v=>set('co_author_ids',v)}/><Multi label="Articoli correlati" items={articles} value={data.related_article_ids} onChange={v=>set('related_article_ids',v)}/><Label>Note interne<Textarea value={data.internal_notes} onChange={e=>set('internal_notes',e.target.value)}/></Label></section>
    <section className="grid gap-3 rounded-xl border border-[#303130] bg-[#101111] p-5"><h3 className="font-serif text-xl">Distribuzione</h3><p className="text-sm text-[#aaa]">Instagram: {data.instagram_post_status||'pending'}</p>{data.instagram_post_error&&<p role="alert" className="text-sm text-red-400">{data.instagram_post_error}</p>}{data.instagram_post_permalink&&<a className="text-sm underline" href={data.instagram_post_permalink} target="_blank" rel="noreferrer">Apri post Instagram</a>}<Input value={data.instagram_image} placeholder="Immagine Instagram" onChange={e=>set('instagram_image',e.target.value)}/><Textarea value={data.instagram_caption_override} placeholder="Caption Instagram" onChange={e=>set('instagram_caption_override',e.target.value)}/><Button type="button" variant="outline" disabled={busy||isNew} onClick={retryInstagram}><RotateCcw/>Riprova Instagram</Button><Button type="button" variant="outline" disabled={busy||isNew} onClick={push}><Send/>Invia push articolo</Button></section>
