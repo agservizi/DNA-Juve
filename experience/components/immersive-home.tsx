@@ -410,12 +410,6 @@ export function ImmersiveHome({
           <div className="hero-media" data-hero-image aria-hidden="true" style={{ viewTransitionName: `article-cover-${lead.slug}` }}>
             {lead.cover_image && <img src={lead.cover_image} alt="" />}
           </div>
-          <div className="hero-architecture" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
-          </div>
           <div className="hero-copy">
             <p className="eyebrow" data-hero-copy>
               {lead.categories?.name || 'In evidenza'}
