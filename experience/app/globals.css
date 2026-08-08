@@ -364,6 +364,13 @@ footer p { max-width:30ch; text-align:right; }
 .home-gallery__copy strong{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;color:#eceae4;font-family:var(--font-display),Didot,serif;font-size:.95rem;font-weight:400;line-height:1.15;letter-spacing:-.02em}
 .home-gallery__foot{display:flex;justify-content:flex-end;margin-top:1.25rem;padding:0 clamp(.25rem,1vw,1rem)}
 .home-gallery__foot .text-link{color:#c9ad7a;font-size:.68rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.home-gallery__empty{position:relative;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(240px,.7fr);gap:clamp(1.5rem,4vw,3rem);align-items:center;min-height:280px;padding:clamp(1.4rem,3vw,2.2rem);border:1px solid rgba(255,255,255,.1);border-radius:1.75rem;background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.015))}
+.home-gallery__empty-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem}
+.home-gallery__empty-grid span{aspect-ratio:3/4;border-radius:1rem;background:linear-gradient(160deg,rgba(175,143,92,.16),rgba(255,255,255,.04));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.home-gallery__empty-grid span:nth-child(2),.home-gallery__empty-grid span:nth-child(5){transform:translateY(12%)}
+.home-gallery__empty-copy .eyebrow{margin-bottom:.7rem}
+.home-gallery__empty-copy h3{margin:0;font-family:var(--font-display),Didot,serif;font-size:clamp(1.8rem,3.4vw,2.8rem);font-weight:400;line-height:1;letter-spacing:-.03em}
+.home-gallery__empty-copy p{max-width:38ch;margin:1rem 0 1.35rem;color:#9d9d96;font-size:.92rem;line-height:1.55}
 .section-heading { display:flex; align-items:end; justify-content:space-between; gap:2rem; margin-bottom:3.5rem; }
 .section-heading .eyebrow { margin:0 0 .5rem; }
 .section-heading h2 { font-size:clamp(3rem,6vw,6.5rem); line-height:1; }
@@ -527,7 +534,7 @@ body:has(.article-page) .nav-shell.is-open .menu-button span { background:var(--
 @media(max-width:900px){.article-discovery{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.article-discovery{grid-template-columns:1fr;padding:5rem 1rem}}
 @media print {.article-page .nav-shell,.reading-progress,.article-aside,.article-share,.related-section,.article-footer,.global-footer{display:none!important}.article-header{padding:2rem 0}.article-layout{display:block;padding:2rem 0}.article-cover{width:100%}}
-@media(max-width:900px){.featured-strip{min-height:auto;display:block;overflow:visible}.featured-grid{display:grid!important;width:100%;grid-template-columns:1fr;gap:3.5rem;padding-right:0}.feature-card,.feature-card-wide{width:100%;flex:none;grid-column:1/-1!important}.home-gallery{width:calc(100% - 2rem);margin-top:3.5rem}.home-gallery__head{align-items:flex-start;flex-direction:column;gap:1.25rem}.home-gallery__rail{grid-auto-columns:minmax(148px,42vw);gap:.55rem}}
+@media(max-width:900px){.featured-strip{min-height:auto;display:block;overflow:visible}.featured-grid{display:grid!important;width:100%;grid-template-columns:1fr;gap:3.5rem;padding-right:0}.feature-card,.feature-card-wide{width:100%;flex:none;grid-column:1/-1!important}.home-gallery{width:calc(100% - 2rem);margin-top:3.5rem}.home-gallery__head{align-items:flex-start;flex-direction:column;gap:1.25rem}.home-gallery__rail{grid-auto-columns:minmax(148px,42vw);gap:.55rem}.home-gallery__empty{grid-template-columns:1fr;min-height:0}.home-gallery__empty-grid{max-width:320px}}
 @media(max-width:900px){.home-cinema{width:calc(100% - 2rem);padding:4rem 1rem 1rem}.cinema-heading,.cinema-stage,.ranking-section{grid-template-columns:1fr}.cinema-heading>p{justify-self:start}.cinema-reel{display:flex;overflow-x:auto;padding:0 0 1rem}.cinema-reel button{flex:0 0 min(72vw,280px)}.ranking-section{width:100%;padding:0 1rem;gap:3rem}.ranking-intro{position:static}.ranking-list>a{min-height:0;padding-block:1.5rem;grid-template-columns:2rem minmax(0,1fr) 1.5rem;gap:1rem}.ranking-list strong{font-size:clamp(1.7rem,7.4vw,2.55rem);line-height:1.1;letter-spacing:-.035em}.ranking-list>a:hover>span{transform:none}.category-portals{width:100%;padding:0 1rem}.category-portals>div:last-child{grid-template-columns:1fr}.category-portals>div>a,.category-portals>div>a:nth-child(4n+1){grid-column:1;min-height:270px;border-radius:1.7rem}.category-portals h3{margin-top:2rem}}
 
 .dark {

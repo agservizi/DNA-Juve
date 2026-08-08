@@ -1,8 +1,6 @@
 'use client'
 
-import { Canvas } from '@react-three/fiber'
-import { Sparkles } from '@react-three/drei'
-import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
+import dynamic from 'next/dynamic'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { motion, useReducedMotion } from 'motion/react'
@@ -10,25 +8,17 @@ import { Link } from 'next-view-transitions'
 import { useEffect, useRef } from 'react'
 import type { HomeGalleryItem } from '@/lib/content'
 
-function GalleryAura() {
-  return (
-    <Canvas dpr={[1, 1.15]} gl={{ alpha: true, antialias: false, powerPreference: 'high-performance' }} camera={{ position: [0, 0, 5], fov: 42 }}>
-      <ambientLight intensity={0.15} />
-      <Sparkles count={14} scale={[9, 4, 2]} size={1.1} speed={0.06} opacity={0.14} color="#d4b579" />
-      <EffectComposer multisampling={0}>
-        <Bloom intensity={0.18} luminanceThreshold={0.7} />
-        <Vignette eskil={false} offset={0.3} darkness={0.65} />
-      </EffectComposer>
-    </Canvas>
-  )
-}
+const GalleryAura = dynamic(() => import('@/components/home-gallery-aura').then((mod) => mod.HomeGalleryAura), {
+  ssr: false,
+})
 
 export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
   const root = useRef<HTMLElement>(null)
   const reduceMotion = useReducedMotion()
+  const hasItems = items.length > 0
 
   useEffect(() => {
-    if (reduceMotion || !root.current || !items.length) return
+    if (reduceMotion || !root.current || !hasItems) return
     gsap.registerPlugin(ScrollTrigger)
     const ctx = gsap.context(() => {
       gsap.fromTo(
@@ -46,12 +36,17 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
       )
     }, root)
     return () => ctx.revert()
-  }, [items, reduceMotion])
-
-  if (!items.length) return null
+  }, [hasItems, items, reduceMotion])
 
   return (
-    <section ref={root} className="home-gallery" id="chapter-gallery" aria-labelledby="gallery-live-title" data-cinema-room="gallery">
+    <section
+      ref={root}
+      className="home-gallery"
+      id="chapter-gallery"
+      aria-labelledby="gallery-live-title"
+      data-cinema-room="gallery"
+      data-empty={!hasItems || undefined}
+    >
       {!reduceMotion && (
         <div className="home-gallery__aura" aria-hidden="true">
           <GalleryAura />
@@ -65,47 +60,76 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
             <br />
             <i>dal vivo.</i>
           </h2>
-          <p>Dieci frame dallo stadio e dalla curva. L’archivio completo è nella gallery.</p>
+          <p>
+            {hasItems
+              ? 'Dieci frame dallo stadio e dalla curva. L’archivio completo è nella gallery.'
+              : 'Lo spazio è pronto: appena pubblichi foto o video dalla control room, appariranno qui.'}
+          </p>
         </div>
         <Link className="kinetic-cta" href="/gallery">
-          <span>Vedi tutta la gallery</span>
+          <span>{hasItems ? 'Vedi tutta la gallery' : 'Apri la gallery'}</span>
           <i aria-hidden="true">↗︎</i>
         </Link>
       </div>
-      <div className="home-gallery__rail" role="list">
-        {items.map((item, index) => (
-          <motion.article
-            key={item.id}
-            className="home-gallery__tile"
-            data-gallery-tile
-            role="listitem"
-            whileHover={reduceMotion ? undefined : { y: -6 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          >
-            <Link href="/gallery" aria-label={`${item.media_type === 'video' ? 'Video' : 'Foto'}: ${item.title}. Apri la gallery`}>
-              <div className="home-gallery__media" style={{ viewTransitionName: `gallery-cover-${item.id}` }}>
-                {item.media_type === 'video' ? (
-                  <video src={item.media_url} muted playsInline preload="metadata" />
-                ) : (
-                  <img src={item.media_url} alt={item.alt_text || item.title} loading={index < 4 ? 'eager' : 'lazy'} />
-                )}
-                {item.media_type === 'video' && <span className="home-gallery__play" aria-hidden="true">▶</span>}
-              </div>
-              <div className="home-gallery__copy">
-                <span>
-                  {item.location || 'Bordocampo'} · {new Date(item.captured_at).toLocaleDateString('it-IT')}
-                </span>
-                <strong>{item.title}</strong>
-              </div>
+
+      {hasItems ? (
+        <>
+          <div className="home-gallery__rail" role="list">
+            {items.map((item, index) => (
+              <motion.article
+                key={item.id}
+                className="home-gallery__tile"
+                data-gallery-tile
+                role="listitem"
+                whileHover={reduceMotion ? undefined : { y: -6 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              >
+                <Link href="/gallery" aria-label={`${item.media_type === 'video' ? 'Video' : 'Foto'}: ${item.title}. Apri la gallery`}>
+                  <div className="home-gallery__media" style={{ viewTransitionName: `gallery-cover-${item.id}` }}>
+                    {item.media_type === 'video' ? (
+                      <video src={item.media_url} muted playsInline preload="metadata" />
+                    ) : (
+                      <img src={item.media_url} alt={item.alt_text || item.title} loading={index < 4 ? 'eager' : 'lazy'} />
+                    )}
+                    {item.media_type === 'video' && (
+                      <span className="home-gallery__play" aria-hidden="true">
+                        ▶
+                      </span>
+                    )}
+                  </div>
+                  <div className="home-gallery__copy">
+                    <span>
+                      {item.location || 'Bordocampo'} · {new Date(item.captured_at).toLocaleDateString('it-IT')}
+                    </span>
+                    <strong>{item.title}</strong>
+                  </div>
+                </Link>
+              </motion.article>
+            ))}
+          </div>
+          <div className="home-gallery__foot">
+            <Link className="text-link" href="/gallery">
+              Apri l’archivio completo <i aria-hidden="true">↗︎</i>
             </Link>
-          </motion.article>
-        ))}
-      </div>
-      <div className="home-gallery__foot">
-        <Link className="text-link" href="/gallery">
-          Apri l’archivio completo <i aria-hidden="true">↗︎</i>
-        </Link>
-      </div>
+          </div>
+        </>
+      ) : (
+        <div className="home-gallery__empty" role="status">
+          <div className="home-gallery__empty-grid" aria-hidden="true">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <span key={index} />
+            ))}
+          </div>
+          <div className="home-gallery__empty-copy">
+            <p className="eyebrow">Archivio in attesa</p>
+            <h3>Nessun media pubblicato ancora.</h3>
+            <p>Carica e pubblica da Admin → Gallery live. Finché è vuota, sotto In evidenza restano i video editoriali.</p>
+            <Link className="text-link" href="/gallery">
+              Vai a /gallery <i aria-hidden="true">↗︎</i>
+            </Link>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
