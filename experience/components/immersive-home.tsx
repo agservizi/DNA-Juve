@@ -155,6 +155,7 @@ function CinematicPulse() {
   return (
     <section className="cinematic-pulse" id="chapter-storia" aria-labelledby="pulse-title" data-cinema-room="storia">
       <div className="cinematic-pulse__world" aria-hidden="true">
+        <div className="cinematic-pulse__zebra" />
         <div className="cinematic-pulse__haze" />
         <div className="cinematic-pulse__plate" data-pulse-plate />
       </div>

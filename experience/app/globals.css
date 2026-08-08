@@ -288,10 +288,14 @@ h1 em { color:var(--juve-accent); font-weight:400; }
 .vertical-mark { position:absolute; right:2.5vw; bottom:7vh; color:#a5a6a1; font-size:.6rem; letter-spacing:.38em; writing-mode:vertical-rl; }
 .cinematic-pulse{height:680dvh;position:relative;background:#030303;color:var(--paper);isolation:isolate}
 .cinematic-pulse__world{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.cinematic-pulse__zebra{position:absolute;inset:-12% -6%;opacity:.1;background:
+  repeating-linear-gradient(90deg,#050505 0 4.8%,#e7e5de 4.8% 9.6%);
+  -webkit-mask-image:radial-gradient(ellipse 78% 72% at 62% 44%,#000 18%,transparent 78%);
+  mask-image:radial-gradient(ellipse 78% 72% at 62% 44%,#000 18%,transparent 78%);
+  transform:skewX(-4deg) scale(1.05);pointer-events:none}
 .cinematic-pulse__plate{position:absolute;inset:-8%;background:
-  radial-gradient(ellipse 70% 55% at 72% 42%,rgba(175,143,92,.22),transparent 55%),
-  linear-gradient(160deg,#1a1814 0%,#070707 48%,#0c0d10 100%),
-  repeating-linear-gradient(90deg,rgba(255,255,255,.03) 0 1px,transparent 1px 12.5%);
+  radial-gradient(ellipse 70% 55% at 72% 42%,rgba(175,143,92,.2),transparent 55%),
+  linear-gradient(160deg,rgba(26,24,20,.78) 0%,rgba(7,7,7,.82) 48%,rgba(12,13,16,.86) 100%);
   transform-origin:60% 40%;will-change:transform,filter}
 .cinematic-pulse__haze{position:absolute;inset:0;opacity:.18;background:radial-gradient(circle at 50% 80%,rgba(0,0,0,.55),transparent 55%);mix-blend-mode:multiply;pointer-events:none}
 .cinematic-pulse__stage{position:sticky;top:0;z-index:1;height:100dvh;overflow:hidden;display:grid;grid-template-columns:minmax(260px,31vw) 1fr;gap:clamp(2rem,5vw,7rem);align-items:center;padding:clamp(6rem,10vh,9rem) max(5vw,calc((100vw - 1320px)/2));perspective:1500px}
@@ -319,6 +323,7 @@ h1 em { color:var(--juve-accent); font-weight:400; }
 @media(max-width:899px),(pointer:coarse){
   .cinematic-pulse{height:auto;padding:0;scroll-snap-type:y proximity}
   .cinematic-pulse__world{position:sticky;top:0;height:100dvh;inset:auto}
+  .cinematic-pulse__zebra{opacity:.07;transform:none}
   .cinematic-pulse__stage{position:relative;top:auto;height:auto;display:block;padding:5rem 1rem 3rem;overflow:visible}
   .cinematic-pulse__intro{margin-bottom:2rem}
   .cinematic-pulse__intro h2{font-size:clamp(3.8rem,18vw,6rem)}
