@@ -49,18 +49,19 @@ export async function getUpdates(id:string): Promise<TransferUpdate[]> { const c
 export async function getMarketArticles() {
   const c = client()
   if (!c) return []
-  const { data } = await c
+  const { data, error } = await c
     .from('articles')
-    .select('id,title,slug,excerpt,cover_image,published_at,categories(name,slug)')
+    .select('id,title,slug,excerpt,cover_image,published_at,categories!inner(name,slug)')
     .eq('status', 'published')
+    .eq('categories.slug', 'mercato')
     .order('published_at', { ascending: false })
     .limit(40)
-  return (data || [])
-    .map((a: any) => {
-      const categories = Array.isArray(a.categories) ? a.categories[0] || null : a.categories
-      return { ...a, categories }
-    })
-    .filter((a: any) =>
-      /mercato|trasfer|rinnov|cessio|acquist/i.test(`${a.title} ${a.excerpt || ''} ${a.categories?.name || ''}`),
-    )
+  if (error) {
+    console.error('[getMarketArticles]', error.message)
+    return []
+  }
+  return (data || []).map((a: any) => {
+    const categories = Array.isArray(a.categories) ? a.categories[0] || null : a.categories
+    return { ...a, categories }
+  })
 }

@@ -38,7 +38,37 @@ export function ArticleExperience({article,related,tags,sidebar,nextMatch,rumor}
 
   useEffect(()=>{const container=prose.current;if(!container)return;const render=()=>{const allowed=readCookieConsent()?.externalMedia===true;container.querySelectorAll<HTMLElement>('[data-external-video]').forEach(node=>{const src=node.dataset.src||'';if(!src)return;if(!allowed){delete node.dataset.ready;node.innerHTML='<p>Questo video è ospitato da una piattaforma esterna.</p><button type="button">Gestisci consenso video</button>';node.querySelector('button')?.addEventListener('click',()=>window.dispatchEvent(new Event(COOKIE_CONSENT_EVENT)));return}if(node.dataset.ready)return;const iframe=document.createElement('iframe');iframe.src=src;iframe.title=node.dataset.title||'Video articolo';iframe.loading='lazy';iframe.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';iframe.allowFullscreen=true;node.replaceChildren(iframe);node.dataset.ready='true'});container.querySelectorAll<HTMLVideoElement>('video').forEach(video=>{video.controls=true;video.preload='metadata'})};render();addEventListener(`${COOKIE_CONSENT_EVENT}:changed`,render);return()=>removeEventListener(`${COOKIE_CONSENT_EVENT}:changed`,render)},[article.content])
 
-  useEffect(()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches||!root.current)return;let context:{revert():void}|undefined,cancelled=false;Promise.all([import('gsap'),import('gsap/ScrollTrigger')]).then(([g,t])=>{if(cancelled||!root.current)return;g.gsap.registerPlugin(t.ScrollTrigger);context=g.gsap.context(()=>{g.gsap.fromTo('[data-article-enter]',{clipPath:'inset(0 0 100% 0)'},{clipPath:'inset(0 0 0% 0)',duration:.95,stagger:.07,ease:'power4.out'});g.gsap.fromTo('.article-cover img',{scale:1.06},{scale:1,ease:'none',scrollTrigger:{trigger:'.article-cover',start:'top bottom',end:'bottom top',scrub:.7}})},root)}).catch(()=>{});return()=>{cancelled=true;context?.revert()}},[])
+  useEffect(()=>{
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches||!root.current)return
+    let context:{revert():void}|undefined
+    let cancelled=false
+    const unlock=()=>{
+      root.current?.querySelectorAll<HTMLElement>('[data-article-enter]').forEach((el)=>{
+        el.style.clipPath=''
+        el.style.removeProperty('-webkit-clip-path')
+        el.style.transform=''
+        el.style.opacity=''
+      })
+    }
+    const failsafe=window.setTimeout(unlock,1800)
+    Promise.all([import('gsap'),import('gsap/ScrollTrigger')]).then(([g,t])=>{
+      if(cancelled||!root.current)return
+      g.gsap.registerPlugin(t.ScrollTrigger)
+      context=g.gsap.context(()=>{
+        g.gsap.fromTo(
+          '[data-article-enter]',
+          {y:28,opacity:0},
+          {y:0,opacity:1,duration:.85,stagger:.06,ease:'power3.out',clearProps:'clipPath,transform,opacity',onComplete:unlock},
+        )
+        g.gsap.fromTo(
+          '.article-cover img',
+          {scale:1.06},
+          {scale:1,ease:'none',scrollTrigger:{trigger:'.article-cover',start:'top bottom',end:'bottom top',scrub:.7}},
+        )
+      },root)
+    }).catch(()=>{unlock()})
+    return()=>{cancelled=true;window.clearTimeout(failsafe);context?.revert();unlock()}
+  },[])
 
   async function share(kind='native'){
     const base=location.href

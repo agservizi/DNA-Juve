@@ -1,5 +1,6 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 import { slugify } from '@/lib/slugify'
 import { galleryItemToArticleHtml, videoToArticleHtml } from '@/lib/article-video-embed'
 import { announcePublishedArticle } from '@/lib/telegram/channel'
@@ -255,6 +256,15 @@ export async function createArticleFromTelegram(
 
   const url = `${siteUrl}/articolo/${data.slug}`
   if (input.status === 'published') {
+    revalidatePath('/')
+    revalidatePath('/calciomercato')
+    revalidatePath(`/articolo/${data.slug}`)
+    if (input.category_id) {
+      const { data: category } = await db.from('categories').select('slug').eq('id', input.category_id).maybeSingle()
+      if (category?.slug) revalidatePath(`/categoria/${category.slug}`)
+    } else {
+      revalidatePath('/categoria/mercato')
+    }
     await announcePublishedArticle({
       title,
       excerpt,
