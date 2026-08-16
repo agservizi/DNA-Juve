@@ -11,3 +11,6 @@ supabase/.temp
 test-results
 .claude/settings.local.json
 .vercel
+
+.secrets/
+
