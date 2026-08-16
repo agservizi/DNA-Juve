@@ -42,47 +42,49 @@ export default async function Page({ params }: Props) {
   const paragraphs = liveNewsParagraphs(item)
 
   return (
-    <EditorialPremiumShell>
+    <EditorialPremiumShell motion="reader">
       <main id="contenuto" className={`${s.premiumPage} ${s.liveReader}`}>
-        <nav className={s.liveReaderNav} data-premium-intro>
-          <Link href="/notizie-live">← Notizie live</Link>
-          <span>{item.source}</span>
-        </nav>
+        <div className={s.liveReaderInner}>
+          <nav className={s.liveReaderNav} data-premium-intro>
+            <Link href="/notizie-live">← Notizie live</Link>
+            <span>{item.source}</span>
+          </nav>
 
-        <header className={s.liveReaderHeader} data-premium-intro>
-          <p className={s.premiumMeta}>
-            Rassegna · {item.source}
-            {item.author ? ` / ${item.author}` : ''} · <time dateTime={item.date}>{when(item.date)}</time>
-          </p>
-          <h1>{item.title}</h1>
-        </header>
+          <header className={s.liveReaderHeader} data-premium-intro>
+            <p className={s.premiumMeta}>
+              Rassegna · {item.source}
+              {item.author ? ` / ${item.author}` : ''} · <time dateTime={item.date}>{when(item.date)}</time>
+            </p>
+            <h1>{item.title}</h1>
+          </header>
 
-        {item.image ? (
-          <figure className={s.liveReaderCover} data-premium-reveal>
-            <img src={item.image} alt="" />
-          </figure>
-        ) : null}
+          {item.image ? (
+            <figure className={s.liveReaderCover} data-premium-reveal>
+              <img src={item.image} alt="" />
+            </figure>
+          ) : null}
 
-        <article className={s.liveReaderBody} data-premium-reveal>
-          {paragraphs.map((paragraph) => (
-            <p key={paragraph.slice(0, 48)}>{paragraph}</p>
-          ))}
-        </article>
+          <article className={s.liveReaderBody} data-premium-reveal>
+            {paragraphs.map((paragraph) => (
+              <p key={paragraph.slice(0, 48)}>{paragraph}</p>
+            ))}
+          </article>
 
-        <footer className={s.liveReaderFoot} data-premium-reveal>
-          <p>
-            Sintesi in rassegna stampa su BianconeriHub. Il pezzo originale resta di proprietà di{' '}
-            <strong>{item.source}</strong>.
-          </p>
-          <div className={s.liveReaderActions}>
-            <Link className={s.liveReaderPrimary} href="/notizie-live">
-              Torna al flusso
-            </Link>
-            <a className={s.liveReaderSecondary} href={item.url} target="_blank" rel="noopener noreferrer">
-              Fonte originale ↗
-            </a>
-          </div>
-        </footer>
+          <footer className={s.liveReaderFoot} data-premium-reveal>
+            <p>
+              Sintesi in rassegna stampa su BianconeriHub. Il pezzo originale resta di proprietà di{' '}
+              <strong>{item.source}</strong>.
+            </p>
+            <div className={s.liveReaderActions}>
+              <Link className={s.liveReaderPrimary} href="/notizie-live">
+                Torna al flusso
+              </Link>
+              <a className={s.liveReaderSecondary} href={item.url} target="_blank" rel="noopener noreferrer">
+                Fonte originale ↗
+              </a>
+            </div>
+          </footer>
+        </div>
       </main>
     </EditorialPremiumShell>
   )
