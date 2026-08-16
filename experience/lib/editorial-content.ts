@@ -3,8 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 export type EditorialArticle = { id:string; title:string; slug:string; excerpt:string|null; cover_image:string|null; published_at:string; views?:number; categories:{id?:string;name:string;slug:string;color?:string|null}|null; profiles:{username:string;avatar_url?:string|null}|null }
 export type EditorialVideo = { id:string; title:string; description?:string|null; thumbnail?:string|null; platform?:string|null; video_id?:string|null; video_url?:string|null; category?:string|null; duration?:number|null; views?:number|null; published_at?:string|null }
 export type AuthorProfile = { id:string; username:string; avatar_url?:string|null; bio?:string|null; author_signature?:string|null; specialties?:string[]|null; twitter_url?:string|null; instagram_url?:string|null; linkedin_url?:string|null }
-export type { LiveNews } from '@/lib/live-news'
-export { getLiveNews } from '@/lib/live-news'
+export type LiveNews = { id:string;title:string;description:string;source:string;url:string;image:string|null;date:string;author:string|null }
 
 const articleSelect='id,title,slug,excerpt,cover_image,published_at,views,categories(id,name,slug,color),profiles(username,avatar_url)'
 function db(){const url=process.env.NEXT_PUBLIC_SUPABASE_URL;const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;if(!url||!key)return null;return createClient(url,key,{auth:{persistSession:false}})}

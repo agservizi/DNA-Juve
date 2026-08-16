@@ -1,5 +1,3 @@
-import 'server-only'
-
 export type LiveNews = {
   id: string
   title: string

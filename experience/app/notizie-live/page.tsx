@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { EditorialPremiumShell } from '@/components/editorial-premium-shell'
-import { getLiveNews, type LiveNews } from '@/lib/editorial-content'
+import { getLiveNews, type LiveNews } from '@/lib/live-news'
 import s from '@/components/editorial-premium.module.css'
 
 export const dynamic = 'force-dynamic'
