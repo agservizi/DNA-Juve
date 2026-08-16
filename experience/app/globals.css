@@ -152,7 +152,6 @@ h1,h2 { margin:0; font-family:var(--font-display),Didot,"Times New Roman",serif;
 .global-motion-active :is(article,[class*="card"]):hover img{filter:saturate(1.08) contrast(1.03)}
 .global-motion-active>section{--section-depth:0;--section-light:0;position:relative;isolation:isolate;transform-style:preserve-3d}
 .global-motion-active>section::after{content:attr(data-cinematic-section);position:absolute;z-index:-1;right:clamp(1rem,4vw,5rem);top:clamp(1rem,5vw,5rem);font:600 clamp(.55rem,.65vw,.7rem)/1 var(--font-sans);letter-spacing:.32em;color:rgba(196,160,99,calc(.12 * var(--section-light)));transform:translate3d(0,calc(var(--section-depth) * -22px),0);pointer-events:none}
-.global-motion-active h2{background-image:linear-gradient(105deg,var(--paper) 0 44%,#cfad70 50%,var(--paper) 58% 100%);background-size:230% 100%;background-position:100% 0%;background-clip:text;-webkit-background-clip:text;color:transparent!important}
 @media(max-width:899px),(pointer:coarse){.immersive-pointer,.immersive-depth-grid,.immersive-lens,.cinematic-director__scan,.cinematic-director__hud{display:none}.cinematic-director__aura{opacity:.065;left:25%;top:10%}.cinematic-director__aperture{opacity:.16}.cinematic-director__grain{opacity:.017}.cinematic-director__frame{inset:.45rem;opacity:.3}}
 @media(max-width:1099px),(pointer:coarse){.chapter-nav{display:none}.kinetic-surface>a,.kinetic-surface>[class*="inner"]{transform:none!important}}
 @media(max-width:899px),(pointer:coarse){.ambient-webgl{display:none}}
