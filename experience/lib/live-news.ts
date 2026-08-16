@@ -10,14 +10,25 @@ export type LiveNews = {
 }
 
 const RSS_FEEDS = [
-  { route: 'rss/gazzetta', source: 'La Gazzetta dello Sport', juveOnly: true },
-  { route: 'rss/tuttosport', source: 'Tuttosport', juveOnly: false },
-  { route: 'rss/tuttojuve', source: 'TuttoJuve', juveOnly: false },
-  { route: 'rss/juventusnews24', source: 'JuventusNews24', juveOnly: false },
-  { route: 'rss/juvenews', source: 'JuveNews', juveOnly: false },
+  { route: 'rss/gazzetta', source: 'La Gazzetta dello Sport' },
+  { route: 'rss/tuttosport', source: 'Tuttosport' },
+  { route: 'rss/tuttojuve', source: 'TuttoJuve' },
+  { route: 'rss/juventusnews24', source: 'JuventusNews24' },
+  { route: 'rss/juvenews', source: 'JuveNews' },
 ] as const
 
-const JUVE_RE = /juve|juventus|bianconer/i
+const JUVE_RE = /\b(?:juventus|juve|bianconer[ioa]?)\b/i
+const EX_JUVE_RE = /\bex[-\s]+(?:la\s+)?(?:juventus|bianconer\w*)\b/gi
+
+/** Keep only items actually about Juventus — not gossip that only says "ex Juventus". */
+function isAboutJuventus(title: string, description = '') {
+  if (!title) return false
+  const scrub = (value: string) => value.replace(EX_JUVE_RE, ' ')
+  // Title must name Juventus / Juve / bianconeri after removing "ex Juventus"
+  if (!JUVE_RE.test(scrub(title))) return false
+  // Whole text must still be about Juve after scrubbing historical mentions
+  return JUVE_RE.test(scrub(`${title} ${description}`))
+}
 
 function proxyBase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -58,7 +69,7 @@ function extractImage(itemXml: string, rawDescription: string) {
   return img?.[1] || null
 }
 
-function parseRssXml(xml: string, source: string, juveOnly: boolean): LiveNews[] {
+function parseRssXml(xml: string, source: string): LiveNews[] {
   const items = xml.match(/<item[\s\S]*?<\/item>/gi) || []
   const out: LiveNews[] = []
 
@@ -70,7 +81,7 @@ function parseRssXml(xml: string, source: string, juveOnly: boolean): LiveNews[]
     const title = cleanHtml(rawTitle)
     const description = cleanHtml(rawDescription).slice(0, 300)
     if (!title || !link) continue
-    if (juveOnly && !JUVE_RE.test(`${title} ${description}`)) continue
+    if (!isAboutJuventus(title, description)) continue
 
     let date = new Date().toISOString()
     if (pubDate) {
@@ -127,7 +138,7 @@ async function fetchFromNewsApi(base: { url: string; key: string }): Promise<Liv
       date: a.publishedAt,
       author: a.author || null,
     }))
-    .filter((a: LiveNews) => a.title && JUVE_RE.test(`${a.title} ${a.description}`))
+    .filter((a: LiveNews) => a.title && isAboutJuventus(a.title, a.description))
 }
 
 async function fetchFromRss(base: { url: string; key: string }): Promise<LiveNews[]> {
@@ -139,7 +150,7 @@ async function fetchFromRss(base: { url: string; key: string }): Promise<LiveNew
       })
       if (!res.ok) return [] as LiveNews[]
       const xml = await res.text()
-      return parseRssXml(xml, feed.source, feed.juveOnly)
+      return parseRssXml(xml, feed.source)
     }),
   )
 
