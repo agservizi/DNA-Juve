@@ -1,6 +1,8 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { slugify } from '@/lib/slugify'
+import { galleryItemToArticleHtml, videoToArticleHtml } from '@/lib/article-video-embed'
+import { announcePublishedArticle } from '@/lib/telegram/channel'
 
 const bucket = 'article-images'
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
@@ -84,6 +86,28 @@ export async function listCategories(db: SupabaseClient) {
   return data || []
 }
 
+export async function listPublishedVideos(db: SupabaseClient, limit = 8) {
+  const { data, error } = await db
+    .from('videos')
+    .select('id,title,platform,video_id,video_url,thumbnail')
+    .eq('is_published', true)
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
+}
+
+export async function listPublishedGalleryItems(db: SupabaseClient, limit = 8) {
+  const { data, error } = await db
+    .from('gallery_items')
+    .select('id,title,alt_text,media_type,media_url')
+    .eq('status', 'published')
+    .order('captured_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
+}
+
 export async function uploadCoverBytes(
   db: SupabaseClient,
   bytes: Uint8Array,
@@ -143,6 +167,8 @@ export async function createArticleFromTelegram(
     content: string
     tags?: string
     cover_image?: string
+    video_id?: string
+    gallery_item_id?: string
     category_id?: string
     status: 'draft' | 'published'
     featured?: boolean
@@ -150,7 +176,39 @@ export async function createArticleFromTelegram(
 ) {
   const title = input.title.trim()
   const excerpt = input.excerpt.trim()
-  const content = plainTextToHtml(input.content)
+  let content = plainTextToHtml(input.content)
+
+  if (input.video_id) {
+    const { data: video, error } = await db
+      .from('videos')
+      .select('title,platform,video_id,video_url,thumbnail,is_published')
+      .eq('id', input.video_id)
+      .maybeSingle()
+    if (error) throw error
+    if (video?.is_published) {
+      const embed = videoToArticleHtml(video)
+      if (embed) content = content ? `${content}\n${embed}` : embed
+    }
+  }
+
+  if (input.gallery_item_id) {
+    const { data: item, error } = await db
+      .from('gallery_items')
+      .select('title,alt_text,media_type,media_url,status')
+      .eq('id', input.gallery_item_id)
+      .maybeSingle()
+    if (error) throw error
+    if (item?.status === 'published') {
+      const embed = galleryItemToArticleHtml({
+        title: item.title,
+        alt_text: item.alt_text,
+        media_type: item.media_type as 'image' | 'video',
+        media_url: item.media_url,
+      })
+      if (embed) content = content ? `${content}\n${embed}` : embed
+    }
+  }
+
   const plain = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 
   if (title.length < 3) throw new Error('Titolo troppo corto')
@@ -195,11 +253,21 @@ export async function createArticleFromTelegram(
 
   await upsertTags(db, data.id, input.tags || '')
 
+  const url = `${siteUrl}/articolo/${data.slug}`
+  if (input.status === 'published') {
+    await announcePublishedArticle({
+      title,
+      excerpt,
+      url,
+      cover_image: input.cover_image,
+    })
+  }
+
   return {
     id: data.id as string,
     slug: data.slug as string,
     status: data.status as string,
-    url: `${siteUrl}/articolo/${data.slug}`,
+    url,
     adminUrl: `${siteUrl}/admin/articoli/${data.id}/modifica`,
   }
 }

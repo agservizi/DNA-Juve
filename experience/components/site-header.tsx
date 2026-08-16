@@ -5,6 +5,8 @@ import { Link } from 'next-view-transitions'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
+const telegramUrl = process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || ''
+
 const primary = [
   { href: '/notizie-live', label: 'Notizie live' },
   { href: '/calciomercato', label: 'Calciomercato' },
@@ -114,6 +116,11 @@ export function SiteHeader() {
       </Link>
       <nav aria-label="Sezioni">
         {primary.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>{item.label}</Link>)}
+        {telegramUrl ? (
+          <a className="nav-telegram" href={telegramUrl} target="_blank" rel="noopener noreferrer" aria-label="Canale Telegram BianconeriHub">
+            Telegram
+          </a>
+        ) : null}
       </nav>
       <button ref={menuButton} className={`menu-button${open ? ' is-active' : ''}`} type="button" aria-label={open ? 'Chiudi menu' : 'Apri menu'} aria-expanded={open} aria-controls="global-menu" onClick={toggleMenu}>
         <span /><span />
@@ -130,7 +137,16 @@ export function SiteHeader() {
             <i aria-hidden="true">↗︎</i>
           </motion.div>)}
         </nav>
-        <div className="global-menu-foot"><span>BIANCONERIHUB MAGAZINE</span><span>FINO ALLA FINE</span></div>
+        <div className="global-menu-foot">
+          <span>BIANCONERIHUB MAGAZINE</span>
+          {telegramUrl ? (
+            <a href={telegramUrl} target="_blank" rel="noopener noreferrer">
+              Canale Telegram
+            </a>
+          ) : (
+            <span>FINO ALLA FINE</span>
+          )}
+        </div>
       </motion.div>}
     </AnimatePresence>
   </>

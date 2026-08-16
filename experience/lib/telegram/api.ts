@@ -61,17 +61,45 @@ export function isChatAllowed(chatId: number) {
 }
 
 export async function sendMessage(
-  chatId: number,
+  chatId: number | string,
   text: string,
-  options?: { reply_markup?: { inline_keyboard: InlineButton[][] }; parse_mode?: 'HTML' },
+  options?: {
+    reply_markup?: { inline_keyboard: InlineButton[][] }
+    parse_mode?: 'HTML'
+    disable_web_page_preview?: boolean
+  },
 ) {
   return call('sendMessage', {
     chat_id: chatId,
     text,
-    disable_web_page_preview: true,
+    disable_web_page_preview: options?.disable_web_page_preview ?? true,
     parse_mode: options?.parse_mode,
     reply_markup: options?.reply_markup,
   })
+}
+
+export async function sendPhoto(
+  chatId: number | string,
+  photo: string,
+  options?: { caption?: string; parse_mode?: 'HTML' },
+) {
+  return call('sendPhoto', {
+    chat_id: chatId,
+    photo,
+    caption: options?.caption,
+    parse_mode: options?.parse_mode,
+  })
+}
+
+export async function getChat(chatId: number | string) {
+  return call<{ id: number; type: string; title?: string; username?: string }>('getChat', { chat_id: chatId })
+}
+
+export function channelChatId() {
+  const raw = String(process.env.TELEGRAM_CHANNEL_ID || '').trim()
+  if (!raw) return null
+  if (/^-?\d+$/.test(raw)) return Number(raw)
+  return raw.startsWith('@') ? raw : `@${raw}`
 }
 
 export async function answerCallback(callbackQueryId: string, text?: string) {

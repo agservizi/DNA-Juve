@@ -15,6 +15,8 @@ export type TelegramStep =
   | 'content'
   | 'tags'
   | 'cover'
+  | 'video'
+  | 'gallery'
   | 'category'
   | 'status'
 
@@ -24,6 +26,8 @@ export type TelegramDraft = {
   contentParts?: string[]
   tags?: string
   cover_image?: string
+  video_id?: string
+  gallery_item_id?: string
   category_id?: string
   category_name?: string
 }

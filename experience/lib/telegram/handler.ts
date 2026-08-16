@@ -10,7 +10,13 @@ import {
   type TelegramUpdate,
 } from '@/lib/telegram/api'
 import { clearSession, getSession, saveSession, type TelegramDraft, type TelegramSession } from '@/lib/telegram/session'
-import { createArticleFromTelegram, listCategories, uploadCoverBytes } from '@/lib/telegram/publish'
+import {
+  createArticleFromTelegram,
+  listCategories,
+  listPublishedGalleryItems,
+  listPublishedVideos,
+  uploadCoverBytes,
+} from '@/lib/telegram/publish'
 
 const HELP = `Comandi BianconeriHub
 
@@ -24,13 +30,21 @@ Flusso /nuovo:
 3) testo (più messaggi ok, poi /fine)
 4) tag (virgola) oppure /salta
 5) foto copertina oppure /salta
-6) categoria
-7) Pubblica in evidenza / Pubblica / Bozza`
+6) video dalla videoteca oppure /salta
+7) media da Gallery Live oppure /salta
+8) categoria
+9) Pubblica in evidenza / Pubblica / Bozza`
 
 function chunkButtons<T>(items: T[], size: number) {
   const rows: T[][] = []
   for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
   return rows
+}
+
+function truncateLabel(value: string, max = 28) {
+  const t = value.trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max - 1)}…`
 }
 
 async function askCategory(db: SupabaseClient, chatId: number) {
@@ -50,6 +64,46 @@ async function askCategory(db: SupabaseClient, chatId: number) {
   return true
 }
 
+async function askVideo(db: SupabaseClient, chatId: number) {
+  const videos = await listPublishedVideos(db, 8)
+  if (!videos.length) {
+    await sendMessage(chatId, 'Nessun video pubblicato in videoteca. Scrivi /salta per continuare.')
+    return
+  }
+  await sendMessage(chatId, 'Scegli un video dalla videoteca, oppure /salta:', {
+    reply_markup: {
+      inline_keyboard: [
+        ...videos.map((v) => [
+          {
+            text: truncateLabel(`${v.platform}: ${v.title}`),
+            callback_data: `video:${v.id}`,
+          },
+        ]),
+      ],
+    },
+  })
+}
+
+async function askGallery(db: SupabaseClient, chatId: number) {
+  const items = await listPublishedGalleryItems(db, 8)
+  if (!items.length) {
+    await sendMessage(chatId, 'Nessun media in Gallery Live. Scrivi /salta per continuare.')
+    return
+  }
+  await sendMessage(chatId, 'Scegli da Gallery Live, oppure /salta:', {
+    reply_markup: {
+      inline_keyboard: [
+        ...items.map((item) => [
+          {
+            text: truncateLabel(`${item.media_type === 'video' ? '🎬' : '📷'} ${item.title}`),
+            callback_data: `gal:${item.id}`,
+          },
+        ]),
+      ],
+    },
+  })
+}
+
 async function askStatus(chatId: number) {
   await sendMessage(chatId, 'Stato pubblicazione:', {
     reply_markup: {
@@ -62,6 +116,16 @@ async function askStatus(chatId: number) {
       ],
     },
   })
+}
+
+async function goToGalleryStep(db: SupabaseClient, session: TelegramSession, draft: TelegramDraft) {
+  await saveSession(db, { ...session, step: 'gallery', draft })
+  await askGallery(db, session.chat_id)
+}
+
+async function goToCategoryStep(db: SupabaseClient, session: TelegramSession, draft: TelegramDraft) {
+  await saveSession(db, { ...session, step: 'category', draft })
+  await askCategory(db, session.chat_id)
 }
 
 async function finalize(
@@ -78,6 +142,8 @@ async function finalize(
     content,
     tags: draft.tags,
     cover_image: draft.cover_image,
+    video_id: draft.video_id,
+    gallery_item_id: draft.gallery_item_id,
     category_id: draft.category_id,
     status,
     featured: status === 'published' ? featured : false,
@@ -176,11 +242,29 @@ async function handleStepText(db: SupabaseClient, session: TelegramSession, text
 
   if (session.step === 'cover') {
     if (lower === '/salta' || lower === 'salta') {
-      await saveSession(db, { ...session, step: 'category', draft })
-      await askCategory(db, chatId)
+      await saveSession(db, { ...session, step: 'video', draft })
+      await askVideo(db, chatId)
       return
     }
     await sendMessage(chatId, 'In questa fase mandami una foto, oppure /salta')
+    return
+  }
+
+  if (session.step === 'video') {
+    if (lower === '/salta' || lower === 'salta') {
+      await goToGalleryStep(db, session, draft)
+      return
+    }
+    await sendMessage(chatId, 'Usa i pulsanti video, oppure /salta')
+    return
+  }
+
+  if (session.step === 'gallery') {
+    if (lower === '/salta' || lower === 'salta') {
+      await goToCategoryStep(db, session, draft)
+      return
+    }
+    await sendMessage(chatId, 'Usa i pulsanti Gallery Live, oppure /salta')
     return
   }
 
@@ -201,9 +285,9 @@ async function handlePhoto(db: SupabaseClient, session: TelegramSession, fileId:
   const type = mimeHint && mimeHint.startsWith('image/') ? mimeHint : contentType.startsWith('image/') ? contentType : 'image/jpeg'
   const url = await uploadCoverBytes(db, bytes, type, session.draft.title || 'cover')
   const draft = { ...session.draft, cover_image: url }
-  await saveSession(db, { ...session, step: 'category', draft })
+  await saveSession(db, { ...session, step: 'video', draft })
   await sendMessage(session.chat_id, 'Copertina caricata.')
-  await askCategory(db, session.chat_id)
+  await askVideo(db, session.chat_id)
 }
 
 export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramUpdate) {
@@ -218,6 +302,46 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
     await answerCallback(cb.id)
     const session = await getSession(db, chatId)
     const data = String(cb.data || '')
+
+    if (data.startsWith('video:') && session.step === 'video') {
+      const videoId = data.slice(6)
+      const { data: video, error } = await db
+        .from('videos')
+        .select('id,title,is_published')
+        .eq('id', videoId)
+        .eq('is_published', true)
+        .maybeSingle()
+      if (error) throw error
+      if (!video) {
+        await sendMessage(chatId, 'Video non valido. Riprova o /salta.')
+        await askVideo(db, chatId)
+        return
+      }
+      const draft = { ...session.draft, video_id: video.id }
+      await sendMessage(chatId, `Video: <b>${truncateLabel(video.title, 60)}</b>`, { parse_mode: 'HTML' })
+      await goToGalleryStep(db, session, draft)
+      return
+    }
+
+    if (data.startsWith('gal:') && session.step === 'gallery') {
+      const galleryId = data.slice(4)
+      const { data: item, error } = await db
+        .from('gallery_items')
+        .select('id,title,status')
+        .eq('id', galleryId)
+        .eq('status', 'published')
+        .maybeSingle()
+      if (error) throw error
+      if (!item) {
+        await sendMessage(chatId, 'Media gallery non valido. Riprova o /salta.')
+        await askGallery(db, chatId)
+        return
+      }
+      const draft = { ...session.draft, gallery_item_id: item.id }
+      await sendMessage(chatId, `Gallery: <b>${truncateLabel(item.title, 60)}</b>`, { parse_mode: 'HTML' })
+      await goToCategoryStep(db, session, draft)
+      return
+    }
 
     if (data.startsWith('cat:') && session.step === 'category') {
       const categoryId = data.slice(4)
