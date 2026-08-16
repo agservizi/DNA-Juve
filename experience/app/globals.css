@@ -262,19 +262,20 @@ h1,h2 { margin:0; font-family:var(--font-display),Didot,"Times New Roman",serif;
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 0 clamp(.5rem, 2.5vw, 1.5rem);
+  padding: 0 clamp(.75rem, 4vw, 1.5rem);
+  overflow: hidden;
   pointer-events: none;
 }
 .site-intro__logo {
   margin: 0;
-  max-width: 98vw;
+  width: 100%;
+  max-width: min(96vw, 18ch);
   font-family: inherit;
-  font-size: clamp(3.2rem, 17vw, 13.5rem);
+  font-size: clamp(2.4rem, 12.5vw, 11rem);
   font-weight: 900;
   letter-spacing: -.08em;
   line-height: .84;
   text-align: center;
-  text-wrap: balance;
   color: transparent;
   background-size: cover;
   background-repeat: no-repeat;
