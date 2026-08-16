@@ -7,12 +7,11 @@ import { usePathname } from 'next/navigation'
 const INTRO_KEY = 'bianconerihub:intro-seen'
 const DURATION_MS = 11_500
 const SHOT_MS = 2_050
-const BRAND_AT = 8_400
+const SOLID_AT = 8_600
 
 type Shot = {
   src: string
   alt: string
-  /** Camera path: start → end in 3D space */
   cam: {
     from: { scale: number; x: string; y: string; rotateX: number; rotateY: number; rotateZ: number }
     to: { scale: number; x: string; y: string; rotateX: number; rotateY: number; rotateZ: number }
@@ -101,7 +100,7 @@ export function SiteIntro() {
   const stageRef = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(false)
   const [shot, setShot] = useState(0)
-  const [brand, setBrand] = useState(false)
+  const [solid, setSolid] = useState(false)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
@@ -117,7 +116,7 @@ export function SiteIntro() {
     const shotTimers = SHOTS.map((_, index) =>
       window.setTimeout(() => setShot(index), index * SHOT_MS),
     )
-    const brandTimer = window.setTimeout(() => setBrand(true), BRAND_AT)
+    const solidTimer = window.setTimeout(() => setSolid(true), SOLID_AT)
     const endTimer = window.setTimeout(() => {
       markSeen()
       setActive(false)
@@ -135,7 +134,7 @@ export function SiteIntro() {
     return () => {
       document.body.style.overflow = previous
       shotTimers.forEach((id) => window.clearTimeout(id))
-      window.clearTimeout(brandTimer)
+      window.clearTimeout(solidTimer)
       window.clearTimeout(endTimer)
       window.removeEventListener('keydown', onKey)
     }
@@ -149,7 +148,7 @@ export function SiteIntro() {
     const onMove = (event: PointerEvent) => {
       const nx = (event.clientX / window.innerWidth - 0.5) * 2
       const ny = (event.clientY / window.innerHeight - 0.5) * 2
-      setTilt({ x: ny * -4.5, y: nx * 5.5 })
+      setTilt({ x: ny * -3.5, y: nx * 4.5 })
     }
     window.addEventListener('pointermove', onMove, { passive: true })
     return () => window.removeEventListener('pointermove', onMove)
@@ -172,7 +171,7 @@ export function SiteIntro() {
           aria-label="Introduzione BianconeriHub"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0, filter: 'blur(12px)' }}
+          exit={{ opacity: 0, filter: 'blur(14px)' }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="site-intro__letterbox site-intro__letterbox--top" aria-hidden="true" />
@@ -252,41 +251,33 @@ export function SiteIntro() {
               )}
             </AnimatePresence>
 
-            <div className="site-intro__depth-fog" />
+            <div className="site-intro__depth-fog" data-solid={solid ? '1' : '0'} />
             <div className="site-intro__bloom" />
             <div className="site-intro__sweep" key={current.src} />
             <div className="site-intro__grain" />
             <div className="site-intro__frame" />
           </div>
 
-          <AnimatePresence mode="wait">
-            {brand ? (
-              <motion.div
-                className="site-intro__brand"
-                initial={{ opacity: 0, y: 40, rotateX: 18, scale: 0.92 }}
-                animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.95, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <p>Allianz Stadium · Torino</p>
-                <strong>
-                  BIANCONERI<span>HUB</span>
-                </strong>
-                <span>#FINOALLAFINE</span>
-              </motion.div>
-            ) : (
-              <motion.p
-                className="site-intro__kicker"
-                key="kicker"
-                initial={{ opacity: 0, letterSpacing: '0.5em' }}
-                animate={{ opacity: 1, letterSpacing: '0.28em' }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.7 }}
-              >
-                La casa bianconera
-              </motion.p>
-            )}
-          </AnimatePresence>
+          {/* Knockout logo: stadium shows through the letters, then solidifies */}
+          <div className={`site-intro__mask${solid ? ' is-solid' : ''}`} aria-hidden="true">
+            <motion.p
+              className="site-intro__logo"
+              initial={{ opacity: 0, scale: 1.08 }}
+              animate={{ opacity: 1, scale: solid ? 1.02 : 1 }}
+              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+            >
+              BIANCONERI<span>HUB</span>
+            </motion.p>
+          </div>
+
+          <motion.p
+            className="site-intro__tag"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: solid ? 1 : 0.55 }}
+            transition={{ duration: 0.7 }}
+          >
+            {solid ? '#FINOALLAFINE' : 'Allianz Stadium · Torino'}
+          </motion.p>
 
           <button className="site-intro__skip" type="button" onClick={dismiss}>
             Salta intro
