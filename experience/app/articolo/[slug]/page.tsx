@@ -49,7 +49,7 @@ export default async function ArticlePage({ params }: Props) {
   const [{ article, related, tags }, sidebar, matches, rumors] = await Promise.all([getArticleBySlug(slug), getArticleSidebar(), getTeamMatches(), getRumors()])
   if (!article) notFound()
   const sanitizedContent = sanitizeHtml(article.content || '', {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'figure', 'figcaption', 'iframe', 'video', 'source']),
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'figure', 'figcaption', 'iframe', 'video', 'source']).filter((tag) => !['pre', 'code', 'tt', 'kbd', 'samp'].includes(tag)),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
       '*': ['class', 'id', 'data-video-id', 'data-video-title', 'data-video-platform', 'data-video-videoid', 'data-video-url', 'data-video-thumbnail'],
@@ -63,8 +63,13 @@ export default async function ArticlePage({ params }: Props) {
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }, true),
       img: sanitizeHtml.simpleTransform('img', { loading: 'lazy' }, true),
+      pre: 'div',
+      code: 'span',
+      font: 'span',
     },
-  })
+  }).replace(/\s(?:style|face)=("|')[\s\S]*?\1/gi, '')
+    .replace(/<\/?pre\b[^>]*>/gi, '')
+    .replace(/\sclass="(?:PDq2pG_[^"]*|Apple-style-span)"/gi, '')
   const consentSafeContent = sanitizedContent.replace(/<iframe\b([^>]*)src=(['"])(.*?)\2([^>]*)><\/iframe>/gi, (_match, before, _quote, src, after) => {
     const title = `${before} ${after}`.match(/title=(['"])(.*?)\1/i)?.[2] || 'Video articolo'
     return `<div class="article-video-consent" data-external-video data-src="${sanitizeHtml(src,{allowedTags:[],allowedAttributes:{}})}" data-title="${sanitizeHtml(title,{allowedTags:[],allowedAttributes:{}})}"></div>`

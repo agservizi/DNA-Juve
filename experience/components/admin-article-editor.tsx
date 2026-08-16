@@ -4,7 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bold, Code, Eye, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Redo2, RotateCcw, Save, Send, Sparkles, Upload, Undo2 } from 'lucide-react'
+import { Bold, Eye, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Redo2, RotateCcw, Save, Send, Sparkles, Upload, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -92,12 +92,40 @@ function safeHtml(html:string){
   return doc.body.innerHTML
 }
 
+function cleanEditorialHtml(html:string){
+  if(typeof window==='undefined'||!html.trim())return html
+  const doc=new DOMParser().parseFromString(html,'text/html')
+  doc.querySelectorAll('script,style,object,embed,form,meta,link,xml').forEach(n=>n.remove())
+  doc.querySelectorAll('pre').forEach(pre=>{const frag=document.createDocumentFragment();while(pre.firstChild)frag.appendChild(pre.firstChild);pre.replaceWith(frag)})
+  doc.querySelectorAll('font').forEach(font=>{const frag=document.createDocumentFragment();while(font.firstChild)frag.appendChild(font.firstChild);font.replaceWith(frag)})
+  doc.querySelectorAll('span[aria-hidden="true"],.PDq2pG_selectionAnchor,.PDq2pG_selectionAnchorContainer').forEach(node=>{
+    if(node.classList.contains('PDq2pG_selectionAnchorContainer')){const frag=document.createDocumentFragment();while(node.firstChild)frag.appendChild(node.firstChild);node.replaceWith(frag);return}
+    node.remove()
+  })
+  doc.querySelectorAll('*').forEach(node=>{
+    ;[...node.attributes].forEach(attr=>{
+      const name=attr.name.toLowerCase()
+      if(name==='style'||name==='face'||name.startsWith('on')||name.startsWith('data-start')||name.startsWith('data-end')||name==='data-pm-slice')node.removeAttribute(attr.name)
+    })
+  })
+  return doc.body.innerHTML
+}
+
 function Wysiwyg({value,onChange}:{value:string;onChange:(v:string)=>void}){
   const ref=useRef<HTMLDivElement>(null)
   useEffect(()=>{if(ref.current&&ref.current.innerHTML!==value)ref.current.innerHTML=value},[value])
-  function command(name:string,arg?:string){ref.current?.focus();document.execCommand(name,false,arg);onChange(ref.current?.innerHTML||'')}
+  function command(name:string,arg?:string){ref.current?.focus();document.execCommand(name,false,arg);onChange(cleanEditorialHtml(ref.current?.innerHTML||''))}
   const askLink=()=>{const url=window.prompt('URL del collegamento');if(url)command('createLink',url)}
-  const paste=(event:ClipboardEvent<HTMLDivElement>)=>{if(event.clipboardData.getData('text/html'))return;const text=event.clipboardData.getData('text/plain');if(!text)return;event.preventDefault();const escape=(v:string)=>v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');const html=text.trim().split(/\n\s*\n/).map(block=>`<p>${block.split('\n').map(escape).join('<br>')}</p>`).join('');document.execCommand('insertHTML',false,html);onChange(ref.current?.innerHTML||'')}
+  const paste=(event:ClipboardEvent<HTMLDivElement>)=>{
+    event.preventDefault()
+    const html=event.clipboardData.getData('text/html')
+    const text=event.clipboardData.getData('text/plain')
+    const escape=(v:string)=>v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+    const insert=html?cleanEditorialHtml(html):text.trim().split(/\n\s*\n/).map(block=>`<p>${block.split('\n').map(escape).join('<br>')}</p>`).join('')
+    if(!insert)return
+    document.execCommand('insertHTML',false,insert)
+    onChange(cleanEditorialHtml(ref.current?.innerHTML||''))
+  }
   return <div className="rounded-xl border border-[#383938] bg-[#0d0e0e]">
     <div role="toolbar" aria-label="Formattazione contenuto" className="flex flex-wrap gap-1 border-b border-[#383938] p-2">
       <Button type="button" size="icon" variant="ghost" aria-label="Annulla" onClick={()=>command('undo')}><Undo2/></Button>
@@ -108,9 +136,8 @@ function Wysiwyg({value,onChange}:{value:string;onChange:(v:string)=>void}){
       <Button type="button" size="icon" variant="ghost" aria-label="Elenco numerato" onClick={()=>command('insertOrderedList')}><ListOrdered/></Button>
       <Button type="button" size="icon" variant="ghost" aria-label="Collegamento" onClick={askLink}><Link2/></Button>
       {([['P','Paragrafo'],['H2','Titolo 2'],['H3','Titolo 3'],['BLOCKQUOTE','Citazione']] as const).map(([tag,label])=><Button key={tag} type="button" variant="ghost" onClick={()=>command('formatBlock',tag)}>{label}</Button>)}
-      <Button type="button" variant="ghost" onClick={()=>command('formatBlock','PRE')}><Code/>Codice</Button>
     </div>
-    <div ref={ref} contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Contenuto dell'articolo" data-placeholder="Scrivi l'articolo…" className="admin-wysiwyg min-h-[420px] max-w-none p-5 outline-none empty:before:text-[#777] empty:before:content-[attr(data-placeholder)]" onPaste={paste} onInput={e=>onChange(e.currentTarget.innerHTML)} onBlur={e=>onChange(e.currentTarget.innerHTML)}/>
+    <div ref={ref} contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Contenuto dell'articolo" data-placeholder="Scrivi l'articolo…" className="admin-wysiwyg min-h-[420px] max-w-none p-5 outline-none empty:before:text-[#777] empty:before:content-[attr(data-placeholder)]" onPaste={paste} onInput={e=>onChange(e.currentTarget.innerHTML)} onBlur={e=>onChange(cleanEditorialHtml(e.currentTarget.innerHTML))}/>
   </div>
 }
 
@@ -172,7 +199,7 @@ export function AdminArticleEditor({client,user,id}:{client:Db;user:{id:string};
 
  async function persist(){
   if(issues.some(x=>x.includes('obbligatorio')||x.includes('non valido')||x.includes('passato')))throw new Error(`Correggi prima: ${issues.join('; ')}`)
-  const payload:any={...data,slug:data.slug||slugify(data.title),category_id:data.category_id||null,author_id:data.author_id||user.id,scheduled_at:data.status==='scheduled'&&data.scheduled_at?new Date(data.scheduled_at).toISOString():null,canonical_url:data.canonical_url||null,source_url:data.source_url||null}
+  const payload:any={...data,content:cleanEditorialHtml(data.content),slug:data.slug||slugify(data.title),category_id:data.category_id||null,author_id:data.author_id||user.id,scheduled_at:data.status==='scheduled'&&data.scheduled_at?new Date(data.scheduled_at).toISOString():null,canonical_url:data.canonical_url||null,source_url:data.source_url||null}
   delete payload.id;delete payload.instagram_post_error;delete payload.instagram_post_permalink
   if(payload.status==='scheduled'){payload.status='draft';payload.published_at=null}
   if(payload.status==='published'&&!payload.published_at)payload.published_at=new Date().toISOString()
