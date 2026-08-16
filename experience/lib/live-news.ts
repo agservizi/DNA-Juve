@@ -1,7 +1,11 @@
+import { slugify } from '@/lib/slugify'
+
 export type LiveNews = {
   id: string
+  slug: string
   title: string
   description: string
+  body: string
   source: string
   url: string
   image: string | null
@@ -24,9 +28,7 @@ const EX_JUVE_RE = /\bex[-\s]+(?:la\s+)?(?:juventus|bianconer\w*)\b/gi
 function isAboutJuventus(title: string, description = '') {
   if (!title) return false
   const scrub = (value: string) => value.replace(EX_JUVE_RE, ' ')
-  // Title must name Juventus / Juve / bianconeri after removing "ex Juventus"
   if (!JUVE_RE.test(scrub(title))) return false
-  // Whole text must still be about Juve after scrubbing historical mentions
   return JUVE_RE.test(scrub(`${title} ${description}`))
 }
 
@@ -69,19 +71,45 @@ function extractImage(itemXml: string, rawDescription: string) {
   return img?.[1] || null
 }
 
+function shortId(value: string) {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) hash = (Math.imul(31, hash) + value.charCodeAt(i)) | 0
+  return Math.abs(hash).toString(36).slice(0, 7)
+}
+
+export function liveNewsSlug(title: string, url: string) {
+  const base = slugify(title).slice(0, 72) || 'notizia'
+  return `${base}-${shortId(url)}`
+}
+
+export function liveNewsHref(item: Pick<LiveNews, 'slug'>) {
+  return `/notizie-live/${item.slug}`
+}
+
+function toParagraphs(text: string) {
+  const cleaned = text.replace(/\s+/g, ' ').trim()
+  if (!cleaned) return []
+  // Prefer sentence groups when the feed dumps one long blob
+  const chunks = cleaned.split(/(?<=[.!?…])\s+(?=[A-ZÀÈÉÌÒÙ])/).filter((p) => p.trim().length > 40)
+  if (chunks.length > 1) return chunks.map((p) => p.trim())
+  return [cleaned]
+}
+
 function parseRssXml(xml: string, source: string): LiveNews[] {
   const items = xml.match(/<item[\s\S]*?<\/item>/gi) || []
   const out: LiveNews[] = []
 
   for (const item of items) {
     const rawTitle = tagContent(item, 'title')
-    const rawDescription = tagContent(item, 'description') || tagContent(item, 'content:encoded')
+    const rawDescription = tagContent(item, 'description')
+    const rawContent = tagContent(item, 'content:encoded') || rawDescription
     const link = cleanHtml(tagContent(item, 'link') || tagContent(item, 'guid'))
     const pubDate = tagContent(item, 'pubDate')
     const title = cleanHtml(rawTitle)
-    const description = cleanHtml(rawDescription).slice(0, 300)
+    const body = cleanHtml(rawContent).slice(0, 4000)
+    const description = cleanHtml(rawDescription || rawContent).slice(0, 320)
     if (!title || !link) continue
-    if (!isAboutJuventus(title, description)) continue
+    if (!isAboutJuventus(title, description || body)) continue
 
     let date = new Date().toISOString()
     if (pubDate) {
@@ -90,12 +118,14 @@ function parseRssXml(xml: string, source: string): LiveNews[] {
     }
 
     out.push({
-      id: link || `${source}-${title.slice(0, 40)}`,
+      id: link,
+      slug: liveNewsSlug(title, link),
       title,
       description,
+      body: body || description,
       source,
       url: link,
-      image: extractImage(item, rawDescription),
+      image: extractImage(item, rawContent || rawDescription),
       date,
       author: null,
     })
@@ -128,17 +158,24 @@ async function fetchFromNewsApi(base: { url: string; key: string }): Promise<Liv
   const json = await res.json()
   if (json.status && json.status !== 'ok') return []
   return ((json.articles || []) as any[])
-    .map((a) => ({
-      id: a.url,
-      title: cleanHtml(a.title || ''),
-      description: cleanHtml(a.description || ''),
-      source: a.source?.name || 'Sconosciuta',
-      url: a.url,
-      image: a.urlToImage || null,
-      date: a.publishedAt,
-      author: a.author || null,
-    }))
-    .filter((a: LiveNews) => a.title && isAboutJuventus(a.title, a.description))
+    .map((a) => {
+      const title = cleanHtml(a.title || '')
+      const description = cleanHtml(a.description || '')
+      const url = a.url || ''
+      return {
+        id: url,
+        slug: liveNewsSlug(title, url),
+        title,
+        description,
+        body: description,
+        source: a.source?.name || 'Sconosciuta',
+        url,
+        image: a.urlToImage || null,
+        date: a.publishedAt,
+        author: a.author || null,
+      } satisfies LiveNews
+    })
+    .filter((a: LiveNews) => a.title && a.url && isAboutJuventus(a.title, a.description))
 }
 
 async function fetchFromRss(base: { url: string; key: string }): Promise<LiveNews[]> {
@@ -162,7 +199,7 @@ async function fetchFromRss(base: { url: string; key: string }): Promise<LiveNew
   return dedupe(articles).slice(0, 40)
 }
 
-/** NewsAPI first (if key valid), otherwise RSS via proxy-api — same sources as the legacy Vite app. */
+/** NewsAPI first (if key valid), otherwise RSS via proxy-api. */
 export async function getLiveNews(): Promise<LiveNews[]> {
   const base = proxyBase()
   if (!base) return []
@@ -179,4 +216,15 @@ export async function getLiveNews(): Promise<LiveNews[]> {
   } catch {
     return []
   }
+}
+
+export async function getLiveNewsBySlug(slug: string): Promise<LiveNews | null> {
+  const wanted = String(slug || '').trim().toLowerCase()
+  if (!wanted) return null
+  const news = await getLiveNews()
+  return news.find((item) => item.slug === wanted) || null
+}
+
+export function liveNewsParagraphs(item: LiveNews) {
+  return toParagraphs(item.body || item.description)
 }
