@@ -364,9 +364,19 @@ h1,h2 { margin:0; font-family:var(--font-display),Didot,"Times New Roman",serif;
 @media (max-width: 699px) {
   .site-intro__plate { inset: -12%; width: 124%; height: 124%; }
   .site-intro__logo {
-    font-size: clamp(2.6rem, 15.5vw, 5.2rem);
-    letter-spacing: -.07em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .02em;
+    max-width: 100%;
+    font-size: clamp(2.4rem, 13.5vw, 4.2rem);
+    letter-spacing: -.06em;
+    line-height: .9;
     -webkit-text-stroke: 1px rgba(255,255,255,.92);
+  }
+  .site-intro__logo span {
+    display: block;
   }
   .site-intro__tag {
     bottom: max(1.75rem, env(safe-area-inset-bottom));
