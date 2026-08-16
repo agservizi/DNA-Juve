@@ -12,15 +12,22 @@ import {
 import { clearSession, getSession, saveSession, type TelegramDraft, type TelegramSession } from '@/lib/telegram/session'
 import {
   createArticleFromTelegram,
+  findArticleForEdit,
+  getArticleTagsCsv,
   listCategories,
   listPublishedGalleryItems,
   listPublishedVideos,
+  listRecentArticles,
+  updateArticleFromTelegram,
   uploadCoverBytes,
+  type EditableArticle,
 } from '@/lib/telegram/publish'
 
 const HELP = `Comandi BianconeriHub
 
 /nuovo — crea un articolo
+/modifica — modifica un articolo esistente
+/modifica <slug|url> — modifica un articolo preciso
 /annulla — interrompe la bozza
 /help — questo messaggio
 
@@ -33,7 +40,12 @@ Flusso /nuovo:
 6) video dalla videoteca oppure /salta
 7) media da Gallery Live oppure /salta
 8) categoria
-9) Pubblica in evidenza / Pubblica / Bozza`
+9) Pubblica in evidenza / Pubblica / Bozza
+
+Flusso /modifica:
+1) scegli l’articolo
+2) scegli cosa cambiare (titolo, sommario, testo, tag, copertina, categoria)
+3) salva campo per campo`
 
 function chunkButtons<T>(items: T[], size: number) {
   const rows: T[][] = []
@@ -45,6 +57,10 @@ function truncateLabel(value: string, max = 28) {
   const t = value.trim()
   if (t.length <= max) return t
   return `${t.slice(0, max - 1)}…`
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 async function askCategory(db: SupabaseClient, chatId: number) {
@@ -118,6 +134,79 @@ async function askStatus(chatId: number) {
   })
 }
 
+async function askEditMenu(chatId: number, draft: TelegramDraft) {
+  const title = draft.title || 'Articolo'
+  await sendMessage(
+    chatId,
+    `Modifica: <b>${escapeHtml(truncateLabel(title, 60))}</b>\n` +
+      `Stato: <b>${draft.status || '?'}</b>${draft.featured ? ' · evidenza' : ''}\n\n` +
+      'Cosa vuoi cambiare?',
+    {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: 'Titolo', callback_data: 'efield:title' },
+            { text: 'Sommario', callback_data: 'efield:excerpt' },
+          ],
+          [
+            { text: 'Testo', callback_data: 'efield:content' },
+            { text: 'Tag', callback_data: 'efield:tags' },
+          ],
+          [
+            { text: 'Copertina', callback_data: 'efield:cover' },
+            { text: 'Categoria', callback_data: 'efield:category' },
+          ],
+          [
+            { text: 'In evidenza', callback_data: 'efield:featured' },
+            { text: 'Stato', callback_data: 'efield:status' },
+          ],
+          [{ text: 'Fine', callback_data: 'efield:done' }],
+        ],
+      },
+    },
+  )
+}
+
+async function startEditSession(db: SupabaseClient, chatId: number, article: EditableArticle) {
+  const tags = await getArticleTagsCsv(db, article.id)
+  const category = Array.isArray(article.categories) ? article.categories[0] : article.categories
+  const draft: TelegramDraft = {
+    mode: 'edit',
+    article_id: article.id,
+    slug: article.slug,
+    title: article.title,
+    excerpt: article.excerpt || '',
+    tags,
+    cover_image: article.cover_image || undefined,
+    category_id: article.category_id || category?.id,
+    category_name: category?.name,
+    status: article.status === 'draft' ? 'draft' : 'published',
+    featured: !!article.featured,
+  }
+  await saveSession(db, { chat_id: chatId, step: 'edit_menu', draft })
+  await askEditMenu(chatId, draft)
+}
+
+async function askRecentArticles(db: SupabaseClient, chatId: number) {
+  const articles = await listRecentArticles(db, 8)
+  if (!articles.length) {
+    await sendMessage(chatId, 'Nessun articolo da modificare.')
+    return
+  }
+  await saveSession(db, { chat_id: chatId, step: 'edit_pick', draft: { mode: 'edit' } })
+  await sendMessage(chatId, 'Scegli l’articolo da modificare, oppure manda slug/URL:', {
+    reply_markup: {
+      inline_keyboard: articles.map((article) => [
+        {
+          text: truncateLabel(`${article.status === 'draft' ? '📝 ' : ''}${article.title}`, 48),
+          callback_data: `edit:${article.id}`,
+        },
+      ]),
+    },
+  })
+}
+
 async function goToGalleryStep(db: SupabaseClient, session: TelegramSession, draft: TelegramDraft) {
   await saveSession(db, { ...session, step: 'gallery', draft })
   await askGallery(db, session.chat_id)
@@ -161,7 +250,9 @@ async function finalize(
 }
 
 async function handleCommand(db: SupabaseClient, chatId: number, text: string) {
-  const command = text.split(/\s+/)[0].toLowerCase().replace(/@\w+$/, '')
+  const [rawCommand, ...rest] = text.split(/\s+/)
+  const command = rawCommand.toLowerCase().replace(/@\w+$/, '')
+  const arg = rest.join(' ').trim()
 
   if (command === '/start' || command === '/help') {
     await sendMessage(chatId, HELP)
@@ -170,21 +261,136 @@ async function handleCommand(db: SupabaseClient, chatId: number, text: string) {
 
   if (command === '/annulla') {
     await clearSession(db, chatId)
-    await sendMessage(chatId, 'Bozza annullata.')
+    await sendMessage(chatId, 'Operazione annullata.')
     return
   }
 
   if (command === '/nuovo') {
-    const session: TelegramSession = { chat_id: chatId, step: 'title', draft: {} }
+    const session: TelegramSession = { chat_id: chatId, step: 'title', draft: { mode: 'create' } }
     await saveSession(db, session)
     await sendMessage(chatId, 'Nuovo articolo.\n\nMandami il <b>titolo</b>.', { parse_mode: 'HTML' })
+    return
+  }
+
+  if (command === '/modifica') {
+    if (arg) {
+      const article = await findArticleForEdit(db, arg)
+      if (!article) {
+        await sendMessage(chatId, 'Articolo non trovato. Usa /modifica per scegliere dalla lista.')
+        return
+      }
+      await startEditSession(db, chatId, article)
+      return
+    }
+    await askRecentArticles(db, chatId)
     return
   }
 
   await sendMessage(chatId, 'Comando non riconosciuto. Usa /help')
 }
 
+async function returnToEditMenu(db: SupabaseClient, session: TelegramSession, draft: TelegramDraft, notice?: string) {
+  await saveSession(db, { ...session, step: 'edit_menu', draft })
+  if (notice) await sendMessage(session.chat_id, notice, { parse_mode: 'HTML' })
+  await askEditMenu(session.chat_id, draft)
+}
+
+async function handleEditStepText(db: SupabaseClient, session: TelegramSession, text: string) {
+  const chatId = session.chat_id
+  const draft: TelegramDraft = { ...session.draft }
+  const trimmed = text.trim()
+  const lower = trimmed.toLowerCase()
+  const articleId = draft.article_id
+  if (!articleId) {
+    await clearSession(db, chatId)
+    await sendMessage(chatId, 'Sessione modifica non valida. Usa /modifica')
+    return
+  }
+
+  if (session.step === 'edit_pick') {
+    const article = await findArticleForEdit(db, trimmed)
+    if (!article) {
+      await sendMessage(chatId, 'Articolo non trovato. Scegli un pulsante o manda uno slug/URL valido.')
+      return
+    }
+    await startEditSession(db, chatId, article)
+    return
+  }
+
+  if (session.step === 'edit_title') {
+    if (trimmed.length < 3) {
+      await sendMessage(chatId, 'Titolo troppo corto. Riprova.')
+      return
+    }
+    const updated = await updateArticleFromTelegram(db, articleId, { title: trimmed })
+    draft.title = trimmed
+    await returnToEditMenu(db, session, draft, `Titolo aggiornato.\n<a href="${updated.url}">Apri articolo</a>`)
+    return
+  }
+
+  if (session.step === 'edit_excerpt') {
+    if (trimmed.length < 10) {
+      await sendMessage(chatId, 'Sommario troppo corto. Riprova.')
+      return
+    }
+    const updated = await updateArticleFromTelegram(db, articleId, { excerpt: trimmed })
+    draft.excerpt = trimmed
+    await returnToEditMenu(db, session, draft, `Sommario aggiornato.\n<a href="${updated.url}">Apri articolo</a>`)
+    return
+  }
+
+  if (session.step === 'edit_content') {
+    if (lower === '/fine' || lower === 'fine') {
+      const parts = draft.contentParts || []
+      if (!parts.length) {
+        await sendMessage(chatId, 'Scrivi almeno un pezzo di testo, poi /fine. Oppure /annulla')
+        return
+      }
+      const content = parts.join('\n\n').trim()
+      const updated = await updateArticleFromTelegram(db, articleId, { content })
+      draft.contentParts = []
+      await returnToEditMenu(db, session, draft, `Testo aggiornato.\n<a href="${updated.url}">Apri articolo</a>`)
+      return
+    }
+    draft.contentParts = [...(draft.contentParts || []), trimmed]
+    await saveSession(db, { ...session, step: 'edit_content', draft })
+    await sendMessage(chatId, `Ricevuto (${draft.contentParts.length} pezzi). Continua o /fine`)
+    return
+  }
+
+  if (session.step === 'edit_tags') {
+    const tags = lower === '/salta' || lower === 'salta' ? '' : trimmed
+    const updated = await updateArticleFromTelegram(db, articleId, { tags })
+    draft.tags = tags
+    await returnToEditMenu(db, session, draft, `Tag aggiornati.\n<a href="${updated.url}">Apri articolo</a>`)
+    return
+  }
+
+  if (session.step === 'edit_cover') {
+    if (lower === '/salta' || lower === 'salta') {
+      await returnToEditMenu(db, session, draft, 'Copertina lasciata invariata.')
+      return
+    }
+    await sendMessage(chatId, 'In questa fase mandami una foto, oppure /salta')
+    return
+  }
+
+  if (session.step === 'edit_category') {
+    await sendMessage(chatId, 'Usa i pulsanti categoria, oppure /annulla')
+    return
+  }
+
+  if (session.step === 'edit_menu') {
+    await askEditMenu(chatId, draft)
+  }
+}
+
 async function handleStepText(db: SupabaseClient, session: TelegramSession, text: string) {
+  if (session.draft.mode === 'edit' || String(session.step).startsWith('edit_')) {
+    await handleEditStepText(db, session, text)
+    return
+  }
+
   const chatId = session.chat_id
   const draft: TelegramDraft = { ...session.draft }
   const trimmed = text.trim()
@@ -274,8 +480,25 @@ async function handleStepText(db: SupabaseClient, session: TelegramSession, text
 }
 
 async function handlePhoto(db: SupabaseClient, session: TelegramSession, fileId: string, mimeHint?: string) {
+  if (session.step === 'edit_cover') {
+    const articleId = session.draft.article_id
+    if (!articleId) {
+      await sendMessage(session.chat_id, 'Sessione modifica non valida. Usa /modifica')
+      return
+    }
+    const file = await getFile(fileId)
+    if (!file.file_path) throw new Error('file_path Telegram mancante')
+    const { bytes, contentType } = await downloadFile(file.file_path)
+    const type = mimeHint && mimeHint.startsWith('image/') ? mimeHint : contentType.startsWith('image/') ? contentType : 'image/jpeg'
+    const url = await uploadCoverBytes(db, bytes, type, session.draft.title || 'cover')
+    const updated = await updateArticleFromTelegram(db, articleId, { cover_image: url })
+    const draft = { ...session.draft, cover_image: url }
+    await returnToEditMenu(db, session, draft, `Copertina aggiornata.\n<a href="${updated.url}">Apri articolo</a>`)
+    return
+  }
+
   if (session.step !== 'cover') {
-    await sendMessage(session.chat_id, 'Ora non sto aspettando una foto. Usa /nuovo o /help')
+    await sendMessage(session.chat_id, 'Ora non sto aspettando una foto. Usa /nuovo, /modifica o /help')
     return
   }
 
@@ -302,6 +525,142 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
     await answerCallback(cb.id)
     const session = await getSession(db, chatId)
     const data = String(cb.data || '')
+
+    if (data.startsWith('edit:') && (session.step === 'edit_pick' || session.step === 'idle' || session.draft.mode === 'edit')) {
+      const articleId = data.slice(5)
+      const article = await findArticleForEdit(db, articleId)
+      if (!article) {
+        await sendMessage(chatId, 'Articolo non trovato.')
+        return
+      }
+      await startEditSession(db, chatId, article)
+      return
+    }
+
+    if (data.startsWith('efield:') && session.step === 'edit_menu') {
+      const field = data.slice(7)
+      const draft = { ...session.draft }
+      if (!draft.article_id) {
+        await sendMessage(chatId, 'Sessione modifica non valida. Usa /modifica')
+        return
+      }
+
+      if (field === 'done') {
+        await clearSession(db, chatId)
+        const site = (process.env.NEXT_PUBLIC_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
+        const url = draft.slug ? `${site}/articolo/${draft.slug}` : ''
+        await sendMessage(
+          chatId,
+          `Modifica conclusa.\n${url ? `<a href="${url}">Apri articolo</a>` : 'Usa /modifica per un altro articolo.'}`,
+          { parse_mode: 'HTML' },
+        )
+        return
+      }
+
+      if (field === 'title') {
+        await saveSession(db, { ...session, step: 'edit_title', draft })
+        await sendMessage(chatId, `Titolo attuale:\n<b>${escapeHtml(draft.title || '')}</b>\n\nMandami il nuovo titolo.`, {
+          parse_mode: 'HTML',
+        })
+        return
+      }
+
+      if (field === 'excerpt') {
+        await saveSession(db, { ...session, step: 'edit_excerpt', draft })
+        await sendMessage(
+          chatId,
+          `Sommario attuale:\n${escapeHtml(draft.excerpt || '(vuoto)')}\n\nMandami il nuovo sommario.`,
+          { parse_mode: 'HTML' },
+        )
+        return
+      }
+
+      if (field === 'content') {
+        await saveSession(db, { ...session, step: 'edit_content', draft: { ...draft, contentParts: [] } })
+        await sendMessage(
+          chatId,
+          'Mandami il <b>nuovo testo</b> (sostituisce quello attuale).\nPuoi mandare più messaggi, poi /fine',
+          { parse_mode: 'HTML' },
+        )
+        return
+      }
+
+      if (field === 'tags') {
+        await saveSession(db, { ...session, step: 'edit_tags', draft })
+        await sendMessage(
+          chatId,
+          `Tag attuali: <b>${escapeHtml(draft.tags || '(nessuno)')}</b>\n\nMandami i nuovi tag separati da virgola, oppure /salta per svuotare.`,
+          { parse_mode: 'HTML' },
+        )
+        return
+      }
+
+      if (field === 'cover') {
+        await saveSession(db, { ...session, step: 'edit_cover', draft })
+        await sendMessage(chatId, 'Mandami la nuova <b>copertina</b>, oppure /salta per lasciare quella attuale.', {
+          parse_mode: 'HTML',
+        })
+        return
+      }
+
+      if (field === 'category') {
+        await saveSession(db, { ...session, step: 'edit_category', draft })
+        await askCategory(db, chatId)
+        return
+      }
+
+      if (field === 'featured') {
+        const featured = !draft.featured
+        const updated = await updateArticleFromTelegram(db, draft.article_id, { featured })
+        draft.featured = featured
+        await returnToEditMenu(
+          db,
+          session,
+          draft,
+          featured ? `Articolo messo in evidenza.\n<a href="${updated.url}">Apri articolo</a>` : `Evidenza rimossa.\n<a href="${updated.url}">Apri articolo</a>`,
+        )
+        return
+      }
+
+      if (field === 'status') {
+        await sendMessage(chatId, 'Nuovo stato:', {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: 'Pubblica in evidenza', callback_data: 'estatus:published:1' }],
+              [
+                { text: 'Pubblica', callback_data: 'estatus:published:0' },
+                { text: 'Bozza', callback_data: 'estatus:draft:0' },
+              ],
+            ],
+          },
+        })
+        return
+      }
+
+      await sendMessage(chatId, 'Campo non valido.')
+      return
+    }
+
+    if (data.startsWith('estatus:') && session.draft.mode === 'edit' && session.draft.article_id) {
+      const articleId = session.draft.article_id
+      const [, statusRaw, featuredRaw] = data.split(':')
+      const status = statusRaw === 'published' ? 'published' : 'draft'
+      const featured = featuredRaw === '1'
+      const draft = { ...session.draft }
+      const updated = await updateArticleFromTelegram(db, articleId, {
+        status,
+        featured: status === 'published' ? featured : false,
+      })
+      draft.status = status
+      draft.featured = status === 'published' ? featured : false
+      await returnToEditMenu(
+        db,
+        session,
+        draft,
+        `Stato aggiornato a <b>${status === 'draft' ? 'bozza' : featured ? 'pubblicato in evidenza' : 'pubblicato'}</b>.\n<a href="${updated.url}">Apri articolo</a>`,
+      )
+      return
+    }
 
     if (data.startsWith('video:') && session.step === 'video') {
       const videoId = data.slice(6)
@@ -343,7 +702,7 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
       return
     }
 
-    if (data.startsWith('cat:') && session.step === 'category') {
+    if (data.startsWith('cat:') && (session.step === 'category' || session.step === 'edit_category')) {
       const categoryId = data.slice(4)
       const categories = await listCategories(db)
       const category = categories.find((c) => c.id === categoryId)
@@ -352,6 +711,20 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
         await askCategory(db, chatId)
         return
       }
+
+      if (session.step === 'edit_category' && session.draft.article_id) {
+        const articleId = session.draft.article_id
+        const draft = { ...session.draft, category_id: category.id, category_name: category.name }
+        const updated = await updateArticleFromTelegram(db, articleId, { category_id: category.id })
+        await returnToEditMenu(
+          db,
+          session,
+          draft,
+          `Categoria: <b>${escapeHtml(category.name)}</b>\n<a href="${updated.url}">Apri articolo</a>`,
+        )
+        return
+      }
+
       const draft = { ...session.draft, category_id: category.id, category_name: category.name }
       await saveSession(db, { ...session, step: 'status', draft })
       await sendMessage(chatId, `Categoria: <b>${category.name}</b>`, { parse_mode: 'HTML' })
@@ -367,7 +740,7 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
       return
     }
 
-    await sendMessage(chatId, 'Azione non valida in questo momento. Usa /nuovo')
+    await sendMessage(chatId, 'Azione non valida in questo momento. Usa /nuovo o /modifica')
     return
   }
 
@@ -381,7 +754,6 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
 
   const text = (message.text || '').trim()
   if (text.startsWith('/')) {
-    // Allow /fine and /salta during flow
     if (text.toLowerCase().startsWith('/fine') || text.toLowerCase().startsWith('/salta')) {
       const session = await getSession(db, chatId)
       if (session.step !== 'idle') {
@@ -395,7 +767,7 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
 
   const session = await getSession(db, chatId)
   if (session.step === 'idle') {
-    await sendMessage(chatId, 'Usa /nuovo per creare un articolo, oppure /help')
+    await sendMessage(chatId, 'Usa /nuovo o /modifica, oppure /help')
     return
   }
 

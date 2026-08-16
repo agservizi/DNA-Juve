@@ -19,8 +19,19 @@ export type TelegramStep =
   | 'gallery'
   | 'category'
   | 'status'
+  | 'edit_pick'
+  | 'edit_menu'
+  | 'edit_title'
+  | 'edit_excerpt'
+  | 'edit_content'
+  | 'edit_tags'
+  | 'edit_cover'
+  | 'edit_category'
 
 export type TelegramDraft = {
+  mode?: 'create' | 'edit'
+  article_id?: string
+  slug?: string
   title?: string
   excerpt?: string
   contentParts?: string[]
@@ -30,6 +41,8 @@ export type TelegramDraft = {
   gallery_item_id?: string
   category_id?: string
   category_name?: string
+  status?: 'draft' | 'published'
+  featured?: boolean
 }
 
 export type TelegramSession = {

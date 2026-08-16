@@ -268,3 +268,185 @@ export async function createArticleFromTelegram(
     adminUrl: `${siteUrl}/admin/articoli/${data.id}/modifica`,
   }
 }
+
+export type EditableArticle = {
+  id: string
+  title: string
+  slug: string
+  excerpt: string | null
+  content: string | null
+  cover_image: string | null
+  category_id: string | null
+  status: string
+  featured: boolean | null
+  categories: { id: string; name: string; slug: string } | null
+}
+
+function stripHtmlToPlain(html: string) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+function parseArticleRef(raw: string) {
+  const value = String(raw || '').trim()
+  if (!value) return ''
+  try {
+    const url = new URL(value)
+    const parts = url.pathname.split('/').filter(Boolean)
+    const idx = parts.findIndex((p) => p === 'articolo')
+    if (idx >= 0 && parts[idx + 1]) return parts[idx + 1]
+  } catch {
+    /* not a URL */
+  }
+  return value.replace(/^\/+/, '').replace(/^articolo\//, '')
+}
+
+export async function listRecentArticles(db: SupabaseClient, limit = 8) {
+  const { data, error } = await db
+    .from('articles')
+    .select('id,title,slug,status,published_at,updated_at')
+    .in('status', ['published', 'draft'])
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
+}
+
+export async function findArticleForEdit(db: SupabaseClient, ref: string): Promise<EditableArticle | null> {
+  const key = parseArticleRef(ref)
+  if (!key) return null
+
+  const select =
+    'id,title,slug,excerpt,content,cover_image,category_id,status,featured,categories(id,name,slug)'
+
+  const byId = await db.from('articles').select(select).eq('id', key).maybeSingle()
+  if (!byId.error && byId.data) return byId.data as unknown as EditableArticle
+
+  const bySlug = await db.from('articles').select(select).eq('slug', key).maybeSingle()
+  if (bySlug.error) throw bySlug.error
+  return (bySlug.data as unknown as EditableArticle) || null
+}
+
+export async function getArticleTagsCsv(db: SupabaseClient, articleId: string) {
+  const { data, error } = await db.from('article_tags').select('tags(name)').eq('article_id', articleId)
+  if (error) throw error
+  return (data || [])
+    .map((row: any) => row.tags?.name)
+    .filter(Boolean)
+    .join(', ')
+}
+
+async function revalidateArticlePaths(db: SupabaseClient, slug: string, categoryId?: string | null) {
+  revalidatePath('/')
+  revalidatePath('/calciomercato')
+  revalidatePath(`/articolo/${slug}`)
+  if (categoryId) {
+    const { data: category } = await db.from('categories').select('slug').eq('id', categoryId).maybeSingle()
+    if (category?.slug) revalidatePath(`/categoria/${category.slug}`)
+  }
+}
+
+export async function updateArticleFromTelegram(
+  db: SupabaseClient,
+  articleId: string,
+  patch: {
+    title?: string
+    excerpt?: string
+    content?: string
+    tags?: string
+    cover_image?: string | null
+    category_id?: string | null
+    status?: 'draft' | 'published'
+    featured?: boolean
+  },
+) {
+  const current = await findArticleForEdit(db, articleId)
+  if (!current) throw new Error('Articolo non trovato')
+
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    internal_notes: 'Aggiornato da Telegram bot',
+  }
+
+  if (patch.title !== undefined) {
+    const title = patch.title.trim()
+    if (title.length < 3) throw new Error('Titolo troppo corto')
+    payload.title = title
+    payload.meta_title = title.slice(0, 70)
+  }
+
+  if (patch.excerpt !== undefined) {
+    const excerpt = patch.excerpt.trim()
+    if (excerpt.length < 10) throw new Error('Sommario troppo corto')
+    payload.excerpt = excerpt
+    payload.meta_description = excerpt.slice(0, 160)
+  }
+
+  if (patch.content !== undefined) {
+    const content = plainTextToHtml(patch.content)
+    const plain = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (plain.length < 40) throw new Error('Testo troppo corto')
+    payload.content = content
+  }
+
+  if (patch.cover_image !== undefined) {
+    payload.cover_image = patch.cover_image
+    payload.og_image = patch.cover_image
+  }
+
+  if (patch.category_id !== undefined) {
+    payload.category_id = patch.category_id
+  }
+
+  if (patch.status !== undefined) {
+    payload.status = patch.status
+    if (patch.status === 'published') {
+      const { data: row } = await db.from('articles').select('published_at').eq('id', articleId).maybeSingle()
+      if (!row?.published_at) payload.published_at = new Date().toISOString()
+    }
+  }
+
+  if (patch.featured !== undefined) {
+    payload.featured = patch.featured
+  }
+
+  const nextStatus = (payload.status as string) || current.status
+  if (nextStatus === 'published') {
+    const excerpt = String(payload.excerpt ?? current.excerpt ?? '')
+    const contentHtml = String(payload.content ?? current.content ?? '')
+    const plain = contentHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    const categoryId = (payload.category_id as string | null | undefined) ?? current.category_id
+    if (!categoryId) throw new Error('Categoria obbligatoria per un articolo pubblicato')
+    if (excerpt.trim().length < 20) throw new Error('Sommario troppo corto per un articolo pubblicato')
+    if (plain.length < 80) throw new Error('Testo troppo corto per un articolo pubblicato')
+  }
+
+  const { data, error } = await db.from('articles').update(payload).eq('id', articleId).select('id,slug,status').single()
+  if (error) throw error
+
+  if (patch.tags !== undefined) {
+    await upsertTags(db, articleId, patch.tags)
+  }
+
+  await revalidateArticlePaths(db, data.slug, (payload.category_id as string | null | undefined) ?? current.category_id)
+
+  return {
+    id: data.id as string,
+    slug: data.slug as string,
+    status: data.status as string,
+    url: `${siteUrl}/articolo/${data.slug}`,
+    adminUrl: `${siteUrl}/admin/articoli/${data.id}/modifica`,
+    plainPreview: patch.content !== undefined ? stripHtmlToPlain(String(payload.content)) : undefined,
+  }
+}
