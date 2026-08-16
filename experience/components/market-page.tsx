@@ -10,7 +10,7 @@ type Article = {
   title: string
   excerpt?: string | null
   published_at: string
-  categories?: { name?: string; slug?: string } | null
+  categories?: { name?: string; slug?: string } | { name?: string; slug?: string }[] | null
 }
 
 function marketDeadline(now: Date) {

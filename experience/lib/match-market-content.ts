@@ -46,4 +46,21 @@ export async function getTeamMatches():Promise<Match[]> {
 function client() { const u=process.env.NEXT_PUBLIC_SUPABASE_URL; const k=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; return u&&k ? createClient(u,k) : null }
 export async function getRumors(): Promise<TransferRumor[]> { const c=client(); if(!c)return []; const {data}=await c.from('transfer_rumors').select('*').eq('is_active',true).order('updated_at',{ascending:false}); return (data||[]) as TransferRumor[] }
 export async function getUpdates(id:string): Promise<TransferUpdate[]> { const c=client(); if(!c)return []; const {data}=await c.from('transfer_updates').select('*').eq('rumor_id',id).order('created_at',{ascending:true}); return (data||[]) as TransferUpdate[] }
-export async function getMarketArticles() { const c=client(); if(!c)return []; const {data}=await c.from('articles').select('id,title,slug,excerpt,cover_image,published_at,categories(name,slug)').eq('status','published').order('published_at',{ascending:false}).limit(40); return (data||[]).filter((a:any)=>/mercato|trasfer|rinnov|cessio|acquist/i.test(`${a.title} ${a.excerpt||''} ${a.categories?.name||''}`)) }
+export async function getMarketArticles() {
+  const c = client()
+  if (!c) return []
+  const { data } = await c
+    .from('articles')
+    .select('id,title,slug,excerpt,cover_image,published_at,categories(name,slug)')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(40)
+  return (data || [])
+    .map((a: any) => {
+      const categories = Array.isArray(a.categories) ? a.categories[0] || null : a.categories
+      return { ...a, categories }
+    })
+    .filter((a: any) =>
+      /mercato|trasfer|rinnov|cessio|acquist/i.test(`${a.title} ${a.excerpt || ''} ${a.categories?.name || ''}`),
+    )
+}
