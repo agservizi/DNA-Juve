@@ -2,6 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { slugify } from '@/lib/slugify'
+import { looksLikeSectionTitle } from '@/lib/article-headings'
 import { galleryItemToArticleHtml, videoToArticleHtml } from '@/lib/article-video-embed'
 import { announcePublishedArticle } from '@/lib/telegram/channel'
 
@@ -10,20 +11,6 @@ const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://bianconerihub.com'
 
 function escapeHtml(value: string) {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-/** Short title-like lines from Telegram → h2 (admin-style section heads). */
-function looksLikeHeading(line: string, next?: string, prev?: string) {
-  const t = line.trim()
-  if (t.length < 24 || t.length > 100) return false
-  if (/[.!?…]$/.test(t)) return false
-  if (/^(https?:|www\.)/i.test(t)) return false
-  if (/^[-*•\d]+[.)]\s/.test(t)) return false
-  const words = t.split(/\s+/).filter(Boolean).length
-  if (words < 4 || words > 14) return false
-  if (!next || next.length < 60) return false
-  if (prev && prev.length < 40) return false
-  return true
 }
 
 /**
@@ -61,8 +48,8 @@ export function plainTextToHtml(text: string) {
       continue
     }
     const next = parts.slice(i + 1).find((p) => p !== '')
-    const prev = [...parts.slice(0, i)].reverse().find((p) => p !== '')
-    if (looksLikeHeading(line, next, prev)) out.push(`<h2>${escapeHtml(line)}</h2>`)
+    const asHeading = !!next && next.length >= 28 && looksLikeSectionTitle(line)
+    if (asHeading) out.push(`<h2>${escapeHtml(line)}</h2>`)
     else out.push(`<p>${escapeHtml(line)}</p>`)
   }
   return out.join('\n')

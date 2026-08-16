@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import sanitizeHtml from 'sanitize-html'
 import { ArticleExperience } from '@/components/article-experience'
+import { promoteLikelyParagraphHeadings } from '@/lib/article-headings'
 import { getArticleBySlug, getArticleSidebar } from '@/lib/content'
 import { getRumors, getTeamMatches } from '@/lib/match-market-content'
 import { authorSlug } from '@/lib/editorial-content'
@@ -70,7 +71,7 @@ export default async function ArticlePage({ params }: Props) {
   }).replace(/\s(?:style|face)=("|')[\s\S]*?\1/gi, '')
     .replace(/<\/?pre\b[^>]*>/gi, '')
     .replace(/\sclass="(?:PDq2pG_[^"]*|Apple-style-span)"/gi, '')
-  const consentSafeContent = sanitizedContent.replace(/<iframe\b([^>]*)src=(['"])(.*?)\2([^>]*)><\/iframe>/gi, (_match, before, _quote, src, after) => {
+  const consentSafeContent = promoteLikelyParagraphHeadings(sanitizedContent).replace(/<iframe\b([^>]*)src=(['"])(.*?)\2([^>]*)><\/iframe>/gi, (_match, before, _quote, src, after) => {
     const title = `${before} ${after}`.match(/title=(['"])(.*?)\1/i)?.[2] || 'Video articolo'
     return `<div class="article-video-consent" data-external-video data-src="${sanitizeHtml(src,{allowedTags:[],allowedAttributes:{}})}" data-title="${sanitizeHtml(title,{allowedTags:[],allowedAttributes:{}})}"></div>`
   })
