@@ -42,8 +42,7 @@
     "lottie-react": "^2.4.1",
     "lucide-react": "^1.28.0",
     "motion": "^12.23.24",
-    "next": "^16.2.12",
-    "next-view-transitions": "^0.3.4",
+    "next": "^16.3.1",
     "postprocessing": "^6.37.8",
     "radix-ui": "^1.6.7",
     "react": "^19.1.0",
@@ -64,7 +63,7 @@
     "@types/sanitize-html": "^2.16.1",
     "@types/three": "^0.180.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.12",
+    "eslint-config-next": "^16.3.1",
     "typescript": "^5.9.3"
   },
   "overrides": {

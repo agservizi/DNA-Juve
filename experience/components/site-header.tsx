@@ -1,13 +1,12 @@
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
-const telegramUrl = process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || ''
-
 const primary = [
+  { href: '/', label: 'Home' },
   { href: '/notizie-live', label: 'Notizie live' },
   { href: '/calciomercato', label: 'Calciomercato' },
   { href: '/calendario', label: 'Calendario' },
@@ -24,6 +23,7 @@ const allSections = [
 ]
 
 function isActive(pathname: string, href: string) {
+  if (href === '/') return pathname === '/'
   if (href === '/community/forum') return pathname.startsWith('/community')
   if (href === '/calendario') return pathname.startsWith('/calendario')
   return pathname === href || pathname.startsWith(`${href}/`)
@@ -116,11 +116,6 @@ export function SiteHeader() {
       </Link>
       <nav aria-label="Sezioni">
         {primary.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>{item.label}</Link>)}
-        {telegramUrl ? (
-          <a className="nav-telegram" href={telegramUrl} target="_blank" rel="noopener noreferrer" aria-label="Canale Telegram BianconeriHub">
-            Telegram
-          </a>
-        ) : null}
       </nav>
       <button ref={menuButton} className={`menu-button${open ? ' is-active' : ''}`} type="button" aria-label={open ? 'Chiudi menu' : 'Apri menu'} aria-expanded={open} aria-controls="global-menu" onClick={toggleMenu}>
         <span /><span />
@@ -134,18 +129,12 @@ export function SiteHeader() {
           {allSections.map((item, index) => <motion.div key={item.href} initial={{ y: 48, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} transition={{ delay: .05 + index * .045, duration: .65, ease: [.16, 1, .3, 1] }}>
             <span>0{index + 1}</span>
             <Link ref={index === 0 ? firstMenuLink : undefined} href={item.href} onClick={() => setOpen(false)} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>{item.label}</Link>
-            <i aria-hidden="true">↗︎</i>
+            <i aria-hidden="true">â†—ï¸Ž</i>
           </motion.div>)}
         </nav>
         <div className="global-menu-foot">
           <span>BIANCONERIHUB MAGAZINE</span>
-          {telegramUrl ? (
-            <a href={telegramUrl} target="_blank" rel="noopener noreferrer">
-              Canale Telegram
-            </a>
-          ) : (
-            <span>FINO ALLA FINE</span>
-          )}
+          <span>FINO ALLA FINE</span>
         </div>
       </motion.div>}
     </AnimatePresence>

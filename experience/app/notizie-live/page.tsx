@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import { EditorialPremiumShell } from '@/components/editorial-premium-shell'
 import { getLiveNews, liveNewsHref, type LiveNews } from '@/lib/live-news'
 import s from '@/components/editorial-premium.module.css'
@@ -63,7 +63,7 @@ export default async function Page() {
                 </div>
                 <Link className={s.sourceCta} href={liveNewsHref(item)}>
                   <span>Leggi</span>
-                  <i aria-hidden="true">→</i>
+                  <i aria-hidden="true">â†’</i>
                 </Link>
               </article>
             ))}

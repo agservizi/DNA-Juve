@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { ViewTransitions } from 'next-view-transitions'
 import { ExperienceProviders } from '@/components/experience-providers'
 import { SiteChrome } from '@/components/site-chrome'
 import { CookieConsent } from '@/components/cookie-consent'
@@ -78,19 +77,17 @@ const organizationJsonLd = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ViewTransitions>
-      <html lang="it" className={cn('font-sans', display.variable, sans.variable)}>
-        <body>
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-          />
-          <SiteChrome position="before" />
-          <ExperienceProviders>{children}</ExperienceProviders>
-          <SiteChrome position="after" />
-          <CookieConsent />
-        </body>
-      </html>
-    </ViewTransitions>
+    <html lang="it" className={cn('font-sans', display.variable, sans.variable)}>
+      <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <SiteChrome position="before" />
+        <ExperienceProviders>{children}</ExperienceProviders>
+        <SiteChrome position="after" />
+        <CookieConsent />
+      </body>
+    </html>
   )
 }

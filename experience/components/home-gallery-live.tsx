@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { motion, useReducedMotion } from 'motion/react'
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import { useEffect, useRef } from 'react'
 import type { HomeGalleryItem } from '@/lib/content'
 
@@ -62,13 +62,13 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
           </h2>
           <p>
             {hasItems
-              ? 'Dieci frame dallo stadio e dalla curva. L’archivio completo è nella gallery.'
-              : 'Lo spazio è pronto: appena pubblichi foto o video dalla control room, appariranno qui.'}
+              ? 'Dieci frame dallo stadio e dalla curva. Lâ€™archivio completo Ã¨ nella gallery.'
+              : 'Lo spazio Ã¨ pronto: appena pubblichi foto o video dalla control room, appariranno qui.'}
           </p>
         </div>
         <Link className="kinetic-cta" href="/gallery">
           <span>{hasItems ? 'Vedi tutta la gallery' : 'Apri la gallery'}</span>
-          <i aria-hidden="true">↗︎</i>
+          <i aria-hidden="true">â†—ï¸Ž</i>
         </Link>
       </div>
 
@@ -93,13 +93,13 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
                     )}
                     {item.media_type === 'video' && (
                       <span className="home-gallery__play" aria-hidden="true">
-                        ▶
+                        â–¶
                       </span>
                     )}
                   </div>
                   <div className="home-gallery__copy">
                     <span>
-                      {item.location || 'Bordocampo'} · {new Date(item.captured_at).toLocaleDateString('it-IT')}
+                      {item.location || 'Bordocampo'} Â· {new Date(item.captured_at).toLocaleDateString('it-IT')}
                     </span>
                     <strong>{item.title}</strong>
                   </div>
@@ -109,7 +109,7 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
           </div>
           <div className="home-gallery__foot">
             <Link className="text-link" href="/gallery">
-              Apri l’archivio completo <i aria-hidden="true">↗︎</i>
+              Apri lâ€™archivio completo <i aria-hidden="true">â†—ï¸Ž</i>
             </Link>
           </div>
         </>
@@ -124,7 +124,7 @@ export function HomeGalleryLive({ items }: { items: HomeGalleryItem[] }) {
             <p className="eyebrow">Archivio in attesa</p>
             <h3>Nessun media pubblicato ancora.</h3>
             <Link className="text-link" href="/gallery">
-              Vai alla Gallery <i aria-hidden="true">↗︎</i>
+              Vai alla Gallery <i aria-hidden="true">â†—ï¸Ž</i>
             </Link>
           </div>
         </div>

@@ -133,14 +133,16 @@ h1,h2 { margin:0; font-family:var(--font-display),Didot,"Times New Roman",serif;
 .eyebrow { margin:0 0 1.4rem; color:var(--juve-accent); font-family:var(--font-sans),sans-serif; font-size:.68rem; font-weight:700; letter-spacing:.22em; text-transform:uppercase; }
 
 .brand{view-transition-name:site-brand}
-::view-transition-group(site-brand){animation-duration:.42s;animation-timing-function:var(--motion-premium)}
-::view-transition-group(*){animation-duration:.55s;animation-timing-function:var(--motion-premium)}
-::view-transition-old(root){animation:magazine-old .52s var(--motion-premium) both}
-::view-transition-new(root){animation:magazine-new .62s var(--motion-premium) both}
-@keyframes magazine-old{to{clip-path:inset(0 0 0 100%);opacity:.85}}
-@keyframes magazine-new{from{clip-path:inset(0 100% 0 0);opacity:.9}}
-@keyframes immersive-old{to{opacity:.15;filter:blur(5px);transform:scale(.992)}}
-@keyframes immersive-new{from{opacity:.2;filter:blur(6px);transform:scale(1.008)}}
+::view-transition{pointer-events:none}
+::view-transition-group(site-brand){animation:none;z-index:100}
+::view-transition-old(site-brand){display:none}
+::view-transition-new(site-brand){animation:none}
+::view-transition-old(.route-fade){animation:160ms ease-out both route-fade-out}
+::view-transition-new(.route-fade){animation:200ms ease-out both route-fade-in}
+@keyframes route-fade-out{to{opacity:0}}
+@keyframes route-fade-in{from{opacity:0}}
+@keyframes immersive-old{to{opacity:0}}
+@keyframes immersive-new{from{opacity:0}}
 .global-motion-active{position:relative;isolation:isolate}
 .global-motion-active::before{position:fixed;z-index:-1;inset:0;pointer-events:none;opacity:.22;background:radial-gradient(circle at 78% 18%,rgba(175,143,92,.22),transparent 28%),repeating-linear-gradient(90deg,transparent 0 calc(12.5% - 1px),rgba(175,143,92,.09) calc(12.5% - 1px) 12.5%);content:""}
 .global-motion-active h1{filter:drop-shadow(0 24px 60px rgba(0,0,0,.2));will-change:clip-path,transform}
@@ -156,7 +158,7 @@ h1,h2 { margin:0; font-family:var(--font-display),Didot,"Times New Roman",serif;
 @media(max-width:899px),(pointer:coarse){.ambient-webgl{display:none}}
 @media(prefers-reduced-motion:reduce){.ambient-webgl,.immersive-progress,.immersive-pointer,.route-curtain,.immersive-background,.cinematic-director{display:none}}
 @media(prefers-reduced-motion:reduce){
-  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation-duration:0s!important;animation-delay:0s!important}
 }
 
 /* Dynamic global navigation: shared by every public route. */

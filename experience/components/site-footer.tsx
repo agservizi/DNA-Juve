@@ -1,6 +1,6 @@
 'use client'
 
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import { CookiePreferencesButton } from '@/components/cookie-consent'
 
 const telegramUrl = process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL || ''
@@ -40,7 +40,7 @@ export function SiteFooter() {
           <CookiePreferencesButton />
         </div>
         <div className="footer-bottom">
-          <small>© {new Date().getFullYear()} BianconeriHub. Blog indipendente non affiliato con Juventus F.C.</small>
+          <small>Â© {new Date().getFullYear()} BianconeriHub. Blog indipendente non affiliato con Juventus F.C.</small>
           {telegramUrl ? (
             <a
               className="footer-telegram"

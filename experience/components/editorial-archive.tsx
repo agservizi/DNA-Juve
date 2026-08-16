@@ -1,9 +1,9 @@
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import type { EditorialArticle, AuthorProfile } from '@/lib/editorial-content'
 import s from './editorial-archive.module.css'
 
 const date=(v:string)=>new Intl.DateTimeFormat('it-IT',{day:'numeric',month:'long',year:'numeric'}).format(new Date(v))
-function Meta({a}:{a:EditorialArticle}){return <p className={s.meta}>{a.categories?.name||'Magazine'} · {date(a.published_at)}{a.profiles?.username?` · ${a.profiles.username}`:''}</p>}
+function Meta({a}:{a:EditorialArticle}){return <p className={s.meta}>{a.categories?.name||'Magazine'} Â· {date(a.published_at)}{a.profiles?.username?` Â· ${a.profiles.username}`:''}</p>}
 export function EditorialArchive({kind,title,articles,author,toolbar}:{kind:string;title:string;articles:EditorialArticle[];author?:AuthorProfile|null;toolbar?:React.ReactNode}){
  const [lead,...rest]=articles
  return <main id="contenuto" className={s.page}>

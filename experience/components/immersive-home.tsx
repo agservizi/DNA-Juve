@@ -1,6 +1,6 @@
 'use client'
 
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import type { Article, HomeCategory, HomeGalleryItem, HomeVideo } from '@/lib/content'
@@ -15,8 +15,8 @@ function formatDate(value: string) {
 function ArticleMeta({ article }: { article: Article }) {
   return (
     <p className="article-meta">
-      {article.categories?.name || 'Magazine'} · {formatDate(article.published_at)}
-      {article.profiles?.username ? ` · ${article.profiles.username}` : ''}
+      {article.categories?.name || 'Magazine'} Â· {formatDate(article.published_at)}
+      {article.profiles?.username ? ` Â· ${article.profiles.username}` : ''}
     </p>
   )
 }
@@ -77,12 +77,12 @@ function HomeCinema({ videos }: { videos: HomeVideo[] }) {
         </div>
         <div className="cinema-copy">
           <span>
-            {video.category || 'Video'} · {(video.views || 0).toLocaleString('it-IT')} visualizzazioni
+            {video.category || 'Video'} Â· {(video.views || 0).toLocaleString('it-IT')} visualizzazioni
           </span>
           <h3>{video.title}</h3>
           {video.description && <p>{video.description}</p>}
           <Link href={`/video?v=${video.id}`}>
-            Apri la videoteca <i aria-hidden="true">↗︎</i>
+            Apri la videoteca <i aria-hidden="true">â†—ï¸Ž</i>
           </Link>
         </div>
       </div>
@@ -91,7 +91,7 @@ function HomeCinema({ videos }: { videos: HomeVideo[] }) {
           <button data-active={item.id === video.id} onClick={() => setActive(item.id)} key={item.id} aria-label={`Riproduci ${item.title}`}>
             <span>
               {videoThumb(item) && <img src={videoThumb(item)!} alt="" />}
-              <i aria-hidden="true">▶︎</i>
+              <i aria-hidden="true">â–¶ï¸Ž</i>
             </span>
             <b>{String(index + 1).padStart(2, '0')}</b>
             <strong>{item.title}</strong>
@@ -268,8 +268,8 @@ export function ImmersiveHome({
                 <ArticleMeta article={lead} />
               </div>
               <Link className="kinetic-cta" href={`/articolo/${lead.slug}`}>
-                <span>Leggi l’articolo</span>
-                <i aria-hidden="true">↗︎</i>
+                <span>Leggi lâ€™articolo</span>
+                <i aria-hidden="true">â†—ï¸Ž</i>
               </Link>
             </div>
           </div>
@@ -324,11 +324,11 @@ export function ImmersiveHome({
           <div className="ranking-intro">
             <p className="eyebrow">Scelti dai lettori</p>
             <h2 id="ranking-title">
-              Più letti.
+              PiÃ¹ letti.
               <br />
               <i>Adesso.</i>
             </h2>
-            <p>Le storie che stanno attirando più attenzione nella community BianconeriHub.</p>
+            <p>Le storie che stanno attirando piÃ¹ attenzione nella community BianconeriHub.</p>
           </div>
           <div className="ranking-list">
             {mostViewed.map((article, index) => (
@@ -336,11 +336,11 @@ export function ImmersiveHome({
                 <b>{String(index + 1).padStart(2, '0')}</b>
                 <span>
                   <small>
-                    {article.categories?.name || 'Magazine'} · {(article.views || 0).toLocaleString('it-IT')} letture
+                    {article.categories?.name || 'Magazine'} Â· {(article.views || 0).toLocaleString('it-IT')} letture
                   </small>
                   <strong>{article.title}</strong>
                 </span>
-                <i aria-hidden="true">↗︎</i>
+                <i aria-hidden="true">â†—ï¸Ž</i>
               </Link>
             ))}
           </div>
@@ -364,7 +364,7 @@ export function ImmersiveHome({
                   <h3>{article.title}</h3>
                   {article.excerpt && <p>{article.excerpt}</p>}
                   <span className="text-link">
-                    Leggi <i aria-hidden="true">↗︎</i>
+                    Leggi <i aria-hidden="true">â†—ï¸Ž</i>
                   </span>
                 </Link>
               </article>
@@ -385,7 +385,7 @@ export function ImmersiveHome({
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <h3>{category.name}</h3>
                 <p>{category.description || `Tutti gli articoli e gli approfondimenti dedicati a ${category.name}.`}</p>
-                <i aria-hidden="true">↗︎</i>
+                <i aria-hidden="true">â†—ï¸Ž</i>
               </Link>
             ))}
           </div>
@@ -407,7 +407,7 @@ export function ImmersiveHome({
             <span>{String(index + 1).padStart(2, '0')}</span>
             <h3>{title}</h3>
             <p>{copy}</p>
-            <i aria-hidden="true">↗︎</i>
+            <i aria-hidden="true">â†—ï¸Ž</i>
           </Link>
         ))}
       </section>

@@ -1,10 +1,10 @@
 'use client'
 
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useScroll, useSpring } from 'motion/react'
+import { motion, useMotionValue, useReducedMotion, useScroll, useSpring } from 'motion/react'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-/** Progress + route wipe (house motion). Pointer glow only on fine desktop pointers. */
+/** Scroll progress + home pointer glow. Route changes use a light CSS crossfade only. */
 export function ImmersiveOrchestrator() {
   const pathname = usePathname()
   const reduced = useReducedMotion()
@@ -43,16 +43,6 @@ export function ImmersiveOrchestrator() {
       <div className="immersive-orchestrator" aria-hidden="true">
         {!reduced && <motion.div className="immersive-progress" style={{ scaleX: progress }} />}
         {!reduced && finePointer && pathname === '/' && <motion.div className="immersive-pointer" style={{ x, y }} />}
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.div
-            key={pathname}
-            className="route-curtain"
-            initial={reduced ? false : { clipPath: 'inset(0 0% 0 0)' }}
-            animate={{ clipPath: 'inset(0 100% 0 0)' }}
-            exit={{ clipPath: 'inset(0 0% 0 0)' }}
-            transition={{ duration: 0.78, ease: [0.76, 0, 0.24, 1] }}
-          />
-        </AnimatePresence>
       </div>
     </>
   )

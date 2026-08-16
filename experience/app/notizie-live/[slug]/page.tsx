@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { Link } from 'next-view-transitions'
+import Link from 'next/link'
 import { EditorialPremiumShell } from '@/components/editorial-premium-shell'
 import { getLiveNewsBySlug, liveNewsParagraphs } from '@/lib/live-news'
 import s from '@/components/editorial-premium.module.css'
