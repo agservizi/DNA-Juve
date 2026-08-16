@@ -25,7 +25,7 @@ Flusso /nuovo:
 4) tag (virgola) oppure /salta
 5) foto copertina oppure /salta
 6) categoria
-7) Bozza o Pubblica`
+7) Pubblica in evidenza / Pubblica / Bozza`
 
 function chunkButtons<T>(items: T[], size: number) {
   const rows: T[][] = []
@@ -54,9 +54,10 @@ async function askStatus(chatId: number) {
   await sendMessage(chatId, 'Stato pubblicazione:', {
     reply_markup: {
       inline_keyboard: [
+        [{ text: 'Pubblica in evidenza', callback_data: 'status:published:1' }],
         [
-          { text: 'Bozza', callback_data: 'status:draft' },
-          { text: 'Pubblica', callback_data: 'status:published' },
+          { text: 'Pubblica', callback_data: 'status:published:0' },
+          { text: 'Bozza', callback_data: 'status:draft:0' },
         ],
       ],
     },
@@ -67,6 +68,7 @@ async function finalize(
   db: SupabaseClient,
   session: TelegramSession,
   status: 'draft' | 'published',
+  featured: boolean,
 ) {
   const draft = session.draft
   const content = (draft.contentParts || []).join('\n\n').trim()
@@ -78,11 +80,14 @@ async function finalize(
     cover_image: draft.cover_image,
     category_id: draft.category_id,
     status,
+    featured: status === 'published' ? featured : false,
   })
   await clearSession(db, session.chat_id)
+  const label =
+    status === 'draft' ? 'bozza' : featured ? 'pubblicato in evidenza' : 'pubblicato'
   await sendMessage(
     session.chat_id,
-    `Articolo salvato come <b>${status === 'published' ? 'pubblicato' : 'bozza'}</b>.\n\n` +
+    `Articolo salvato come <b>${label}</b>.\n\n` +
       `<a href="${article.url}">Apri pubblico</a>\n` +
       `<a href="${article.adminUrl}">Apri in admin</a>`,
     { parse_mode: 'HTML' },
@@ -231,8 +236,10 @@ export async function handleTelegramUpdate(db: SupabaseClient, update: TelegramU
     }
 
     if (data.startsWith('status:') && session.step === 'status') {
-      const status = data.slice(7) === 'published' ? 'published' : 'draft'
-      await finalize(db, session, status)
+      const [, statusRaw, featuredRaw] = data.split(':')
+      const status = statusRaw === 'published' ? 'published' : 'draft'
+      const featured = featuredRaw === '1' || (featuredRaw === undefined && status === 'published')
+      await finalize(db, session, status, featured)
       return
     }
 

@@ -519,6 +519,8 @@ body:has(.article-page) .nav-shell.is-open .menu-button span { background:var(--
 .article-prose img { margin:2.5rem 0; max-width:100%; height:auto; }
 .article-prose iframe,.article-prose video { width:100%; max-width:100%; }
 .article-prose pre,.article-prose code,.article-prose tt,.article-prose kbd,.article-prose samp,.article-prose font { font-family:inherit!important; font-size:inherit; white-space:normal; word-break:normal; overflow-wrap:anywhere; }
+.article-prose p { margin:0 0 1.35em; }
+.article-prose p:last-child { margin-bottom:0; }
 .article-prose p,.article-prose li,.article-prose span { font-family:inherit; white-space:normal; }
 .article-prose .table-scroll { display:block; width:100%; max-width:100%; margin:2.5rem 0; overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .article-prose table { display:table; width:100%; min-width:min(100%,560px); margin:0; border-collapse:collapse; font-family:"Aptos",Arial,sans-serif; font-size:.85rem; line-height:1.45; }
