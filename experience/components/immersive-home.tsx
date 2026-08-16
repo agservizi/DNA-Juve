@@ -4,7 +4,8 @@ import { Link } from 'next-view-transitions'
 import { useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import type { Article, HomeCategory, HomeGalleryItem, HomeVideo } from '@/lib/content'
-import { HOME_CHAPTERS, setCinemaEra } from '@/lib/cinema-spine'
+import { HOME_CHAPTERS } from '@/lib/cinema-spine'
+import { CinematicStoria } from '@/components/cinematic-storia'
 import { HomeGalleryLive } from '@/components/home-gallery-live'
 
 function formatDate(value: string) {
@@ -101,103 +102,6 @@ function HomeCinema({ videos }: { videos: HomeVideo[] }) {
   )
 }
 
-const historyMilestones = [
-  {
-    year: '1897',
-    label: 'La nascita',
-    title: 'Tutto comincia da una panchina.',
-    copy: 'Il 1º novembre un gruppo di studenti del liceo Massimo d’Azeglio fonda a Torino una società sportiva. La chiamano Juventus: in latino, gioventù.',
-    era: 'Corso Re Umberto · Torino',
-    grade: 'archive',
-  },
-  {
-    year: '1903—05',
-    label: 'L’identità',
-    title: 'Il bianconero. Poi il primo titolo.',
-    copy: 'Nel 1903 arrivano da Nottingham le maglie a strisce bianche e nere. Due anni più tardi la Juventus conquista il primo campionato italiano della sua storia.',
-    era: 'Dalla maglia rosa alla leggenda',
-    grade: 'archive',
-  },
-  {
-    year: '1923—35',
-    label: 'La dinastia',
-    title: 'La famiglia Agnelli e il Quinquennio.',
-    copy: 'Edoardo Agnelli diventa presidente nel 1923. Tra il 1930 e il 1935 la squadra domina il calcio italiano conquistando cinque Scudetti consecutivi.',
-    era: 'Cinque volte di seguito',
-    grade: 'classic',
-  },
-  {
-    year: '1977—85',
-    label: 'L’Europa',
-    title: 'La Juventus conquista il continente.',
-    copy: 'La Coppa UEFA del 1977 è il primo trofeo europeo. Seguono la Coppa delle Coppe nel 1984 e la Coppa dei Campioni nel 1985, nella tragica notte dell’Heysel.',
-    era: 'Dalla prima coppa al tetto d’Europa',
-    grade: 'classic',
-  },
-  {
-    year: '1996',
-    label: 'Il mondo',
-    title: 'Roma, Tokyo: la Juve sul tetto del mondo.',
-    copy: 'Il 22 maggio la Juventus supera l’Ajax ai rigori e diventa campione d’Europa. Il 26 novembre batte il River Plate e conquista la Coppa Intercontinentale.',
-    era: 'Del Piero · Vialli · Lippi',
-    grade: 'night',
-  },
-  {
-    year: '2011—17',
-    label: 'La nuova era',
-    title: 'Una nuova casa. Un ciclo irripetibile.',
-    copy: 'Il nuovo stadio inaugura nel 2011. La stagione seguente arriva lo Scudetto senza sconfitte; nel 2017 nasce Juventus Women, subito campione d’Italia.',
-    era: 'Stadium · Rinascita · Women',
-    grade: 'night',
-  },
-] as const
-
-function CinematicPulse() {
-  return (
-    <section className="cinematic-pulse" id="chapter-storia" aria-labelledby="pulse-title" data-cinema-room="storia">
-      <div className="cinematic-pulse__world" aria-hidden="true">
-        <div className="cinematic-pulse__zebra" />
-        <div className="cinematic-pulse__haze" />
-        <div className="cinematic-pulse__plate" data-pulse-plate />
-      </div>
-      <div className="cinematic-pulse__stage">
-        <div className="cinematic-pulse__intro">
-          <p className="eyebrow">Dal 1897, fino a oggi</p>
-          <h2 id="pulse-title">
-            Dentro
-            <br />
-            <i>la storia.</i>
-          </h2>
-          <span>Scorri per attraversare oltre un secolo di Juventus</span>
-        </div>
-        <div className="cinematic-pulse__deck">
-          {historyMilestones.map((item, index) => (
-            <article className="cinematic-pulse__card" key={item.year} data-pulse-card data-era-grade={item.grade} style={{ '--pulse-index': index } as React.CSSProperties}>
-              <div className="cinematic-pulse__depth" aria-hidden="true" />
-              <div className="cinematic-pulse__year" aria-hidden="true">
-                {item.year}
-              </div>
-              <span>
-                {String(index + 1).padStart(2, '0')} / {String(historyMilestones.length).padStart(2, '0')} · {item.label}
-              </span>
-              <small>{item.era}</small>
-              <h3>{item.title}</h3>
-              <p>{item.copy}</p>
-            </article>
-          ))}
-        </div>
-        <div className="cinematic-pulse__meter">
-          <span />
-          <b>JUVENTUS HISTORY · OFFICIAL ARCHIVE</b>
-        </div>
-        <a className="cinematic-pulse__source" href="https://www.juventus.com/it/club/la-storia" target="_blank" rel="noreferrer">
-          Fonte ufficiale Juventus <i aria-hidden="true">↗︎</i>
-        </a>
-      </div>
-    </section>
-  )
-}
-
 export function ImmersiveHome({
   featured,
   latest,
@@ -228,8 +132,6 @@ export function ImmersiveHome({
     if (reduceMotion || !root.current) return
     let context: { revert(): void } | undefined
     let cancelled = false
-    let mobileObserver: IntersectionObserver | undefined
-    const doc = document.documentElement
 
     Promise.all([import('gsap'), import('gsap/ScrollTrigger')]).then(([gsapModule, triggerModule]) => {
       if (cancelled || !root.current) return
@@ -262,65 +164,6 @@ export function ImmersiveHome({
         })
 
         const desktop = matchMedia('(min-width: 901px)').matches
-        const pulseCards = gsap.utils.toArray<HTMLElement>('[data-pulse-card]')
-        const pulsePlate = root.current?.querySelector<HTMLElement>('[data-pulse-plate]')
-
-        if (desktop && pulseCards.length) {
-          gsap.set(pulseCards, { yPercent: 14, rotateX: -5, scale: 0.94, autoAlpha: 0 })
-          gsap.set(pulseCards[0], { yPercent: 0, rotateX: 0, scale: 1, autoAlpha: 1, zIndex: 1 })
-          if (pulsePlate) gsap.set(pulsePlate, { scale: 1.08, filter: 'sepia(.55) contrast(1.05) brightness(.72)' })
-
-          const pulse = gsap.timeline({
-            scrollTrigger: {
-              trigger: '.cinematic-pulse',
-              start: 'top top',
-              end: 'bottom bottom',
-              scrub: 1.1,
-              invalidateOnRefresh: true,
-              onUpdate: (self) => {
-                const era = Math.min(pulseCards.length - 1, Math.floor(self.progress * pulseCards.length))
-                setCinemaEra(doc, era, pulseCards.length)
-              },
-            },
-          })
-
-          pulseCards.forEach((card, index) => {
-            const at = index
-            if (index > 0) {
-              pulse.set(card, { zIndex: index + 1 }, at).to(card, { yPercent: 0, rotateX: 0, scale: 1, autoAlpha: 1, duration: 0.28, ease: 'power3.out' }, at)
-            }
-            if (pulsePlate) {
-              const filters = [
-                'sepia(.55) contrast(1.05) brightness(.72)',
-                'sepia(.35) contrast(1.08) brightness(.78)',
-                'grayscale(.85) contrast(1.12) brightness(.7)',
-                'grayscale(.5) contrast(1.1) brightness(.75)',
-                'saturate(.55) contrast(1.15) brightness(.55)',
-                'saturate(.7) contrast(1.08) brightness(.5)',
-              ]
-              pulse.to(pulsePlate, { scale: 1.02 + index * 0.01, filter: filters[index] || filters[0], duration: 0.9, ease: 'none' }, at)
-            }
-            if (index < pulseCards.length - 1) {
-              pulse.to(card, { yPercent: -5, scale: 0.96, autoAlpha: 0, duration: 0.18, ease: 'power2.in' }, at + 0.82)
-            } else {
-              pulse.to(card, { scale: 1, duration: 0.82, ease: 'none' }, at + 0.28)
-            }
-          })
-          pulse.to('.cinematic-pulse__meter span', { scaleX: 1, duration: pulseCards.length, ease: 'none' }, 0)
-          pulse.to('.cinematic-pulse__haze', { opacity: 0.35, duration: pulseCards.length, ease: 'none' }, 0)
-        } else if (pulseCards.length) {
-          mobileObserver = new IntersectionObserver(
-            (entries) => {
-              entries.forEach((entry) => {
-                if (!entry.isIntersecting) return
-                const index = pulseCards.indexOf(entry.target as HTMLElement)
-                if (index >= 0) setCinemaEra(doc, index, pulseCards.length)
-              })
-            },
-            { rootMargin: '-35% 0px -45%', threshold: 0 },
-          )
-          pulseCards.forEach((card) => mobileObserver?.observe(card))
-        }
 
         if (desktop) {
           const section = root.current?.querySelector<HTMLElement>('.featured-strip')
@@ -401,7 +244,6 @@ export function ImmersiveHome({
 
     return () => {
       cancelled = true
-      mobileObserver?.disconnect()
       context?.revert()
     }
   }, [reduceMotion])
@@ -448,7 +290,7 @@ export function ImmersiveHome({
         </section>
       )}
 
-      <CinematicPulse />
+      <CinematicStoria reduceMotion={!!reduceMotion} />
 
       {secondary.length > 0 && (
         <section className="featured-strip" id="chapter-evidenza" aria-labelledby="evidenza-title" data-cinema-room="evidenza">
