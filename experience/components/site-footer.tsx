@@ -40,7 +40,7 @@ export function SiteFooter() {
           <CookiePreferencesButton />
         </div>
         <div className="footer-bottom">
-          <small>Â© {new Date().getFullYear()} BianconeriHub. Blog indipendente non affiliato con Juventus F.C.</small>
+          <small>© {new Date().getFullYear()} BianconeriHub. Blog indipendente non affiliato con Juventus F.C.</small>
           {telegramUrl ? (
             <a
               className="footer-telegram"

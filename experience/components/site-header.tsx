@@ -129,7 +129,7 @@ export function SiteHeader() {
           {allSections.map((item, index) => <motion.div key={item.href} initial={{ y: 48, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} transition={{ delay: .05 + index * .045, duration: .65, ease: [.16, 1, .3, 1] }}>
             <span>0{index + 1}</span>
             <Link ref={index === 0 ? firstMenuLink : undefined} href={item.href} onClick={() => setOpen(false)} aria-current={isActive(pathname, item.href) ? 'page' : undefined}>{item.label}</Link>
-            <i aria-hidden="true">â†—ï¸Ž</i>
+            <i aria-hidden="true">↗︎</i>
           </motion.div>)}
         </nav>
         <div className="global-menu-foot">

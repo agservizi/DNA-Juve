@@ -63,7 +63,7 @@ export default async function Page() {
                 </div>
                 <Link className={s.sourceCta} href={liveNewsHref(item)}>
                   <span>Leggi</span>
-                  <i aria-hidden="true">â†’</i>
+                  <i aria-hidden="true">→</i>
                 </Link>
               </article>
             ))}
