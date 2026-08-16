@@ -15,7 +15,7 @@ type Article = {
 
 function marketDeadline(now: Date) {
   const year = now.getFullYear()
-  const close = new Date(year, 8, 1, 20) // 1 settembre 20:00
+  const close = new Date(year, 8, 1, 20)
   const open = new Date(year, 0, 2)
   return now < open ? open : now < close ? close : new Date(year + 1, 0, 2)
 }
@@ -52,7 +52,6 @@ function clockTime(value: string) {
   return new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
-/** Bold Juventus / player-ish tokens lightly for scanability in the feed body. */
 function emphasize(text: string) {
   const parts = text.split(/(\b(?:Juventus|Juve|bianconer[ioa]?|Aston Villa|Tottenham|Atalanta|Inter|Milan|Napoli|Roma|Lazio|Bologna|Parma|Fiorentina|Torino)\b)/gi)
   return parts.map((part, i) =>
@@ -91,18 +90,20 @@ export function MarketPage({ articles }: { articles: Article[] }) {
   return (
     <main id="contenuto" ref={root} className={`${s.page} ${s.market}`}>
       <section className={s.hero}>
-        <span data-hero className={s.eyebrow}>Finestra di mercato</span>
-        <h1 data-hero>Calciomercato</h1>
-        <p data-hero>
-          Notizie, rumors e trattative Juventus. Gli stessi contenuti editoriali, dentro la nuova esperienza.
-        </p>
-        <div data-hero className={s.countdown} aria-label="Conto alla rovescia finestra di mercato">
-          {units.map((value, i) => (
-            <span key={labels[i]}>
-              <strong>{String(value).padStart(2, '0')}</strong>
-              <small>{labels[i]}</small>
-            </span>
-          ))}
+        <div className={s.heroInner}>
+          <span data-hero className={s.eyebrow}>Finestra di mercato</span>
+          <h1 data-hero>Calciomercato</h1>
+          <p data-hero>
+            Notizie, rumors e trattative Juventus. Gli stessi contenuti editoriali, dentro la nuova esperienza.
+          </p>
+          <div data-hero className={s.countdown} aria-label="Conto alla rovescia finestra di mercato">
+            {units.map((value, i) => (
+              <span key={labels[i]}>
+                <strong>{String(value).padStart(2, '0')}</strong>
+                <small>{labels[i]}</small>
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -112,9 +113,6 @@ export function MarketPage({ articles }: { articles: Article[] }) {
             <i aria-hidden="true" />
             <span>Live</span>
           </div>
-          <Link className={s.feedTracker} href="/calciomercato/tracker">
-            Tracker trattative <span aria-hidden="true">↗</span>
-          </Link>
         </div>
         <h2 id="market-live" className={s.srOnly}>
           Aggiornamenti calciomercato
