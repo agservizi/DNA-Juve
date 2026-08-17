@@ -2,58 +2,14 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { slugify } from '@/lib/slugify'
-import { looksLikeSectionTitle } from '@/lib/article-headings'
+import { plainTextToHtml } from '@/lib/plain-text-to-html'
 import { galleryItemToArticleHtml, videoToArticleHtml } from '@/lib/article-video-embed'
 import { announcePublishedArticle } from '@/lib/telegram/channel'
 
+export { plainTextToHtml } from '@/lib/plain-text-to-html'
+
 const bucket = 'article-images'
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://bianconerihub.com').replace(/\/+$/, '')
-
-function escapeHtml(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-/**
- * Telegram → HTML close to admin paste:
- * each Enter starts a paragraph; blank lines are ignored as separators;
- * clear section-title lines become h2.
- */
-export function plainTextToHtml(text: string) {
-  const lines = String(text || '')
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => line.trim())
-
-  const parts: string[] = []
-  for (const line of lines) {
-    if (!line) {
-      if (parts.length && parts[parts.length - 1] !== '') parts.push('')
-      continue
-    }
-    parts.push(line)
-  }
-  while (parts[0] === '') parts.shift()
-  while (parts.length && parts[parts.length - 1] === '') parts.pop()
-
-  if (!parts.length) return ''
-
-  const out: string[] = []
-  for (let i = 0; i < parts.length; i++) {
-    if (parts[i] === '') continue
-    const line = parts[i]
-    const explicit = line.match(/^#{1,3}\s+(.+)$/)
-    if (explicit) {
-      const headingTag = line.startsWith('###') ? 'h3' : 'h2'
-      out.push(`<${headingTag}>${escapeHtml(explicit[1].trim())}</${headingTag}>`)
-      continue
-    }
-    const next = parts.slice(i + 1).find((p) => p !== '')
-    const asHeading = !!next && next.length >= 28 && looksLikeSectionTitle(line)
-    if (asHeading) out.push(`<h2>${escapeHtml(line)}</h2>`)
-    else out.push(`<p>${escapeHtml(line)}</p>`)
-  }
-  return out.join('\n')
-}
 
 async function ensureUniqueSlug(db: SupabaseClient, base: string) {
   const normalized = slugify(base) || 'articolo'
@@ -158,6 +114,9 @@ export async function createArticleFromTelegram(
     video_id?: string
     gallery_item_id?: string
     category_id?: string
+    author_id?: string
+    source_url?: string
+    internal_notes?: string
     status: 'draft' | 'published'
     featured?: boolean
   },
@@ -169,7 +128,7 @@ export async function createArticleFromTelegram(
   if (input.video_id) {
     const { data: video, error } = await db
       .from('videos')
-      .select('title,platform,video_id,video_url,thumbnail,is_published')
+      .select('title,platform,video_id,video_url,thumbnail,orientation,is_published')
       .eq('id', input.video_id)
       .maybeSingle()
     if (error) throw error
@@ -206,7 +165,7 @@ export async function createArticleFromTelegram(
     if (plain.length < 80) throw new Error('Testo troppo corto per pubblicare')
   }
 
-  const authorId = await resolveAuthorId(db)
+  const authorId = input.author_id || await resolveAuthorId(db)
   if (!authorId) throw new Error('Nessun autore admin trovato')
 
   const slug = await ensureUniqueSlug(db, title)
@@ -229,8 +188,8 @@ export async function createArticleFromTelegram(
     meta_description: metaDescription,
     canonical_url: `${siteUrl}/articolo/${slug}`,
     og_image: input.cover_image || null,
-    source_url: null,
-    internal_notes: 'Creato da Telegram bot',
+    source_url: input.source_url || null,
+    internal_notes: input.internal_notes || 'Creato da Telegram bot',
     gallery: [],
     related_article_ids: [],
     co_author_ids: [],

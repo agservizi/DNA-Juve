@@ -1,10 +1,10 @@
-import { getWebhookInfo, setWebhook } from '@/lib/telegram/api'
+import { getMyCommands, getWebhookInfo, setMyCommands, setWebhook } from '@/lib/telegram/api'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/telegram/setup?token=CRON_SECRET
- * Registers Telegram webhook to this deployment.
+ * Registers Telegram webhook + bot command menu for this deployment.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -24,7 +24,16 @@ export async function GET(request: Request) {
   }
 
   const webhookUrl = `${site}/api/telegram/webhook`
-  const result = await setWebhook(webhookUrl, process.env.TELEGRAM_WEBHOOK_SECRET)
+  const webhook = await setWebhook(webhookUrl, process.env.TELEGRAM_WEBHOOK_SECRET)
+  const commands = await setMyCommands()
   const info = await getWebhookInfo()
-  return Response.json({ ok: true, webhookUrl, result, info })
+  const registeredCommands = await getMyCommands()
+  return Response.json({
+    ok: true,
+    webhookUrl,
+    webhook,
+    commands,
+    registeredCommands,
+    info,
+  })
 }
