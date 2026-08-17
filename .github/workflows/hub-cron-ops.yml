@@ -1,0 +1,40 @@
+name: Hub cron ops
+
+# Near-realtime kickoffs / reminders / Telegram channel.
+# Vercel Hobby only allows daily crons; this hits /api/cron/ops every 5 minutes.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: hub-cron-ops
+  cancel-in-progress: true
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run hub ops cron
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "CRON_SECRET missing in repo secrets" >&2
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/ops.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "https://bianconerihub.com/api/cron/ops")
+          echo "HTTP ${code}"
+          cat /tmp/ops.json
+          test "${code}" = "200"
+          python3 - <<'PY'
+          import json,sys
+          data=json.load(open('/tmp/ops.json'))
+          assert data.get('ok') is True, data
+          print('ops ok', sorted((data.get('results') or {}).keys()))
+          PY
